@@ -1,0 +1,75 @@
+#!/usr/bin/env python3
+"""Pre-commit hook for the public release repo.
+
+Checks:
+  1. Garbled characters (UTF-8 replacement character)
+  2. Old brand name "Pocket Coder" / "PocketCoder" / "pocket-coders"
+
+Install: git config core.hooksPath .githooks
+"""
+
+import subprocess
+import sys
+
+BINARY_EXTS = {'.png', '.jpg', '.jpeg', '.ico', '.gif', '.bmp', '.webp'}
+REPLACEMENT_CHAR = '\ufffd'
+
+
+def get_staged_files():
+    result = subprocess.run(
+        ['git', 'diff', '--cached', '--name-only', '--diff-filter=ACM'],
+        capture_output=True, text=True,
+    )
+    return [f for f in result.stdout.strip().split('\n') if f]
+
+
+def read_staged_content(path):
+    try:
+        result = subprocess.run(
+            ['git', 'show', f':{path}'],
+            capture_output=True,
+        )
+        return result.stdout.decode('utf-8', errors='replace')
+    except Exception:
+        return ''
+
+
+def main():
+    files = get_staged_files()
+    if not files:
+        sys.exit(0)
+
+    print('🔍 Pre-commit checks (release repo)...')
+
+    errors = []
+    for path in files:
+        if any(path.lower().endswith(ext) for ext in BINARY_EXTS):
+            continue
+        # Skip the hook itself
+        if path.startswith('.githooks/'):
+            continue
+
+        content = read_staged_content(path)
+        if not content:
+            continue
+
+        if REPLACEMENT_CHAR in content:
+            errors.append(f'  ❌ Encoding corruption: {path}')
+
+        if 'Pocket Coder' in content or 'PocketCoder' in content:
+            errors.append(f'  ❌ Old brand name found: {path}')
+
+        if 'pocket-coders' in content:
+            errors.append(f'  ❌ Old repo name "pocket-coders" found: {path}')
+
+    if errors:
+        print('\n'.join(errors))
+        print(f'\n🚫 Commit blocked: {len(errors)} issue(s) found.')
+        sys.exit(1)
+
+    print('✅ All checks passed.')
+    sys.exit(0)
+
+
+if __name__ == '__main__':
+    main()

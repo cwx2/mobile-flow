@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MobileFlow �?AI Coding from Your Phone</title>
+  <meta name="description" content="Control your desktop AI coding tools from your phone. Chat, edit files, run terminal, manage Git �?all encrypted." />
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    :root {
+      --bg: #06090f;
+      --surface: rgba(255,255,255,0.03);
+      --surface-hover: rgba(255,255,255,0.06);
+      --border: rgba(255,255,255,0.06);
+      --border-hover: rgba(67,230,195,0.3);
+      --text: #e2e8f0;
+      --muted: #7a8ba8;
+      --primary: #43E6C3;
+      --secondary: #69A8FF;
+      --glow-primary: rgba(67,230,195,0.12);
+      --glow-secondary: rgba(105,168,255,0.08);
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+      background: var(--bg); color: var(--text); line-height: 1.6; overflow-x: hidden;
+    }
+    /* Chinese text needs more letter-spacing and lighter weight for readability */
+    html[lang="zh-CN"] .hero h1 { letter-spacing: 0.06em; font-weight: 700; font-size: clamp(2.5rem,6vw,4.2rem); }
+    html[lang="zh-CN"] .section-title { letter-spacing: 0.04em; font-weight: 600; }
+    html[lang="zh-CN"] .cta-bottom h2 { letter-spacing: 0.04em; font-weight: 600; }
+    .grid-bg {
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(rgba(67,230,195,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(67,230,195,0.03) 1px, transparent 1px);
+      background-size: 60px 60px;
+      mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 30%, transparent 100%);
+      -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 30%, transparent 100%);
+      z-index: 0;
+    }
+    .orb { position: fixed; border-radius: 50%; filter: blur(80px); pointer-events: none; z-index: 0; }
+    .orb-1 { width:600px;height:600px;background:var(--glow-primary);top:-200px;left:-100px;animation:o1 15s ease-in-out infinite; }
+    .orb-2 { width:500px;height:500px;background:var(--glow-secondary);top:30%;right:-150px;animation:o2 18s ease-in-out infinite; }
+    .orb-3 { width:400px;height:400px;background:rgba(168,85,247,0.06);bottom:10%;left:20%;animation:o3 20s ease-in-out infinite; }
+    @keyframes o1{0%,100%{transform:translate(0,0)}50%{transform:translate(40px,30px)}}
+    @keyframes o2{0%,100%{transform:translate(0,0)}50%{transform:translate(-30px,-40px)}}
+    @keyframes o3{0%,100%{transform:translate(0,0)}50%{transform:translate(20px,-20px)}}
+
+    nav {
+      position:fixed;top:0;left:0;right:0;z-index:100;padding:16px 32px;
+      display:flex;align-items:center;justify-content:space-between;
+      background:rgba(6,9,15,0.8);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+      border-bottom:1px solid var(--border);
+    }
+    .nav-brand { display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--text);font-weight:700;font-size:1.1rem; }
+    .nav-brand img { width:28px;height:28px;border-radius:6px; }
+    .nav-links { display:flex;gap:20px;align-items:center; }
+    .nav-links a { color:var(--muted);text-decoration:none;font-size:0.9rem;transition:color 0.2s; }
+    .nav-links a:hover { color:var(--text); }
+    .lang-btn {
+      color:var(--muted);font-size:0.85rem;padding:5px 12px;border:1px solid var(--border);
+      border-radius:8px;text-decoration:none;cursor:pointer;background:none;transition:all 0.2s;
+    }
+    .lang-btn:hover { border-color:var(--border-hover);color:var(--text); }
+
+    section { position:relative;z-index:1;max-width:1080px;margin:0 auto;padding:0 24px; }
+
+    .hero { min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding-top:100px; }
+    .badge {
+      display:inline-flex;align-items:center;gap:6px;padding:6px 16px;border-radius:100px;
+      background:var(--surface);border:1px solid var(--border);font-size:0.8rem;color:var(--muted);
+      margin-bottom:32px;animation:fadeInDown 0.8s ease;
+    }
+    .badge .dot { width:6px;height:6px;border-radius:50%;background:var(--primary);animation:pulse 2s infinite; }
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+    .hero h1 { font-size:clamp(3rem,7vw,5rem);font-weight:800;letter-spacing:-0.03em;line-height:1.1;margin-bottom:24px;animation:fadeInUp 0.8s ease; }
+    .hero h1 .gradient { background:linear-gradient(135deg,#43E6C3 0%,#69A8FF 50%,#a855f7 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text; }
+    .hero .subtitle { font-size:clamp(1.1rem,2.5vw,1.35rem);color:var(--muted);max-width:600px;margin-bottom:48px;animation:fadeInUp 0.8s ease 0.1s both; }
+    .cta-row { display:flex;gap:16px;flex-wrap:wrap;justify-content:center;animation:fadeInUp 0.8s ease 0.2s both; }
+    .btn { display:inline-flex;align-items:center;gap:8px;padding:14px 28px;border-radius:12px;font-size:0.95rem;font-weight:600;text-decoration:none;transition:all 0.3s cubic-bezier(0.4,0,0.2,1);border:none;cursor:pointer; }
+    .btn-primary { background:linear-gradient(135deg,#43E6C3,#38bdf8);color:#06090f;box-shadow:0 0 30px rgba(67,230,195,0.25); }
+    .btn-primary:hover { transform:translateY(-2px);box-shadow:0 0 50px rgba(67,230,195,0.35); }
+    .btn-ghost { background:var(--surface);color:var(--text);border:1px solid var(--border); }
+    .btn-ghost:hover { background:var(--surface-hover);border-color:var(--border-hover);transform:translateY(-2px); }
+
+    .showcase { padding:40px 24px 100px;text-align:center; }
+    .phone-row { display:flex;justify-content:center;gap:32px;flex-wrap:wrap;margin-top:20px; }
+    .phone-wrapper { perspective:800px; }
+    .phone-frame {
+      width:240px;border-radius:28px;overflow:hidden;border:2px solid rgba(255,255,255,0.08);
+      box-shadow:0 30px 80px rgba(0,0,0,0.6),0 0 40px var(--glow-primary),inset 0 1px 0 rgba(255,255,255,0.1);
+      transition:all 0.5s cubic-bezier(0.4,0,0.2,1);
+    }
+    .phone-frame:hover { transform:translateY(-12px) rotateY(-3deg) scale(1.03);box-shadow:0 40px 100px rgba(0,0,0,0.7),0 0 60px var(--glow-primary),inset 0 1px 0 rgba(255,255,255,0.15);border-color:rgba(67,230,195,0.2); }
+    .phone-frame img { width:100%;display:block; }
+    .phone-label { margin-top:16px;font-size:0.85rem;color:var(--muted);font-weight:500; }
+
+    .section-tag { display:inline-block;padding:4px 12px;border-radius:6px;background:var(--glow-primary);color:var(--primary);font-size:0.75rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:16px; }
+    .section-title { font-size:clamp(2rem,4vw,2.8rem);font-weight:700;letter-spacing:-0.02em;margin-bottom:16px; }
+    .section-desc { color:var(--muted);font-size:1.05rem;max-width:560px;margin:0 auto 48px; }
+
+    .features { padding:100px 24px;text-align:center; }
+    .feature-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:16px; }
+    .feature-card {
+      background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px 24px;
+      text-align:left;transition:all 0.4s ease;position:relative;overflow:hidden;
+    }
+    .feature-card::before { content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--primary),transparent);opacity:0;transition:opacity 0.4s; }
+    .feature-card:hover { border-color:var(--border-hover);background:var(--surface-hover);transform:translateY(-4px); }
+    .feature-card:hover::before { opacity:1; }
+    .feature-icon { width:44px;height:44px;border-radius:10px;background:var(--glow-primary);display:flex;align-items:center;justify-content:center;font-size:1.4rem;margin-bottom:16px; }
+    .feature-card h3 { font-size:1.05rem;margin-bottom:8px;font-weight:600; }
+    .feature-card p { font-size:0.88rem;color:var(--muted);line-height:1.5; }
+
+    .architecture { padding:100px 24px;text-align:center; }
+    .arch-box { background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:48px;margin-top:40px;position:relative;overflow:hidden; }
+    .arch-box::before { content:'';position:absolute;top:-1px;left:20%;right:20%;height:2px;background:linear-gradient(90deg,transparent,var(--primary),var(--secondary),transparent); }
+    .arch-visual { display:flex;align-items:center;justify-content:center;gap:40px;flex-wrap:wrap; }
+    .arch-node { background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:16px;padding:28px 36px;text-align:center;min-width:200px; }
+    .arch-node .emoji { font-size:2.5rem;margin-bottom:8px; }
+    .arch-node h4 { font-size:1rem;margin-bottom:4px; }
+    .arch-node p { font-size:0.8rem;color:var(--muted); }
+    .arch-arrow { font-size:1.5rem;color:var(--primary);animation:arrowPulse 2s ease-in-out infinite; }
+    @keyframes arrowPulse{0%,100%{opacity:0.4}50%{opacity:1}}
+
+    .security { padding:100px 24px;text-align:center; }
+    .security-row { display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:40px; }
+    .sec-card { background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:28px 16px;transition:all 0.3s; }
+    .sec-card:hover { border-color:var(--border-hover);transform:translateY(-3px); }
+    .sec-card .icon { font-size:1.8rem;margin-bottom:10px; }
+    .sec-card h4 { font-size:0.9rem;margin-bottom:4px; }
+    .sec-card p { font-size:0.78rem;color:var(--muted); }
+
+    .cta-bottom { padding:120px 24px;text-align:center; }
+    .cta-bottom h2 { font-size:clamp(2rem,4vw,3rem);font-weight:700;margin-bottom:16px; }
+    .cta-bottom .grad { background:linear-gradient(135deg,#43E6C3,#69A8FF);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text; }
+    .cta-bottom p { color:var(--muted);font-size:1.1rem;margin-bottom:36px; }
+
+    footer { text-align:center;padding:40px 24px;color:var(--muted);font-size:0.8rem;border-top:1px solid var(--border); }
+    footer a { color:var(--primary);text-decoration:none; }
+
+    @keyframes fadeInUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes fadeInDown{from{opacity:0;transform:translateY(-16px)}to{opacity:1;transform:translateY(0)}}
+    .reveal { opacity:0;transform:translateY(40px);transition:opacity 0.7s ease,transform 0.7s ease; }
+    .reveal.visible { opacity:1;transform:translateY(0); }
+
+    @media(max-width:768px){
+      .feature-grid{grid-template-columns:1fr} .security-row{grid-template-columns:repeat(2,1fr)}
+      .arch-visual{flex-direction:column} .arch-arrow{transform:rotate(90deg)}
+      .phone-frame{width:180px} nav{padding:12px 16px} .nav-links{gap:10px}
+    }
+    @media(max-width:480px){ .security-row{grid-template-columns:1fr} .cta-row{flex-direction:column;align-items:center} }
+  </style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+  <div class="orb orb-1"></div><div class="orb orb-2"></div><div class="orb orb-3"></div>
+
+  <nav>
+    <a href="#" class="nav-brand"><img src="assets/icon.png" alt="" /> MobileFlow</a>
+    <div class="nav-links">
+      <a href="#features" data-i18n="nav_features">Features</a>
+      <a href="#how" data-i18n="nav_how">How it works</a>
+      <a href="https://github.com/cwx2/mobile-flow" target="_blank">GitHub</a>
+      <a href="https://github.com/cwx2/mobile-flow/releases/latest" class="btn btn-primary" style="padding:8px 20px;font-size:0.85rem;" data-i18n="nav_download">Download</a>
+      <button class="lang-btn" id="langToggle" onclick="toggleLang()">🌐 中文</button>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <div class="badge"><span class="dot"></span> <span data-i18n="badge">v0.1.0 �?Now available</span></div>
+    <h1 data-i18n-html="hero_title">Code from<br/><span class="gradient">your pocket.</span></h1>
+    <p class="subtitle" style="font-size:1rem;color:var(--muted);margin-bottom:12px;font-style:italic;" data-i18n="hero_tagline">Mobile Remote for Desktop AI Coding Tools</p>
+    <p class="subtitle" data-i18n="hero_sub">Turn your phone into a remote terminal for your desktop AI coding tools. Chat, edit, commit �?encrypted end-to-end.</p>
+    <div class="cta-row">
+      <a href="https://github.com/cwx2/mobile-flow/releases/latest" class="btn btn-primary" data-i18n="cta_download">⬇️ Download Free</a>
+      <a href="https://github.com/cwx2/mobile-flow" class="btn btn-ghost" data-i18n="cta_star">�?Star on GitHub</a>
+    </div>
+  </section>
+
+  <section class="showcase reveal">
+    <div class="phone-row">
+      <div class="phone-wrapper"><div class="phone-frame"><img src="screenshots/chat.png" alt="Chat" /></div><p class="phone-label" data-i18n="ss_chat">AI Chat</p></div>
+      <div class="phone-wrapper"><div class="phone-frame"><img src="screenshots/white-chat.png" alt="Light Theme" /></div><p class="phone-label" data-i18n="ss_light">Light Theme</p></div>
+      <div class="phone-wrapper"><div class="phone-frame"><img src="screenshots/files.png" alt="Files" /></div><p class="phone-label" data-i18n="ss_files">File Browser</p></div>
+      <div class="phone-wrapper"><div class="phone-frame"><img src="screenshots/terminal.png" alt="Terminal" /></div><p class="phone-label" data-i18n="ss_term">Terminal</p></div>
+    </div>
+    <div class="phone-row" style="margin-top:32px;">
+      <div class="phone-wrapper"><div class="phone-frame"><img src="screenshots/git-history.png" alt="Git History" /></div><p class="phone-label" data-i18n="ss_git_hist">Git History</p></div>
+      <div class="phone-wrapper"><div class="phone-frame"><img src="screenshots/git-detail.png" alt="Git Detail" /></div><p class="phone-label" data-i18n="ss_git_det">Git Detail</p></div>
+      <div class="phone-wrapper"><div class="phone-frame"><img src="screenshots/setting.png" alt="Settings" /></div><p class="phone-label" data-i18n="ss_settings">Settings</p></div>
+      <div class="phone-wrapper"><div class="phone-frame"><img src="screenshots/file-edit.png" alt="File Editor" /></div><p class="phone-label" data-i18n="ss_editor">File Editor</p></div>
+    </div>
+  </section>
+
+  <section class="features reveal" id="features">
+    <div class="section-tag" data-i18n="tag_features">FEATURES</div>
+    <h2 class="section-title" data-i18n-html="feat_title">Everything you need,<br/>nothing you don't.</h2>
+    <p class="section-desc" data-i18n="feat_desc">A complete mobile coding environment that connects to your desktop AI tools.</p>
+    <div class="feature-grid">
+      <div class="feature-card"><div class="feature-icon">🤖</div><h3 data-i18n="f1_t">AI Chat</h3><p data-i18n="f1_d">Talk to Claude Code, Codex, Gemini CLI, Kiro, and more. Full streaming with markdown rendering.</p></div>
+      <div class="feature-card"><div class="feature-icon">📁</div><h3 data-i18n="f2_t">File Browser & Editor</h3><p data-i18n="f2_d">Browse your project, view files with syntax highlighting for 100+ languages, edit directly.</p></div>
+      <div class="feature-card"><div class="feature-icon">💻</div><h3 data-i18n="f3_t">Full Terminal</h3><p data-i18n="f3_d">Real PTY terminal emulator. Run commands, see colored output, Ctrl+C to cancel. Just like your desktop.</p></div>
+      <div class="feature-card"><div class="feature-icon">🔀</div><h3 data-i18n="f4_t">Git Operations</h3><p data-i18n="f4_d">Diff, stage, commit, push, pull, switch branches, view log �?the complete Git workflow.</p></div>
+      <div class="feature-card"><div class="feature-icon">🔒</div><h3 data-i18n="f5_t">Encrypted</h3><p data-i18n="f5_d">AES-256 on every message. Your code never leaves your machine. Zero third-party servers involved.</p></div>
+      <div class="feature-card"><div class="feature-icon">📡</div><h3 data-i18n="f6_t">Flexible Connection</h3><p data-i18n="f6_d">Same WiFi, remote relay, or self-hosted tunnel. Works from anywhere with sub-100ms latency.</p></div>
+    </div>
+  </section>
+
+  <section class="architecture reveal" id="how">
+    <div class="section-tag" data-i18n="tag_arch">ARCHITECTURE</div>
+    <h2 class="section-title" data-i18n="arch_title">Simple. Secure. Fast.</h2>
+    <p class="section-desc" data-i18n="arch_desc">Your phone is a thin UI layer. The Agent on your desktop does all the heavy lifting.</p>
+    <div class="arch-box"><div class="arch-visual">
+      <div class="arch-node"><div class="emoji">📱</div><h4 data-i18n="a1_t">Phone App</h4><p data-i18n-html="a1_d">Flutter · Zero storage<br/>Chat · Files · Terminal · Git</p></div>
+      <div class="arch-arrow">�?/div>
+      <div class="arch-node"><div class="emoji">🔐</div><h4 data-i18n="a2_t">Encrypted WebSocket</h4><p data-i18n="a2_d">AES-256 · LAN / Relay / Tunnel</p></div>
+      <div class="arch-arrow">�?/div>
+      <div class="arch-node"><div class="emoji">💻</div><h4 data-i18n="a3_t">Desktop Agent</h4><p data-i18n-html="a3_d">Python · AI CLI<br/>Files · Terminal PTY · Git</p></div>
+    </div></div>
+  </section>
+
+  <section class="security reveal">
+    <div class="section-tag" data-i18n="tag_sec">SECURITY</div>
+    <h2 class="section-title" data-i18n="sec_title">Your code stays yours.</h2>
+    <p class="section-desc" data-i18n="sec_desc">No cloud, no third parties. Everything runs on your own machines.</p>
+    <div class="security-row">
+      <div class="sec-card"><div class="icon">🔑</div><h4>AES-256</h4><p data-i18n="s1">Every message encrypted</p></div>
+      <div class="sec-card"><div class="icon">🚫</div><h4 data-i18n="s2_t">No Cloud</h4><p data-i18n="s2">Direct P2P connection</p></div>
+      <div class="sec-card"><div class="icon">🛡�?/div><h4 data-i18n="s3_t">Brute-force Guard</h4><p data-i18n="s3">3 fails �?60s lockout</p></div>
+      <div class="sec-card"><div class="icon">🎫</div><h4 data-i18n="s4_t">Session Tokens</h4><p data-i18n="s4">Password used once</p></div>
+    </div>
+  </section>
+
+  <section class="cta-bottom reveal">
+    <h2 data-i18n-html="cta_title">Ready to code from <span class="grad">anywhere</span>?</h2>
+    <p data-i18n="cta_sub">Free and open. Download and start in 2 minutes.</p>
+    <a href="https://github.com/cwx2/mobile-flow/releases/latest" class="btn btn-primary" data-i18n="cta_btn">⬇️ Download MobileFlow</a>
+  </section>
+
+  <footer>
+    <p data-i18n="footer">Built with ❤️ for developers who code from anywhere.</p>
+    <p style="margin-top:8px;"><a href="https://github.com/cwx2/mobile-flow">GitHub</a> · <a href="https://github.com/cwx2/mobile-flow/issues" data-i18n="footer_fb">Feedback</a></p>
+  </footer>
+
+  <script>
+    const T = {
+      en: {
+        nav_features:"Features", nav_how:"How it works", nav_download:"Download",
+        badge:"v0.1.0 �?Now available",
+        hero_title:'Code from<br/><span class="gradient">your pocket.</span>',
+        hero_tagline:"Mobile Remote for Desktop AI Coding Tools",
+        hero_sub:"Turn your phone into a remote terminal for your desktop AI coding tools. Chat, edit, commit �?encrypted end-to-end.",
+        cta_download:"⬇️ Download Free", cta_star:"�?Star on GitHub",
+        ss_chat:"AI Chat", ss_light:"Light Theme", ss_files:"File Browser", ss_term:"Terminal",
+        ss_git_hist:"Git History", ss_git_det:"Git Detail", ss_settings:"Settings", ss_editor:"File Editor",
+        tag_features:"FEATURES",
+        feat_title:'Everything you need,<br/>nothing you don\'t.',
+        feat_desc:"A complete mobile coding environment that connects to your desktop AI tools.",
+        f1_t:"AI Chat", f1_d:"Talk to Claude Code, Codex, Gemini CLI, Kiro, and more. Full streaming with markdown rendering.",
+        f2_t:"File Browser & Editor", f2_d:"Browse your project, view files with syntax highlighting for 100+ languages, edit directly.",
+        f3_t:"Full Terminal", f3_d:"Real PTY terminal emulator. Run commands, see colored output, Ctrl+C to cancel. Just like your desktop.",
+        f4_t:"Git Operations", f4_d:"Diff, stage, commit, push, pull, switch branches, view log �?the complete Git workflow.",
+        f5_t:"Encrypted", f5_d:"AES-256 on every message. Your code never leaves your machine. Zero third-party servers involved.",
+        f6_t:"Flexible Connection", f6_d:"Same WiFi, remote relay, or self-hosted tunnel. Works from anywhere with sub-100ms latency.",
+        tag_arch:"ARCHITECTURE", arch_title:"Simple. Secure. Fast.",
+        arch_desc:"Your phone is a thin UI layer. The Agent on your desktop does all the heavy lifting.",
+        a1_t:"Phone App", a1_d:"Flutter · Zero storage<br/>Chat · Files · Terminal · Git",
+        a2_t:"Encrypted WebSocket", a2_d:"AES-256 · LAN / Relay / Tunnel",
+        a3_t:"Desktop Agent", a3_d:"Python · AI CLI<br/>Files · Terminal PTY · Git",
+        tag_sec:"SECURITY", sec_title:"Your code stays yours.",
+        sec_desc:"No cloud, no third parties. Everything runs on your own machines.",
+        s1:"Every message encrypted", s2_t:"No Cloud", s2:"Direct P2P connection",
+        s3_t:"Brute-force Guard", s3:"3 fails �?60s lockout", s4_t:"Session Tokens", s4:"Password used once",
+        cta_title:'Ready to code from <span class="grad">anywhere</span>?',
+        cta_sub:"Free and open. Download and start in 2 minutes.",
+        cta_btn:"⬇️ Download MobileFlow",
+        footer:"Built with ❤️ for developers who code from anywhere.", footer_fb:"Feedback",
+      },
+      zh: {
+        nav_features:"功能", nav_how:"工作原理", nav_download:"下载",
+        badge:"v0.1.0 �?现已发布",
+        hero_title:'口袋里的 <span class="gradient">编程终端</span>',
+        hero_tagline:"桌面 AI 编程工具的手机遥控器",
+        hero_sub:"把手机变成桌�?AI 编程工具的遥控器。对话、编辑、提�?�?端到端加密�?,
+        cta_download:"⬇️ 免费下载", cta_star:"�?GitHub Star",
+        ss_chat:"AI 对话", ss_light:"浅色主题", ss_files:"文件浏览", ss_term:"终端",
+        ss_git_hist:"Git 历史", ss_git_det:"Git 详情", ss_settings:"设置", ss_editor:"代码编辑",
+        tag_features:"功能",
+        feat_title:'你需要的一切，<br/>都在口袋里�?,
+        feat_desc:"一个完整的移动编程环境，连接你桌面上的 AI 工具�?,
+        f1_t:"AI 对话", f1_d:"支持 Claude Code、Codex、Gemini CLI、Kiro 等。完整的流式输出�?Markdown 渲染�?,
+        f2_t:"文件浏览与编�?, f2_d:"浏览项目目录�?00+ 语言语法高亮，直接在手机上编辑代码�?,
+        f3_t:"完整终端", f3_d:"真正�?PTY 终端模拟器。跑命令、看彩色输出、Ctrl+C 中断，和电脑上一样�?,
+        f4_t:"Git 全功�?, f4_d:"Diff、暂存、提交、推送、拉取、切换分支、查看日�?�?完整�?Git 工作流�?,
+        f5_t:"端到端加�?, f5_d:"每条消息 AES-256 加密。代码不离开你的电脑，不经过任何第三方服务器�?,
+        f6_t:"灵活连接", f6_d:"同一 WiFi、远程中继、或自建隧道。随时随地连接，延迟低于 100ms�?,
+        tag_arch:"架构", arch_title:"简单。安全。快速�?,
+        arch_desc:"手机是纯 UI 层，电脑上的 Agent 负责所有重活�?,
+        a1_t:"手机 App", a1_d:"Flutter · 零存�?br/>对话 · 文件 · 终端 · Git",
+        a2_t:"加密 WebSocket", a2_d:"AES-256 · 局域网 / 中继 / 隧道",
+        a3_t:"桌面 Agent", a3_d:"Python · AI CLI<br/>文件 · 终端 PTY · Git",
+        tag_sec:"安全", sec_title:"代码始终属于你�?,
+        sec_desc:"没有云端，没有第三方。一切运行在你自己的设备上�?,
+        s1:"每条消息加密", s2_t:"零云�?, s2:"点对点直�?,
+        s3_t:"暴力破解防护", s3:"3 次失�?�?锁定 60 �?, s4_t:"会话令牌", s4:"密码只用一�?,
+        cta_title:'准备好随时随�?<span class="grad">写代�?/span> 了吗�?,
+        cta_sub:"免费使用�? 分钟上手�?,
+        cta_btn:"⬇️ 下载 MobileFlow",
+        footer:"为随时随地写代码的开发者而生 ❤️", footer_fb:"反馈",
+      }
+    };
+
+    let lang = localStorage.getItem('pc_lang') || (navigator.language.startsWith('zh') ? 'zh' : 'en');
+
+    function applyLang(l) {
+      lang = l;
+      localStorage.setItem('pc_lang', l);
+      document.documentElement.lang = l === 'zh' ? 'zh-CN' : 'en';
+      document.getElementById('langToggle').textContent = l === 'en' ? '🌐 中文' : '🌐 EN';
+      const t = T[l];
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const k = el.getAttribute('data-i18n');
+        if (t[k] !== undefined) el.textContent = t[k];
+      });
+      document.querySelectorAll('[data-i18n-html]').forEach(el => {
+        const k = el.getAttribute('data-i18n-html');
+        if (t[k] !== undefined) el.innerHTML = t[k];
+      });
+    }
+
+    function toggleLang() { applyLang(lang === 'en' ? 'zh' : 'en'); }
+
+    // Init
+    applyLang(lang);
+
+    // Scroll reveal
+    const obs = new IntersectionObserver(entries => {
+      entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+    }, { threshold: 0.08 });
+    document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+  </script>
+</body>
+</html>
