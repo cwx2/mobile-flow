@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MobileFlow Agent</title>
+  <link rel="stylesheet" href="/vendor/xterm.min.css">
+  <script src="/vendor/xterm.min.js"></script>
+  <script src="/vendor/addon-fit.min.js"></script>
+  <script src="/i18n.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0f1019; min-height: 100vh; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #e0e0e0; }
+    .hidden { display: none !important; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+    .log-line { font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
+    .level-DEBUG { color: #6F7D96; }
+    .level-INFO { color: #43e6c3; }
+    .level-WARNING { color: #ffb454; }
+    .level-ERROR { color: #ff6b7a; }
+    .cli-status { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+    .cli-status.installed { background: #3ddb8c; }
+    .cli-status.available { background: #6F7D96; }
+    /* Navbar */
+    .navbar { display: flex; align-items: center; justify-content: space-between; padding: 0 16px; height: 48px; background: #141524; border-bottom: 1px solid #2a2b3e; }
+    .navbar .brand { font-size: 14px; font-weight: 700; color: #43e6c3; }
+    .navbar .nav-tabs { display: flex; gap: 4px; }
+    .nav-tab { font-size: 12px; color: #a0a8c0; background: none; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; text-decoration: none; transition: background 0.15s, color 0.15s; }
+    .nav-tab:hover { background: rgba(255,255,255,0.05); color: #e0e0e0; }
+    .nav-tab.active-tab { background: rgba(67,230,195,0.12); color: #43e6c3; }
+    /* Main content */
+    main { padding: 24px; max-width: 1100px; margin: 0 auto; }
+    /* Grid for home */
+    .home-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    @media (max-width: 768px) { .home-grid { grid-template-columns: 1fr; } }
+    /* Badge */
+    .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+    .badge-success { background: rgba(61,219,140,0.15); color: #3ddb8c; }
+    .badge-warning { background: rgba(255,180,84,0.15); color: #ffb454; }
+  </style>
+</head>
+<body>
+  <!-- Navbar -->
+  <div class="navbar">
+    <span class="brand">MobileFlow Agent</span>
+    <div class="nav-tabs">
+      <button class="nav-tab active-tab" data-tab="home" data-i18n="nav.home">Home</button>
+      <button class="nav-tab" data-tab="agents" data-i18n="nav.agent">Agent</button>
+      <button class="nav-tab" data-tab="keys" data-i18n="nav.apiKey">API Key</button>
+      <button class="nav-tab" data-tab="logs" data-i18n="nav.logs">Logs</button>
+      <a class="nav-tab" href="/run-config.html" data-i18n="nav.runConfig">Run Config</a>
+      <button class="nav-tab" data-tab="settings" data-i18n="nav.settings">Settings</button>
+    </div>
+  </div>
+
+  <main>
+    <!-- Home -->
+    <section id="tab-home" class="tab-content">
+      <div class="home-grid">
+        <!-- Connection info -->
+        <div style="background:#1a1b2e;border:1px solid #2a2b3e;border-radius:12px;padding:24px;">
+          <h2 style="font-size:16px;font-weight:600;color:#e0e0e0;margin-bottom:16px;">Connection Info</h2>
+          <div style="display:flex;gap:24px;align-items:flex-start;">
+            <div id="qr-container" style="width:128px;height:128px;background:#fff;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;"></div>
+            <div style="flex:1;display:flex;flex-direction:column;gap:12px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-size:12px;color:#6F7D96;text-transform:uppercase;">IP</span>
+                <span id="info-host" style="font-size:14px;font-family:monospace;color:#e0e0e0;">--</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-size:12px;color:#6F7D96;text-transform:uppercase;">Port</span>
+                <span id="info-port" style="font-size:14px;font-family:monospace;color:#e0e0e0;">--</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+                <span style="font-size:12px;color:#6F7D96;text-transform:uppercase;">Password</span>
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <span id="info-password" style="font-size:14px;font-family:monospace;color:#43e6c3;">--</span>
+                  <button onclick="copyPassword()" style="font-size:11px;color:#6F7D96;background:rgba(255,255,255,0.05);border:1px solid #2a2b3e;border-radius:4px;padding:2px 8px;cursor:pointer;">Copy</button>
+                </div>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-size:12px;color:#6F7D96;text-transform:uppercase;">Status</span>
+                <span id="info-status" style="font-size:14px;color:#e0e0e0;">--</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Quick start -->
+        <div style="background:#1a1b2e;border:1px solid #2a2b3e;border-radius:12px;padding:24px;">
+          <h2 style="font-size:16px;font-weight:600;color:#e0e0e0;margin-bottom:16px;">Quick Start</h2>
+          <ol style="list-style:decimal;padding-left:20px;color:#a0a8c0;font-size:14px;line-height:2.2;">
+            <li>Install MobileFlow App on your phone</li>
+            <li>Open App, enter IP and password</li>
+            <li>Start coding with AI!</li>
+          </ol>
+        </div>
+      </div>
+      <!-- Second row: Project + CLI + Devices -->
+      <div class="home-grid" style="margin-top:16px;">
+        <!-- Current Project -->
+        <div style="background:#1a1b2e;border:1px solid #2a2b3e;border-radius:12px;padding:24px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+            <h2 style="font-size:16px;font-weight:600;color:#e0e0e0;">📁 Current Project</h2>
+            <button onclick="showProjectPicker()" style="font-size:11px;color:#43e6c3;background:rgba(67,230,195,0.08);border:1px solid rgba(67,230,195,0.3);border-radius:4px;padding:4px 10px;cursor:pointer;">Switch</button>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:12px;color:#6F7D96;text-transform:uppercase;">Project</span>
+              <span id="home-project-name" style="font-size:14px;font-family:monospace;color:#43e6c3;">--</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:12px;color:#6F7D96;text-transform:uppercase;">Path</span>
+              <span id="home-project-path" style="font-size:12px;font-family:monospace;color:#a0a8c0;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">--</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:12px;color:#6F7D96;text-transform:uppercase;">Default CLI</span>
+              <span id="home-default-cli" style="font-size:14px;font-family:monospace;color:#e0e0e0;">--</span>
+            </div>
+          </div>
+        </div>
+        <!-- CLI Status -->
+        <div style="background:#1a1b2e;border:1px solid #2a2b3e;border-radius:12px;padding:24px;">
+          <h2 style="font-size:16px;font-weight:600;color:#e0e0e0;margin-bottom:16px;">🤖 AI Agents</h2>
+          <div id="home-cli-status" style="display:flex;flex-direction:column;gap:8px;">
+            <span style="color:#6F7D96;font-size:13px;">Loading...</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Agents -->
+    <section id="tab-agents" class="tab-content hidden">
+      <div style="display:flex;gap:16px;height:calc(100vh - 120px);">
+        <!-- Left: CLI list -->
+        <div style="flex:1;background:#1a1b2e;border:1px solid #2a2b3e;border-radius:12px;padding:24px;overflow-y:auto;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+            <h2 style="font-size:16px;font-weight:600;color:#e0e0e0;">AI Agent Management</h2>
+            <button onclick="detectAll()" style="font-size:12px;color:#43e6c3;background:rgba(67,230,195,0.08);border:1px solid rgba(67,230,195,0.3);border-radius:6px;padding:6px 12px;cursor:pointer;">&#128260; Re-detect</button>
+          </div>
+          <div id="cli-list" style="color:#a0a8c0;font-size:14px;">Loading...</div>
+        </div>
+        <!-- Right: Install output terminal -->
+        <div style="width:380px;min-width:300px;background:#0d0e17;border:1px solid #2a2b3e;border-radius:12px;display:flex;flex-direction:column;overflow:hidden;">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #2a2b3e;">
+            <span style="font-size:13px;font-weight:600;color:#a0a8c0;">Install Log</span>
+            <span id="install-status" style="font-size:11px;color:#6F7D96;">Idle</span>
+          </div>
+          <div id="install-terminal" style="flex:1;padding:4px;overflow:hidden;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- API Keys -->
+    <section id="tab-keys" class="tab-content hidden">
+      <div style="background:#1a1b2e;border:1px solid #2a2b3e;border-radius:12px;padding:24px;">
+        <h2 style="font-size:16px;font-weight:600;color:#e0e0e0;margin-bottom:8px;">API Key Configuration</h2>
+        <p style="font-size:12px;color:#6F7D96;margin-bottom:16px;">Keys are stored locally in .env file. Never uploaded to any server.</p>
+        <div id="key-list" style="margin-bottom:16px;color:#a0a8c0;font-size:14px;">Loading...</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <select id="key-type" style="background:#0f1019;border:1px solid #2a2b3e;color:#e0e0e0;padding:6px 10px;border-radius:6px;font-size:13px;">
+            <option value="OPENAI_API_KEY">OpenAI</option>
+            <option value="ANTHROPIC_API_KEY">Anthropic</option>
+            <option value="GOOGLE_API_KEY">Google</option>
+            <option value="CODEX_API_KEY">Codex</option>
+          </select>
+          <input type="password" id="key-value" placeholder="Enter API Key..." style="flex:1;background:#0f1019;border:1px solid #2a2b3e;color:#e0e0e0;padding:6px 12px;border-radius:6px;font-size:13px;font-family:monospace;">
+          <button onclick="saveKey()" style="background:rgba(67,230,195,0.12);color:#43e6c3;border:1px solid rgba(67,230,195,0.3);border-radius:6px;padding:6px 14px;cursor:pointer;font-size:13px;">Save</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Logs -->
+    <section id="tab-logs" class="tab-content hidden">
+      <div style="background:#1a1b2e;border:1px solid #2a2b3e;border-radius:12px;padding:16px;height:calc(100vh - 120px);display:flex;flex-direction:column;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <h2 style="font-size:16px;font-weight:600;color:#e0e0e0;">Logs</h2>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <select id="log-level" style="background:#0f1019;border:1px solid #2a2b3e;color:#e0e0e0;padding:4px 8px;border-radius:4px;font-size:12px;">
+              <option value="all">All</option>
+              <option value="INFO">INFO</option>
+              <option value="WARNING">WARNING</option>
+              <option value="ERROR">ERROR</option>
+            </select>
+            <button onclick="clearLogs()" style="font-size:11px;color:#6F7D96;background:none;border:1px solid #2a2b3e;border-radius:4px;padding:4px 8px;cursor:pointer;">Clear</button>
+            <button id="log-pause" onclick="togglePause()" style="font-size:11px;color:#6F7D96;background:none;border:1px solid #2a2b3e;border-radius:4px;padding:4px 8px;cursor:pointer;">Pause</button>
+          </div>
+        </div>
+        <div id="log-terminal-container" style="flex:1;border-radius:8px;overflow:hidden;"></div>
+      </div>
+    </section>
+
+    <!-- Settings -->
+    <section id="tab-settings" class="tab-content hidden">
+      <div style="background:#1a1b2e;border:1px solid #2a2b3e;border-radius:12px;padding:24px;">
+        <h2 style="font-size:16px;font-weight:600;color:#e0e0e0;margin-bottom:16px;">Settings</h2>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #2a2b3e;">
+            <span style="font-size:14px;color:#6F7D96;">Listen Port</span>
+            <span id="setting-port" style="font-size:14px;font-family:monospace;color:#e0e0e0;">9600</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #2a2b3e;">
+            <span style="font-size:14px;color:#6F7D96;">Working Directory</span>
+            <span id="setting-cwd" style="font-size:14px;font-family:monospace;color:#e0e0e0;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">--</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;">
+            <span style="font-size:14px;color:#6F7D96;">Version</span>
+            <span id="setting-version" style="font-size:14px;font-family:monospace;color:#e0e0e0;">--</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Project Picker Dialog -->
+  <div id="project-picker-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;align-items:center;justify-content:center;">
+    <div style="background:#1a1b2e;border:1px solid #2a2b3e;border-radius:12px;padding:24px;width:560px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;">
+      <h3 style="font-size:16px;font-weight:600;color:#e0e0e0;margin-bottom:12px;">Switch Project</h3>
+      <!-- Registered projects -->
+      <div id="project-list-container" style="overflow-y:auto;margin-bottom:12px;max-height:150px;">
+        <span style="color:#6F7D96;font-size:13px;">Loading...</span>
+      </div>
+      <!-- Directory browser -->
+      <div style="border-top:1px solid #2a2b3e;padding-top:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <span style="font-size:12px;color:#6F7D96;text-transform:uppercase;">Browse &amp; Add</span>
+          <button onclick="browseTo('')" style="font-size:11px;color:#6F7D96;background:none;border:1px solid #2a2b3e;border-radius:4px;padding:2px 8px;cursor:pointer;">Root</button>
+        </div>
+        <div id="browse-path-bar" style="font-size:11px;font-family:monospace;color:#43e6c3;margin-bottom:8px;cursor:pointer;" onclick="browseUp()"></div>
+        <div id="browse-list" style="background:#0f1019;border:1px solid #2a2b3e;border-radius:8px;max-height:200px;overflow-y:auto;padding:4px;"></div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
+          <input type="text" id="new-project-path" placeholder="Or type path manually..." style="flex:1;background:#0f1019;border:1px solid #2a2b3e;color:#e0e0e0;padding:6px 10px;border-radius:6px;font-size:12px;font-family:monospace;">
+          <button onclick="addProjectFromDashboard()" style="font-size:11px;color:#43e6c3;background:rgba(67,230,195,0.08);border:1px solid rgba(67,230,195,0.3);border-radius:6px;padding:6px 10px;cursor:pointer;">Add</button>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:12px;">
+        <button onclick="closeProjectPicker()" style="font-size:13px;color:#6F7D96;background:none;border:1px solid #2a2b3e;border-radius:6px;padding:8px 16px;cursor:pointer;">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Custom Agent Dialog -->
+  <div id="add-agent-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;align-items:center;justify-content:center;">
+    <div style="background:#1a1b2e;border:1px solid #2a2b3e;border-radius:12px;padding:24px;width:400px;max-width:90vw;">
+      <h3 style="font-size:16px;font-weight:600;color:#e0e0e0;margin-bottom:16px;">Add Custom Agent</h3>
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <div>
+          <label style="display:block;font-size:11px;color:#6F7D96;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Name (unique ID)</label>
+          <input type="text" id="ca-name" placeholder="my-agent" style="width:100%;background:#0f1019;border:1px solid #2a2b3e;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:13px;font-family:monospace;">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:#6F7D96;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Command</label>
+          <input type="text" id="ca-command" placeholder="/usr/local/bin/my-cli" style="width:100%;background:#0f1019;border:1px solid #2a2b3e;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:13px;font-family:monospace;">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:#6F7D96;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Arguments (space-separated)</label>
+          <input type="text" id="ca-args" placeholder="--stdio" style="width:100%;background:#0f1019;border:1px solid #2a2b3e;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:13px;font-family:monospace;">
+        </div>
+        <div>
+          <label style="display:block;font-size:11px;color:#6F7D96;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Display Name</label>
+          <input type="text" id="ca-display" placeholder="My Custom Agent" style="width:100%;background:#0f1019;border:1px solid #2a2b3e;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:13px;">
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px;">
+        <button onclick="closeAddAgentDialog()" style="font-size:13px;color:#6F7D96;background:none;border:1px solid #2a2b3e;border-radius:6px;padding:8px 16px;cursor:pointer;">Cancel</button>
+        <button onclick="submitAddAgent()" style="font-size:13px;color:#43e6c3;background:rgba(67,230,195,0.12);border:1px solid rgba(67,230,195,0.3);border-radius:6px;padding:8px 16px;cursor:pointer;">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mobileflow-protocol"
+version = "0.2.0"
+description = "MobileFlow App-Agent WebSocket protocol definitions"
+requires-python = ">=3.10"
+dependencies = ["pydantic>=2.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

@@ -1,0 +1,13 @@
+{
+  "_comment": "Production environment overrides. Loaded when MOBILEFLOW_ENV=production.",
+
+  "log_level": "INFO",
+
+  "security": {
+    "session_timeout": 1800
+  },
+
+  "lifecycle": {
+    "recovery_max_duration": 600
+  }
+}

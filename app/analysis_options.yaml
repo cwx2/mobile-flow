@@ -1,0 +1,26 @@
+include: package:flutter_lints/flutter.yaml
+
+linter:
+  rules:
+    # Relaxed rules for rapid development
+    prefer_const_constructors: false
+    prefer_const_literals_to_create_immutables: false
+
+    # Enforced rules for code quality
+    avoid_print: true
+    avoid_empty_else: true
+    avoid_relative_lib_imports: true
+    cancel_subscriptions: true
+    close_sinks: true
+    no_duplicate_case_values: true
+    prefer_is_empty: true
+    unnecessary_null_checks: true
+    use_key_in_widget_constructors: true
+
+analyzer:
+  errors:
+    missing_return: error
+    dead_code: warning
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"

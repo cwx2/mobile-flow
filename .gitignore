@@ -1,0 +1,76 @@
+# ── Python ──
+*.egg-info/
+__pycache__/
+*.pyc
+*.pyo
+*.egg
+.venv/
+venv/
+
+# ── Python build artifacts ──
+agent/build/temp/
+agent/dist/
+
+# ── Flutter build artifacts ──
+app/.dart_tool/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/.metadata
+app/build/
+app/android/build/
+app/android/.gradle/
+app/android/local.properties
+
+# ── IDE ──
+.idea/
+.vscode/
+*.iml
+
+# ── Env & secrets ──
+.env
+*.log
+
+# ── OS ──
+.DS_Store
+Thumbs.db
+
+# ── Binary release artifacts (not source assets) ──
+*.apk
+*.aab
+*.exe
+*.dmg
+
+# ── Agent runtime data ──
+agent/data/
+agent/*.db
+
+# ── Test cache ──
+agent/.hypothesis/
+agent/.pytest_cache/
+app/.dart_tool/
+
+# ── TLS certificates (Tunnel mode testing) ──
+agent/tunnel_*.pem
+
+# ── Internal dev tools (not for public) ──
+tools/
+
+# ── Internal docs (not for public) ──
+docs/提示词.md
+docs/SESSION_CONTEXT.md
+docs/AGENTS.md
+docs/REWRITE_PLAN.md
+docs/acp-architecture.md
+docs/acp-protocol-reference.md
+docs/architecture-principles.md
+docs/architecture.md
+docs/codex-acp-bridge-plan.md
+docs/dev-lessons.md
+docs/github-plan.md
+docs/icon-tools.md
+docs/roadmap.md
+docs/terminal-pty-plan.md
+docs/vscode-auth-pattern.md
+docs/远程连接指南.md
+agent/build/pocket-coder-agent.spec
+agent/scripts/

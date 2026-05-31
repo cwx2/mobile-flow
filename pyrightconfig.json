@@ -1,0 +1,9 @@
+{
+  "include": ["agent/src", "protocol/src"],
+  "extraPaths": [
+    "agent/src",
+    "protocol/src"
+  ],
+  "pythonVersion": "3.10",
+  "typeCheckingMode": "basic"
+}

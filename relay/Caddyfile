@@ -1,0 +1,8 @@
+# MobileFlow Relay Server Caddy 配置
+#
+# 将 relay.example.com 替换为你的域名
+# Caddy 会自动从 Let's Encrypt 获取 TLS 证书并自动续期
+
+relay.example.com {
+    reverse_proxy relay:3005
+}

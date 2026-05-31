@@ -1,0 +1,46 @@
+# MobileFlow Relay Server self-hosted deployment
+#
+# Usage:
+#   1. Copy .env.example to .env and fill in configuration
+#   2. docker compose up -d
+#
+# Auto TLS renewal (via Caddy reverse proxy):
+#   Caddy automatically obtains and renews certificates from Let's Encrypt.
+#   Just configure the domain name.
+
+version: "3.8"
+
+services:
+  relay:
+    build: .
+    restart: unless-stopped
+    environment:
+      - PORT=3005
+    volumes:
+      - relay-data:/data
+    networks:
+      - relay-net
+
+  # Caddy reverse proxy (auto TLS)
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - relay-net
+    depends_on:
+      - relay
+
+volumes:
+  relay-data:
+  caddy-data:
+  caddy-config:
+
+networks:
+  relay-net:

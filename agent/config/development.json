@@ -1,0 +1,16 @@
+{
+  "_comment": "Development environment overrides. Loaded when MOBILEFLOW_ENV=development (default).",
+
+  "log_level": "DEBUG",
+
+  "security": {
+    "session_timeout": 7200
+  },
+
+  "lifecycle": {
+    "_comment": "Shorter timeouts for faster dev iteration",
+    "init_timeout_native": 15,
+    "init_timeout_wsl": 30,
+    "recovery_max_duration": 60
+  }
+}

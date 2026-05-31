@@ -1,0 +1,134 @@
+{
+  "_comment": "MobileFlow Agent default configuration. Overridden by .env and MOBILEFLOW_* env vars.",
+
+  "host": "0.0.0.0",
+  "port": 9600,
+  "default_cli": "",
+  "log_level": "DEBUG",
+
+  "security": {
+    "session_timeout": 3600
+  },
+
+  "websocket": {
+    "_comment": "WebSocket server tuning parameters",
+    "max_message_size_mb": 10,
+    "ping_interval": 30,
+    "ping_timeout": 60,
+    "close_timeout": 10
+  },
+
+  "lifecycle": {
+    "_comment": "CLI provider lifecycle timeouts and recovery settings",
+    "init_timeout_native": 30,
+    "init_timeout_wsl": 60,
+    "auth_wait_timeout": 300,
+    "auth_device_code_timeout": 600,
+    "auth_verification_poll_interval": 10,
+    "auth_agent_timeout": 30,
+    "recovery_poll_interval": 10,
+    "recovery_max_duration": 300,
+    "progressive_msg_10s": "backend.startupSlow10s",
+    "progressive_msg_20s": "backend.startupSlow20s",
+    "shutdown_total_timeout": 30,
+    "provider_shutdown_timeout": 10,
+    "terminal_shutdown_timeout": 5,
+    "process_terminate_timeout": 5
+  },
+
+  "git": {
+    "_comment": "Git command execution settings",
+    "command_timeout": 30,
+    "discovery_timeout": 5
+  },
+
+  "attachments": {
+    "_comment": "File attachment size limits for multimodal input",
+    "max_image_size_mb": 5,
+    "max_audio_size_mb": 10
+  },
+
+  "context": {
+    "_comment": "Context reference resolution settings",
+    "token_budget": 30000,
+    "chars_per_token": 4.0,
+    "max_folder_depth": 3,
+    "max_file_size": 512000,
+    "max_references": 10,
+    "max_terminal_lines": 50
+  },
+
+  "project_scanner": {
+    "_comment": "Project search and browse settings",
+    "search_roots": [],
+    "max_depth": 3,
+    "search_timeout": 5.0,
+    "max_results": 20,
+    "recent_projects_limit": 10
+  },
+
+  "connection": {
+    "_comment": "Connection mode and transport settings",
+    "relay_reconnect_max_attempts": 10,
+    "relay_reconnect_initial_delay": 1.0,
+    "relay_reconnect_max_delay": 5.0,
+    "pair_max_failures": 3,
+    "pair_lockout_seconds": 60,
+    "tunnel_reconnect_max_attempts": 5,
+    "tunnel_reconnect_delay": 2.0,
+    "disconnect_grace_period": 600
+  },
+
+  "history": {
+    "_comment": "Chat history pagination — controls how many messages are sent per page",
+    "page_size": 30,
+    "page_max_bytes": 65536
+  },
+
+  "timeouts": {
+    "_comment": "Miscellaneous timeout values (seconds) for operations not covered by lifecycle/git configs",
+    "process_alive_check": 3,
+    "process_kill": 5,
+    "file_search": 2,
+    "file_search_cancel": 0.5,
+    "permission_response": 120,
+    "new_session_verify": 15
+  },
+
+  "cache": {
+    "_comment": "Cache layer settings — controls auto-refresh behavior on file system events",
+    "auto_refresh": true,
+    "debounce_delay": 1.0,
+    "cooldown": 5.0,
+    "status_limit": 5000,
+    "auto_fetch": false,
+    "auto_fetch_period": 180
+  },
+
+  "wsl": {
+    "_comment": "WSL child Agent settings — controls the child Agent process for WSL CLIs",
+    "child_port": 9601,
+    "startup_timeout": 30.0
+  },
+
+  "stream_replay": {
+    "_comment": "Stream replay buffer for disconnect recovery — buffers AI output so reconnecting clients can catch up",
+    "max_chunks": 500
+  },
+
+  "preview": {
+    "_comment": "Preview proxy settings — reverse proxy for dev server preview on phone",
+    "health_check_interval": 2.0,
+    "health_check_probe_timeout": 10,
+    "proxy_request_timeout": 60,
+    "max_rewrite_body_size_mb": 50,
+    "https_interceptor_port": 443,
+    "health_check_warning_threshold": 30
+  },
+
+  "session_resume": {
+    "_comment": "Session resume settings for ACP session/resume support",
+    "timeout": 5.0,
+    "max_history_messages": 200
+  }
+}

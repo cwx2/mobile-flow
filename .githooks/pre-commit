@@ -1,0 +1,11 @@
+#!/usr/bin/env sh
+set -eu
+
+if command -v python >/dev/null 2>&1; then
+  python scripts/check_encoding.py --staged
+elif command -v python3 >/dev/null 2>&1; then
+  python3 scripts/check_encoding.py --staged
+else
+  echo "[encoding-check] Python is required for the pre-commit hook."
+  exit 1
+fi
