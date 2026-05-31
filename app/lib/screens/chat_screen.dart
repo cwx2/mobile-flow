@@ -19,6 +19,7 @@ import '../widgets/chat_bubble.dart';
 import '../widgets/chat_input_bar.dart';
 import '../widgets/cli_lifecycle_states.dart';
 import '../widgets/connection_status_indicator.dart';
+import '../widgets/pending_review_banner.dart';
 import '../widgets/permission_dialog.dart';
 import '../widgets/session_picker.dart';
 import 'terminal_screen.dart';
@@ -122,6 +123,9 @@ class _ChatScreenState extends State<ChatScreen> {
           // Index 0: Chat content
           Column(
             children: [
+              // Pending review banner (shows when AI has unreviewed file edits)
+              const PendingReviewBanner(),
+
               // Message list (AnimatedSwitcher for smooth lifecycle transitions)
               Expanded(
                 child: GestureDetector(
