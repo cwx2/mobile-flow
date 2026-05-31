@@ -143,12 +143,10 @@ class ServerConnectionManager:
         close_timeout: int | None = None,
         process_request: Callable | None = None,
     ):
-        """Start a plain WebSocket server in LAN mode.
+        """Start a plain WebSocket server in LAN mode (non-blocking).
 
-        This is a direct wrapper around the existing ``websockets.serve`` logic
-        and does not change any behaviour. Accepts the same WebSocket tuning
-        parameters that were previously passed directly to ``websockets.serve``
-        in ``WebSocketServer.start()``.
+        Returns the server object so the caller can run multiple servers
+        concurrently via asyncio.gather().
 
         Args:
             host: Network interface to bind to.

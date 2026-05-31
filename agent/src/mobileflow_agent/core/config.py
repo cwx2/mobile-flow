@@ -411,8 +411,10 @@ class AgentConfig(BaseSettings):
     # Log level (DEBUG / INFO / WARNING / ERROR)
     log_level: str = "INFO"
 
-    # Connection mode (lan / relay / tunnel)
-    connection_mode: str = "lan"
+    # Connection mode (lan / relay / tunnel / auto)
+    # "auto" (default): starts all modes with valid config in parallel
+    # Set explicitly to restrict to a single mode (legacy behavior)
+    connection_mode: str = "auto"
 
     # Relay Server config (used when connection_mode=relay)
     relay_url: str = ""
@@ -438,6 +440,7 @@ class AgentConfig(BaseSettings):
     tunnel_bearer_token: str = ""
     tunnel_tls_cert: str = ""
     tunnel_tls_key: str = ""
+    tunnel_port: int = 9601
 
     # Sub-configs
     security: SecurityConfig = Field(default_factory=SecurityConfig)

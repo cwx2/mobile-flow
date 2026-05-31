@@ -457,86 +457,119 @@ class WebSocketServer:
         ws_cfg = self.config.websocket
         conn_cfg = self.config.connection
 
-        if mode == "relay":
-            logger.info(f"📡 Relay 模式启动: relay_url={self.config.relay_url}")
-            device_id = self.config.ensure_device_id()
-            # Generate a shared secret for Relay E2E encryption
-            relay_secret = CryptoModule.generate_secret()
-            crypto = CryptoModule(relay_secret)
-
-            # Generate pairing payload for App to scan or enter manually.
-            # device_id is a 32-char hex string → decode to 16 raw bytes.
-            from ..crypto.relay_pairing import encode_relay_pairing
-
-            device_id_bytes = (
-                bytes.fromhex(device_id)
-                if len(device_id) == 32
-                else device_id.encode("utf-8")[:16].ljust(16, b"\x00")
-            )
-            pairing_code = encode_relay_pairing(
-                relay_url=self.config.relay_url,
-                device_id=device_id_bytes,
-                shared_secret=relay_secret,
-            )
-            logger.info(f"🔗 Relay 配对码: {pairing_code}")
-
-            # Display QR code in terminal if qrcode package is available
-            try:
-                import qrcode
-
-                qr = qrcode.QRCode(border=1)
-                qr.add_data(pairing_code)
-                qr.print_ascii(invert=True)
-            except ImportError:
-                logger.info("📱 安装 qrcode 包可显示 QR 码: pip install qrcode")
-
-            await self._conn_manager.start_relay(
-                relay_url=self.config.relay_url,
-                device_id=device_id,
-                crypto=crypto,
-                on_raw_message=self._handle_relay_message,
-                max_attempts=conn_cfg.relay_reconnect_max_attempts,
-                initial_delay=conn_cfg.relay_reconnect_initial_delay,
-                max_delay=conn_cfg.relay_reconnect_max_delay,
-            )
-        elif mode == "tunnel":
-            logger.info(f"📡 Tunnel 模式启动: wss://{self.config.host}:{self.config.port}")
-            ssl_context = self._build_ssl_context()
-            await self._conn_manager.start_tunnel(
-                host=self.config.host,
-                port=self.config.port,
-                handler=self._handle_connection,
-                bearer_token=self.config.tunnel_bearer_token,
-                ssl_context=ssl_context,
-                max_size=ws_cfg.max_message_size_mb * 1024 * 1024,
-            )
-        elif mode == "lan":
-            logger.info(f"📡 WebSocket 监听 ws://{self.config.host}:{self.config.port}")
-            logger.info(f"🌐 Dashboard http://localhost:{self.config.port}")
-            dashboard_handler = self._create_dashboard_handler()
-            await self._conn_manager.start_lan(
-                host=self.config.host,
-                port=self.config.port,
-                handler=self._handle_connection,
-                max_size=ws_cfg.max_message_size_mb * 1024 * 1024,
-                ping_interval=ws_cfg.ping_interval,
-                ping_timeout=ws_cfg.ping_timeout,
-                close_timeout=ws_cfg.close_timeout,
-                process_request=dashboard_handler,
-            )
+        # Multi-mode parallel: start all available connection modes concurrently.
+        # If connection_mode is explicitly set (legacy), only start that mode.
+        # Otherwise, start all modes that have valid configuration.
+        if mode and mode != "auto":
+            # Legacy single-mode behavior (backward compatible)
+            await self._start_single_mode(mode, ws_cfg, conn_cfg)
         else:
-            logger.error(f"未知连接模式: {mode}，回退到 LAN")
-            dashboard_handler = self._create_dashboard_handler()
-            await self._conn_manager.start_lan(
-                host=self.config.host,
-                port=self.config.port,
-                handler=self._handle_connection,
-                max_size=ws_cfg.max_message_size_mb * 1024 * 1024,
-                ping_interval=ws_cfg.ping_interval,
-                ping_timeout=ws_cfg.ping_timeout,
-                close_timeout=ws_cfg.close_timeout,
-                process_request=dashboard_handler,
-            )
+            # Auto mode: start all available modes in parallel
+            await self._start_all_modes(ws_cfg, conn_cfg)
+
+    async def _start_single_mode(self, mode: str, ws_cfg, conn_cfg):
+        """Start a single connection mode (legacy behavior)."""
+        if mode == "relay":
+            await self._start_relay_mode(conn_cfg)
+        elif mode == "tunnel":
+            await self._start_tunnel_mode(ws_cfg)
+        else:
+            await self._start_lan_mode(ws_cfg)
+
+    async def _start_all_modes(self, ws_cfg, conn_cfg):
+        """Start all available connection modes in parallel.
+
+        - LAN: always starts (port from config.port)
+        - Tunnel: starts if TLS cert + key are configured (port from config.tunnel_port)
+        - Relay: starts if relay_url is configured
+        """
+        tasks = []
+
+        # LAN mode: always available
+        tasks.append(self._start_lan_mode(ws_cfg))
+
+        # Tunnel mode: only if TLS certificate is configured
+        if self.config.tunnel_tls_cert and self.config.tunnel_tls_key:
+            tasks.append(self._start_tunnel_mode(ws_cfg))
+        else:
+            logger.info("📡 Tunnel 模式未启动（未配置 TLS 证书）")
+
+        # Relay mode: only if relay_url is configured
+        if self.config.relay_url:
+            tasks.append(self._start_relay_mode(conn_cfg))
+        else:
+            logger.info("📡 Relay 模式未启动（未配置 relay_url）")
+
+        await asyncio.gather(*tasks)
+
+    async def _start_lan_mode(self, ws_cfg):
+        """Start the LAN WebSocket server."""
+        logger.info(f"📡 WebSocket 监听 ws://{self.config.host}:{self.config.port}")
+        logger.info(f"🌐 Dashboard http://localhost:{self.config.port}")
+        dashboard_handler = self._create_dashboard_handler()
+        await self._conn_manager.start_lan(
+            host=self.config.host,
+            port=self.config.port,
+            handler=self._handle_connection,
+            max_size=ws_cfg.max_message_size_mb * 1024 * 1024,
+            ping_interval=ws_cfg.ping_interval,
+            ping_timeout=ws_cfg.ping_timeout,
+            close_timeout=ws_cfg.close_timeout,
+            process_request=dashboard_handler,
+        )
+
+    async def _start_tunnel_mode(self, ws_cfg):
+        """Start the Tunnel WSS server."""
+        tunnel_port = self.config.tunnel_port
+        logger.info(f"📡 Tunnel 模式启动: wss://{self.config.host}:{tunnel_port}")
+        ssl_context = self._build_ssl_context()
+        await self._conn_manager.start_tunnel(
+            host=self.config.host,
+            port=tunnel_port,
+            handler=self._handle_connection,
+            bearer_token=self.config.tunnel_bearer_token,
+            ssl_context=ssl_context,
+            max_size=ws_cfg.max_message_size_mb * 1024 * 1024,
+        )
+
+    async def _start_relay_mode(self, conn_cfg):
+        """Start the Relay client connection."""
+        logger.info(f"📡 Relay 模式启动: relay_url={self.config.relay_url}")
+        device_id = self.config.ensure_device_id()
+        relay_secret = CryptoModule.generate_secret()
+        crypto = CryptoModule(relay_secret)
+
+        from ..crypto.relay_pairing import encode_relay_pairing
+
+        device_id_bytes = (
+            bytes.fromhex(device_id)
+            if len(device_id) == 32
+            else device_id.encode("utf-8")[:16].ljust(16, b"\x00")
+        )
+        pairing_code = encode_relay_pairing(
+            relay_url=self.config.relay_url,
+            device_id=device_id_bytes,
+            shared_secret=relay_secret,
+        )
+        logger.info(f"🔗 Relay 配对码: {pairing_code}")
+
+        try:
+            import qrcode
+            qr = qrcode.QRCode(border=1)
+            qr.add_data(pairing_code)
+            qr.print_ascii(invert=True)
+        except ImportError:
+            logger.info("📱 安装 qrcode 包可显示 QR 码: pip install qrcode")
+
+        await self._conn_manager.start_relay(
+            relay_url=self.config.relay_url,
+            device_id=device_id,
+            crypto=crypto,
+            on_raw_message=self._handle_relay_message,
+            max_attempts=conn_cfg.relay_reconnect_max_attempts,
+            initial_delay=conn_cfg.relay_reconnect_initial_delay,
+            max_delay=conn_cfg.relay_reconnect_max_delay,
+        )
 
     def _build_ssl_context(self):
         """Build an SSL context for Tunnel mode from config paths.
