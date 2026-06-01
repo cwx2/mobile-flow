@@ -1,359 +1,462 @@
 <!DOCTYPE html>
-<html lang="zh">
+<html lang="zh" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>MobileFlow Agent</title>
+  <!-- Vendor: local assets (no CDN dependency) -->
+  <link rel="stylesheet" href="/vendor/daisyui.min.css">
   <link rel="stylesheet" href="/vendor/xterm.min.css">
+  <script src="/vendor/tailwind.min.js"></script>
   <script src="/vendor/xterm.min.js"></script>
   <script src="/vendor/addon-fit.min.js"></script>
   <script src="/i18n.js"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: '#43e6c3',
+            surface: { DEFAULT: '#1a1b2e', dark: '#0f1019', darker: '#0d0e17' },
+            border: '#2a2b3e',
+          }
+        }
+      }
+    }
+  </script>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #0f1019; min-height: 100vh; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #e0e0e0; }
+    /* Custom utilities not covered by Tailwind */
     .hidden { display: none !important; }
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
-    .log-line { font-family: 'JetBrains Mono', 'Consolas', monospace; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
-    .level-DEBUG { color: #6F7D96; }
-    .level-INFO { color: #43e6c3; }
-    .level-WARNING { color: #ffb454; }
-    .level-ERROR { color: #ff6b7a; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .status-dot.running { background: #3ddb8c; animation: pulse 1.2s infinite alternate; }
+    .status-dot.starting { background: #ffb454; animation: pulse 1.2s infinite alternate; }
+    @keyframes pulse { from { opacity: 0.5; } to { opacity: 1; } }
+    .config-item.active { background: rgba(67,230,195,0.08); border-color: rgba(67,230,195,0.3); }
+    .xterm { height: 100% !important; }
     .cli-status { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
     .cli-status.installed { background: #3ddb8c; }
     .cli-status.available { background: #6F7D96; }
-    /* Navbar */
-    .navbar { display: flex; align-items: center; justify-content: space-between; padding: 0 16px; height: 48px; background: #141524; border-bottom: 1px solid #2a2b3e; }
-    .navbar .brand { font-size: 14px; font-weight: 700; color: #43e6c3; }
-    .navbar .nav-tabs { display: flex; gap: 4px; }
-    .nav-tab { font-size: 12px; color: #a0a8c0; background: none; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; text-decoration: none; transition: background 0.15s, color 0.15s; }
-    .nav-tab:hover { background: rgba(255,255,255,0.05); color: #e0e0e0; }
-    .nav-tab.active-tab { background: rgba(67,230,195,0.12); color: #43e6c3; }
-    /* Main content */
-    main { padding: 24px; max-width: 1100px; margin: 0 auto; }
-    /* Grid for home */
-    .home-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-    @media (max-width: 768px) { .home-grid { grid-template-columns: 1fr; } }
-    /* Badge */
-    .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
-    .badge-success { background: rgba(61,219,140,0.15); color: #3ddb8c; }
-    .badge-warning { background: rgba(255,180,84,0.15); color: #ffb454; }
-    .conn-mode-card { flex:1; background:#0d0e1a; border:1px solid #2a2b3e; border-radius:8px; padding:12px; display:flex; align-items:center; gap:8px; }
-    .conn-dot { width:8px; height:8px; border-radius:50%; }
-    .conn-dot.active { background:#43e6c3; box-shadow:0 0 6px #43e6c3; }
-    .conn-dot.inactive { background:#555; }
-    .conn-dot.error { background:#e57373; box-shadow:0 0 6px #e57373; }
-    .conn-label { font-size:13px; font-weight:500; color:#e0e0e0; }
-    .conn-detail { font-size:11px; color:#888; margin-left:auto; }
+    .conn-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .conn-dot.active { background: #43e6c3; box-shadow: 0 0 6px #43e6c3; }
+    .conn-dot.inactive { background: #555; }
+    .conn-dot.error { background: #e57373; box-shadow: 0 0 6px #e57373; }
   </style>
 </head>
-<body>
+<body class="bg-surface-dark min-h-screen font-sans text-gray-200">
+
   <!-- Navbar -->
-  <div class="navbar">
-    <span class="brand">MobileFlow Agent</span>
-    <div class="nav-tabs">
-      <button class="nav-tab active-tab" data-tab="home" data-i18n="nav.home">Home</button>
-      <button class="nav-tab" data-tab="agents" data-i18n="nav.agent">Agent</button>
-      <button class="nav-tab" data-tab="keys" data-i18n="nav.apiKey">API Key</button>
-      <button class="nav-tab" data-tab="connection" data-i18n="nav.connection">Connection</button>
-      <button class="nav-tab" data-tab="logs" data-i18n="nav.logs">Logs</button>
-      <button class="nav-tab" data-tab="runconfig" data-i18n="nav.runConfig">Run Config</button>
-      <button class="nav-tab" data-tab="settings" data-i18n="nav.settings">Settings</button>
+  <div class="flex items-center justify-between px-4 h-12 bg-surface border-b border-border">
+    <span class="text-sm font-bold text-brand">MobileFlow Agent</span>
+    <div class="flex gap-1">
+      <button class="nav-tab text-xs px-3 py-1.5 rounded-md cursor-pointer border-none bg-brand/10 text-brand transition-colors" data-tab="home" data-i18n="nav.home">Home</button>
+      <button class="nav-tab text-xs px-3 py-1.5 rounded-md cursor-pointer border-none bg-transparent text-gray-400 hover:bg-white/5 hover:text-gray-200 transition-colors" data-tab="agents" data-i18n="nav.agent">Agent</button>
+      <button class="nav-tab text-xs px-3 py-1.5 rounded-md cursor-pointer border-none bg-transparent text-gray-400 hover:bg-white/5 hover:text-gray-200 transition-colors" data-tab="keys" data-i18n="nav.apiKey">API Key</button>
+      <button class="nav-tab text-xs px-3 py-1.5 rounded-md cursor-pointer border-none bg-transparent text-gray-400 hover:bg-white/5 hover:text-gray-200 transition-colors" data-tab="connection" data-i18n="nav.connection">Connection</button>
+      <button class="nav-tab text-xs px-3 py-1.5 rounded-md cursor-pointer border-none bg-transparent text-gray-400 hover:bg-white/5 hover:text-gray-200 transition-colors" data-tab="logs" data-i18n="nav.logs">Logs</button>
+      <button class="nav-tab text-xs px-3 py-1.5 rounded-md cursor-pointer border-none bg-transparent text-gray-400 hover:bg-white/5 hover:text-gray-200 transition-colors" data-tab="runconfig" data-i18n="nav.runConfig">Run Config</button>
+      <button class="nav-tab text-xs px-3 py-1.5 rounded-md cursor-pointer border-none bg-transparent text-gray-400 hover:bg-white/5 hover:text-gray-200 transition-colors" data-tab="settings" data-i18n="nav.settings">Settings</button>
     </div>
   </div>
 
-  <main>
-    <!-- Home -->
-    <section id="tab-home" class="tab-content">
-      <div class="home-grid">
-        <!-- Connection info -->
-        <div style="background:#1a1b2e;border:1px solid #2a2b3e;border-radius:12px;padding:24px;">
-          <h2 style="font-size:16px;font-weight:600;color:#e0e0e0;margin-bottom:16px;">Connection Info</h2>
-          <div style="display:flex;gap:24px;align-items:flex-start;">
-            <div id="qr-container" style="width:128px;height:128px;background:#fff;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;"></div>
-            <div style="flex:1;display:flex;flex-direction:column;gap:12px;">
-              <div style="display:flex;justify-content:space-between;align-items:center;">
-                <span style="font-size:12px;color:#6F7D96;text-transform:uppercase;">IP</span>
-                <span id="info-host" style="font-size:14px;font-family:monospace;color:#e0e0e0;">--</span>
+  <main class="p-6 max-w-[1100px] mx-auto">
+
+    <!-- ══════════════════�?Home Tab ══════════════════�?-->
+    <section id="tab-home" class="tab-panel">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Connection info card -->
+        <div class="bg-surface border border-border rounded-xl p-6">
+          <h2 class="text-base font-semibold text-gray-200 mb-4">Connection Info</h2>
+          <div class="flex gap-6 items-start">
+            <div id="qr-container" class="w-32 h-32 bg-white rounded-lg flex items-center justify-center flex-shrink-0"></div>
+            <div class="flex-1 flex flex-col gap-3">
+              <div class="flex justify-between items-center">
+                <span class="text-xs text-gray-500 uppercase">IP</span>
+                <span id="info-host" class="text-sm font-mono text-gray-200">--</span>
               </div>
-              <div style="display:flex;justify-content:space-between;align-items:center;">
-                <span style="font-size:12px;color:#6F7D96;text-transform:uppercase;">Port</span>
-                <span id="info-port" style="font-size:14px;font-family:monospace;color:#e0e0e0;">--</span>
+              <div class="flex justify-between items-center">
+                <span class="text-xs text-gray-500 uppercase">Port</span>
+                <span id="info-port" class="text-sm font-mono text-gray-200">--</span>
               </div>
-              <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
-                <span style="font-size:12px;color:#6F7D96;text-transform:uppercase;">Password</span>
-                <div style="display:flex;align-items:center;gap:8px;">
-                  <span id="info-password" style="font-size:14px;font-family:monospace;color:#43e6c3;">--</span>
-                  <button onclick="copyPassword()" style="font-size:11px;color:#6F7D96;background:rgba(255,255,255,0.05);border:1px solid #2a2b3e;border-radius:4px;padding:2px 8px;cursor:pointer;">Copy</button>
+              <div class="flex justify-between items-center gap-2">
+                <span class="text-xs text-gray-500 uppercase">Password</span>
+                <div class="flex items-center gap-2">
+                  <span id="info-password" class="text-sm font-mono text-brand">--</span>
+                  <button onclick="copyPassword()" class="text-[11px] text-gray-500 bg-white/5 border border-border rounded px-2 py-0.5 cursor-pointer hover:text-gray-300">Copy</button>
                 </div>
               </div>
-              <div style="display:flex;justify-content:space-between;align-items:center;">
-                <span style="font-size:12px;color:#6F7D96;text-transform:uppercase;">Status</span>
-                <span id="info-status" style="font-size:14px;color:#e0e0e0;">--</span>
+              <div class="flex justify-between items-center">
+                <span class="text-xs text-gray-500 uppercase">Status</span>
+                <span id="info-status" class="text-sm text-gray-200">--</span>
               </div>
             </div>
           </div>
         </div>
-        <!-- Quick start -->
-        <div style="background:#1a1b2e;border:1px solid #2a2b3e;border-radius:12px;padding:24px;">
-          <h2 style="font-size:16px;font-weight:600;color:#e0e0e0;margin-bottom:16px;">Quick Start</h2>
-          <ol style="list-style:decimal;padding-left:20px;color:#a0a8c0;font-size:14px;line-height:2.2;">
+        <!-- Quick start card -->
+        <div class="bg-surface border border-border rounded-xl p-6">
+          <h2 class="text-base font-semibold text-gray-200 mb-4">Quick Start</h2>
+          <ol class="list-decimal pl-5 text-gray-400 text-sm leading-[2.2]">
             <li>Install MobileFlow App on your phone</li>
             <li>Open App, enter IP and password</li>
             <li>Start coding with AI!</li>
           </ol>
         </div>
       </div>
-      <!-- Second row: Project + CLI + Devices -->
-      <div class="home-grid" style="margin-top:16px;">
+      <!-- Second row -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
         <!-- Current Project -->
-        <div style="background:#1a1b2e;border:1px solid #2a2b3e;border-radius:12px;padding:24px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-            <h2 style="font-size:16px;font-weight:600;color:#e0e0e0;">📁 Current Project</h2>
-            <button onclick="showProjectPicker()" style="font-size:11px;color:#43e6c3;background:rgba(67,230,195,0.08);border:1px solid rgba(67,230,195,0.3);border-radius:4px;padding:4px 10px;cursor:pointer;">Switch</button>
+        <div class="bg-surface border border-border rounded-xl p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-base font-semibold text-gray-200">📁 Current Project</h2>
+            <button onclick="showProjectPicker()" class="text-[11px] text-brand bg-brand/10 border border-brand/30 rounded px-2.5 py-1 cursor-pointer hover:bg-brand/20">Switch</button>
           </div>
-          <div style="display:flex;flex-direction:column;gap:10px;">
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <span style="font-size:12px;color:#6F7D96;text-transform:uppercase;">Project</span>
-              <span id="home-project-name" style="font-size:14px;font-family:monospace;color:#43e6c3;">--</span>
+          <div class="flex flex-col gap-2.5">
+            <div class="flex justify-between items-center">
+              <span class="text-xs text-gray-500 uppercase">Project</span>
+              <span id="home-project-name" class="text-sm font-mono text-brand">--</span>
             </div>
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <span style="font-size:12px;color:#6F7D96;text-transform:uppercase;">Path</span>
-              <span id="home-project-path" style="font-size:12px;font-family:monospace;color:#a0a8c0;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">--</span>
+            <div class="flex justify-between items-center">
+              <span class="text-xs text-gray-500 uppercase">Path</span>
+              <span id="home-project-path" class="text-xs font-mono text-gray-400 max-w-[250px] overflow-hidden text-ellipsis whitespace-nowrap">--</span>
             </div>
-            <div style="display:flex;justify-content:space-between;align-items:center;">
-              <span style="font-size:12px;color:#6F7D96;text-transform:uppercase;">Default CLI</span>
-              <span id="home-default-cli" style="font-size:14px;font-family:monospace;color:#e0e0e0;">--</span>
+            <div class="flex justify-between items-center">
+              <span class="text-xs text-gray-500 uppercase">Default CLI</span>
+              <span id="home-default-cli" class="text-sm font-mono text-gray-200">--</span>
             </div>
           </div>
         </div>
         <!-- CLI Status -->
-        <div style="background:#1a1b2e;border:1px solid #2a2b3e;border-radius:12px;padding:24px;">
-          <h2 style="font-size:16px;font-weight:600;color:#e0e0e0;margin-bottom:16px;">🤖 AI Agents</h2>
-          <div id="home-cli-status" style="display:flex;flex-direction:column;gap:8px;">
-            <span style="color:#6F7D96;font-size:13px;">Loading...</span>
+        <div class="bg-surface border border-border rounded-xl p-6">
+          <h2 class="text-base font-semibold text-gray-200 mb-4">🤖 AI Agents</h2>
+          <div id="home-cli-status" class="flex flex-col gap-2">
+            <span class="text-gray-500 text-[13px]">Loading...</span>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- Agents -->
-    <section id="tab-agents" class="tab-content hidden">
-      <div style="display:flex;gap:16px;height:calc(100vh - 120px);">
+    <!-- ══════════════════�?Agents Tab ══════════════════�?-->
+    <section id="tab-agents" class="tab-panel hidden">
+      <div class="flex gap-4" style="height:calc(100vh - 120px);">
         <!-- Left: CLI list -->
-        <div style="flex:1;background:#1a1b2e;border:1px solid #2a2b3e;border-radius:12px;padding:24px;overflow-y:auto;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-            <h2 style="font-size:16px;font-weight:600;color:#e0e0e0;">AI Agent Management</h2>
-            <button onclick="detectAll()" style="font-size:12px;color:#43e6c3;background:rgba(67,230,195,0.08);border:1px solid rgba(67,230,195,0.3);border-radius:6px;padding:6px 12px;cursor:pointer;">&#128260; Re-detect</button>
+        <div class="flex-1 bg-surface border border-border rounded-xl p-6 overflow-y-auto">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-base font-semibold text-gray-200">AI Agent Management</h2>
+            <button onclick="detectAll()" class="text-xs text-brand bg-brand/10 border border-brand/30 rounded-md px-3 py-1.5 cursor-pointer hover:bg-brand/20">&#128260; Re-detect</button>
           </div>
-          <div id="cli-list" style="color:#a0a8c0;font-size:14px;">Loading...</div>
+          <div id="cli-list" class="text-gray-400 text-sm">Loading...</div>
         </div>
         <!-- Right: Install output terminal -->
-        <div style="width:380px;min-width:300px;background:#0d0e17;border:1px solid #2a2b3e;border-radius:12px;display:flex;flex-direction:column;overflow:hidden;">
-          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #2a2b3e;">
-            <span style="font-size:13px;font-weight:600;color:#a0a8c0;">Install Log</span>
-            <span id="install-status" style="font-size:11px;color:#6F7D96;">Idle</span>
+        <div class="w-[380px] min-w-[300px] bg-surface-darker border border-border rounded-xl flex flex-col overflow-hidden">
+          <div class="flex items-center justify-between px-4 py-3 border-b border-border">
+            <span class="text-[13px] font-semibold text-gray-400">Install Log</span>
+            <span id="install-status" class="text-[11px] text-gray-500">Idle</span>
           </div>
-          <div id="install-terminal" style="flex:1;padding:4px;overflow:hidden;"></div>
+          <div id="install-terminal" class="flex-1 p-1 overflow-hidden"></div>
         </div>
       </div>
     </section>
 
-    <!-- API Keys -->
-    <section id="tab-keys" class="tab-content hidden">
-      <div style="background:#1a1b2e;border:1px solid #2a2b3e;border-radius:12px;padding:24px;">
-        <h2 style="font-size:16px;font-weight:600;color:#e0e0e0;margin-bottom:8px;">API Key Configuration</h2>
-        <p style="font-size:12px;color:#6F7D96;margin-bottom:16px;">Keys are stored locally in .env file. Never uploaded to any server.</p>
-        <div id="key-list" style="margin-bottom:16px;color:#a0a8c0;font-size:14px;">Loading...</div>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <select id="key-type" style="background:#0f1019;border:1px solid #2a2b3e;color:#e0e0e0;padding:6px 10px;border-radius:6px;font-size:13px;">
+    <!-- ══════════════════�?API Keys Tab ══════════════════�?-->
+    <section id="tab-keys" class="tab-panel hidden">
+      <div class="bg-surface border border-border rounded-xl p-6">
+        <h2 class="text-base font-semibold text-gray-200 mb-2">API Key Configuration</h2>
+        <p class="text-xs text-gray-500 mb-4">Keys are stored locally in .env file. Never uploaded to any server.</p>
+        <div id="key-list" class="mb-4 text-gray-400 text-sm">Loading...</div>
+        <div class="flex gap-2 items-center">
+          <select id="key-type" class="bg-surface-dark border border-border text-gray-200 px-2.5 py-1.5 rounded-md text-[13px]">
             <option value="OPENAI_API_KEY">OpenAI</option>
             <option value="ANTHROPIC_API_KEY">Anthropic</option>
             <option value="GOOGLE_API_KEY">Google</option>
             <option value="CODEX_API_KEY">Codex</option>
           </select>
-          <input type="password" id="key-value" placeholder="Enter API Key..." style="flex:1;background:#0f1019;border:1px solid #2a2b3e;color:#e0e0e0;padding:6px 12px;border-radius:6px;font-size:13px;font-family:monospace;">
-          <button onclick="saveKey()" style="background:rgba(67,230,195,0.12);color:#43e6c3;border:1px solid rgba(67,230,195,0.3);border-radius:6px;padding:6px 14px;cursor:pointer;font-size:13px;">Save</button>
+          <input type="password" id="key-value" placeholder="Enter API Key..." class="flex-1 bg-surface-dark border border-border text-gray-200 px-3 py-1.5 rounded-md text-[13px] font-mono">
+          <button onclick="saveKey()" class="bg-brand/10 text-brand border border-brand/30 rounded-md px-3.5 py-1.5 cursor-pointer text-[13px] hover:bg-brand/20">Save</button>
         </div>
       </div>
     </section>
 
-    <!-- Connection -->
-    <section id="tab-connection" class="tab-content hidden">
-      <div style="background:#1a1b2e;border:1px solid #2a2b3e;border-radius:12px;padding:24px;">
-        <h2 style="font-size:16px;font-weight:600;color:#e0e0e0;margin-bottom:16px;" data-i18n="conn.title">Connection Modes</h2>
+    <!-- ══════════════════�?Connection Tab ══════════════════�?-->
+    <section id="tab-connection" class="tab-panel hidden">
+      <div class="bg-surface border border-border rounded-xl p-6">
+        <h2 class="text-base font-semibold text-gray-200 mb-4" data-i18n="conn.title">Connection Modes</h2>
 
-        <!-- Status -->
-        <div id="conn-status" style="display:flex;gap:12px;margin-bottom:24px;">
-          <div class="conn-mode-card" id="conn-lan-card">
+        <!-- Status cards -->
+        <div id="conn-status" class="flex gap-3 mb-6">
+          <div class="flex-1 bg-surface-dark border border-border rounded-lg p-3 flex items-center gap-2" id="conn-lan-card">
             <span class="conn-dot active"></span>
-            <span class="conn-label">LAN</span>
-            <span class="conn-detail" id="conn-lan-detail">--</span>
+            <span class="text-[13px] font-medium text-gray-200">LAN</span>
+            <span class="text-[11px] text-gray-500 ml-auto" id="conn-lan-detail">--</span>
           </div>
-          <div class="conn-mode-card" id="conn-tunnel-card">
+          <div class="flex-1 bg-surface-dark border border-border rounded-lg p-3 flex items-center gap-2" id="conn-tunnel-card">
             <span class="conn-dot inactive"></span>
-            <span class="conn-label">Tunnel</span>
-            <span class="conn-detail" id="conn-tunnel-detail">--</span>
+            <span class="text-[13px] font-medium text-gray-200">Tunnel</span>
+            <span class="text-[11px] text-gray-500 ml-auto" id="conn-tunnel-detail">--</span>
           </div>
-          <div class="conn-mode-card" id="conn-relay-card">
+          <div class="flex-1 bg-surface-dark border border-border rounded-lg p-3 flex items-center gap-2" id="conn-relay-card">
             <span class="conn-dot inactive"></span>
-            <span class="conn-label">Relay</span>
-            <span class="conn-detail" id="conn-relay-detail">--</span>
+            <span class="text-[13px] font-medium text-gray-200">Relay</span>
+            <span class="text-[11px] text-gray-500 ml-auto" id="conn-relay-detail">--</span>
           </div>
         </div>
 
         <!-- Tunnel Config -->
-        <div style="margin-bottom:24px;">
-          <h3 style="font-size:14px;font-weight:500;color:#b0b0b0;margin-bottom:12px;" data-i18n="conn.tunnelTitle">Tunnel (WSS)</h3>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div class="mb-6">
+          <h3 class="text-sm font-medium text-gray-400 mb-3" data-i18n="conn.tunnelTitle">Tunnel (WSS)</h3>
+          <div class="grid grid-cols-2 gap-3">
             <div>
-              <label style="font-size:11px;color:#888;display:block;margin-bottom:4px;" data-i18n="conn.certPath">TLS Certificate Path</label>
-              <input id="conn-tunnel-cert" type="text" placeholder="/path/to/cert.pem" style="width:100%;padding:8px 12px;background:#0d0e1a;border:1px solid #2a2b3e;border-radius:6px;color:#e0e0e0;font-size:13px;">
+              <label class="text-[11px] text-gray-500 block mb-1" data-i18n="conn.certPath">TLS Certificate Path</label>
+              <input id="conn-tunnel-cert" type="text" placeholder="/path/to/cert.pem" class="w-full px-3 py-2 bg-surface-dark border border-border rounded-md text-gray-200 text-[13px]">
             </div>
             <div>
-              <label style="font-size:11px;color:#888;display:block;margin-bottom:4px;" data-i18n="conn.keyPath">TLS Key Path</label>
-              <input id="conn-tunnel-key" type="text" placeholder="/path/to/key.pem" style="width:100%;padding:8px 12px;background:#0d0e1a;border:1px solid #2a2b3e;border-radius:6px;color:#e0e0e0;font-size:13px;">
+              <label class="text-[11px] text-gray-500 block mb-1" data-i18n="conn.keyPath">TLS Key Path</label>
+              <input id="conn-tunnel-key" type="text" placeholder="/path/to/key.pem" class="w-full px-3 py-2 bg-surface-dark border border-border rounded-md text-gray-200 text-[13px]">
             </div>
             <div>
-              <label style="font-size:11px;color:#888;display:block;margin-bottom:4px;" data-i18n="conn.bearerToken">Bearer Token</label>
-              <div style="position:relative;">
-                <input id="conn-tunnel-token" type="password" placeholder="your-secret-token" style="width:100%;padding:8px 12px;background:#0d0e1a;border:1px solid #2a2b3e;border-radius:6px;color:#e0e0e0;font-size:13px;padding-right:36px;">
-                <button id="conn-token-toggle" onclick="toggleTokenVisibility()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:#888;cursor:pointer;font-size:14px;">👁</button>
+              <label class="text-[11px] text-gray-500 block mb-1" data-i18n="conn.bearerToken">Bearer Token</label>
+              <div class="relative">
+                <input id="conn-tunnel-token" type="password" placeholder="your-secret-token" class="w-full px-3 py-2 pr-9 bg-surface-dark border border-border rounded-md text-gray-200 text-[13px]">
+                <button id="conn-token-toggle" onclick="toggleTokenVisibility()" class="absolute right-2 top-1/2 -translate-y-1/2 bg-transparent border-none text-gray-500 cursor-pointer text-sm">👁</button>
               </div>
             </div>
             <div>
-              <label style="font-size:11px;color:#888;display:block;margin-bottom:4px;" data-i18n="conn.port">Port</label>
-              <input id="conn-tunnel-port" type="number" value="9601" min="1" max="65535" style="width:100%;padding:8px 12px;background:#0d0e1a;border:1px solid #2a2b3e;border-radius:6px;color:#e0e0e0;font-size:13px;">
+              <label class="text-[11px] text-gray-500 block mb-1" data-i18n="conn.port">Port</label>
+              <input id="conn-tunnel-port" type="number" value="9601" min="1" max="65535" class="w-full px-3 py-2 bg-surface-dark border border-border rounded-md text-gray-200 text-[13px]">
             </div>
           </div>
         </div>
 
         <!-- Relay Config -->
-        <div style="margin-bottom:24px;">
-          <h3 style="font-size:14px;font-weight:500;color:#b0b0b0;margin-bottom:12px;" data-i18n="conn.relayTitle">Relay Server</h3>
+        <div class="mb-6">
+          <h3 class="text-sm font-medium text-gray-400 mb-3" data-i18n="conn.relayTitle">Relay Server</h3>
           <div>
-            <label style="font-size:11px;color:#888;display:block;margin-bottom:4px;" data-i18n="conn.relayUrl">Relay Server URL</label>
-            <input id="conn-relay-url" type="text" placeholder="wss://relay.example.com" style="width:100%;padding:8px 12px;background:#0d0e1a;border:1px solid #2a2b3e;border-radius:6px;color:#e0e0e0;font-size:13px;">
+            <label class="text-[11px] text-gray-500 block mb-1" data-i18n="conn.relayUrl">Relay Server URL</label>
+            <input id="conn-relay-url" type="text" placeholder="wss://relay.example.com" class="w-full px-3 py-2 bg-surface-dark border border-border rounded-md text-gray-200 text-[13px]">
           </div>
         </div>
 
         <!-- Actions -->
-        <div style="display:flex;gap:12px;align-items:center;">
-          <button id="conn-save-btn" onclick="saveConnectionConfig()" style="padding:8px 20px;background:#43e6c3;color:#0d0e1a;border:none;border-radius:6px;font-weight:600;font-size:13px;cursor:pointer;" data-i18n="conn.saveApply">Save & Apply</button>
-          <span id="conn-save-status" style="font-size:12px;color:#888;"></span>
+        <div class="flex gap-3 items-center">
+          <button id="conn-save-btn" onclick="saveConnectionConfig()" class="px-5 py-2 bg-brand text-surface-dark border-none rounded-md font-semibold text-[13px] cursor-pointer hover:brightness-110" data-i18n="conn.saveApply">Save &amp; Apply</button>
+          <span id="conn-save-status" class="text-xs text-gray-500"></span>
         </div>
 
         <!-- Validation errors -->
-        <div id="conn-errors" style="margin-top:12px;display:none;">
-        </div>
+        <div id="conn-errors" class="mt-3" style="display:none;"></div>
       </div>
     </section>
 
-    <!-- Logs -->
-    <section id="tab-logs" class="tab-content hidden">
-      <div style="background:#1a1b2e;border:1px solid #2a2b3e;border-radius:12px;padding:16px;height:calc(100vh - 120px);display:flex;flex-direction:column;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-          <h2 style="font-size:16px;font-weight:600;color:#e0e0e0;">Logs</h2>
-          <div style="display:flex;align-items:center;gap:8px;">
-            <select id="log-level" style="background:#0f1019;border:1px solid #2a2b3e;color:#e0e0e0;padding:4px 8px;border-radius:4px;font-size:12px;">
+    <!-- ══════════════════�?Logs Tab ══════════════════�?-->
+    <section id="tab-logs" class="tab-panel hidden">
+      <div class="bg-surface border border-border rounded-xl p-4 flex flex-col" style="height:calc(100vh - 120px);">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-base font-semibold text-gray-200">Logs</h2>
+          <div class="flex items-center gap-2">
+            <select id="log-level" class="bg-surface-dark border border-border text-gray-200 px-2 py-1 rounded text-xs">
               <option value="all">All</option>
               <option value="INFO">INFO</option>
               <option value="WARNING">WARNING</option>
               <option value="ERROR">ERROR</option>
             </select>
-            <button onclick="clearLogs()" style="font-size:11px;color:#6F7D96;background:none;border:1px solid #2a2b3e;border-radius:4px;padding:4px 8px;cursor:pointer;">Clear</button>
-            <button id="log-pause" onclick="togglePause()" style="font-size:11px;color:#6F7D96;background:none;border:1px solid #2a2b3e;border-radius:4px;padding:4px 8px;cursor:pointer;">Pause</button>
+            <button onclick="clearLogs()" class="text-[11px] text-gray-500 bg-transparent border border-border rounded px-2 py-1 cursor-pointer hover:text-gray-300">Clear</button>
+            <button id="log-pause" onclick="togglePause()" class="text-[11px] text-gray-500 bg-transparent border border-border rounded px-2 py-1 cursor-pointer hover:text-gray-300">Pause</button>
           </div>
         </div>
-        <div id="log-terminal-container" style="flex:1;border-radius:8px;overflow:hidden;"></div>
+        <div id="log-terminal-container" class="flex-1 rounded-lg overflow-hidden"></div>
       </div>
     </section>
 
-    <!-- Run Config -->
-    <section id="tab-runconfig" class="tab-content hidden">
-      <iframe src="/run-config.html" style="width:100%;height:calc(100vh - 80px);border:none;border-radius:8px;"></iframe>
+    <!-- ══════════════════�?Run Config Tab ══════════════════�?-->
+    <section id="tab-runconfig" class="tab-panel hidden">
+      <div class="flex" style="height:calc(100vh - 120px);">
+        <!-- Left: Config list -->
+        <aside class="w-64 min-w-[220px] bg-surface border-r border-border flex flex-col rounded-l-xl">
+          <div class="flex items-center justify-between px-4 py-3 border-b border-border">
+            <h3 class="text-sm font-semibold text-gray-200">Configurations</h3>
+            <button id="btn-add" class="w-7 h-7 flex items-center justify-center rounded-full bg-transparent border-none text-brand text-lg cursor-pointer hover:bg-white/5">+</button>
+          </div>
+          <div id="config-list" class="flex-1 overflow-y-auto p-2 space-y-1">
+            <div class="text-center text-xs text-gray-500 py-8">Loading...</div>
+          </div>
+        </aside>
+
+        <!-- Center: Editor -->
+        <section class="flex-1 overflow-y-auto p-6" id="editor-panel">
+          <div id="editor-empty" class="flex items-center justify-center h-full text-gray-500 text-sm">
+            Select a configuration or click + to create one.
+          </div>
+          <div id="editor-form" class="hidden max-w-lg space-y-4">
+            <div>
+              <label class="block text-[11px] uppercase tracking-wider text-gray-500 mb-1">Name</label>
+              <input type="text" id="f-name" class="w-full px-3 py-1.5 bg-surface-dark border border-border rounded-md text-gray-200 text-sm font-mono" placeholder="My Dev Server">
+            </div>
+            <div>
+              <label class="block text-[11px] uppercase tracking-wider text-gray-500 mb-1">Command</label>
+              <textarea id="f-command" class="w-full px-3 py-2 bg-surface-dark border border-border rounded-md text-gray-200 text-sm font-mono resize-y" rows="2" placeholder="npm run dev"></textarea>
+            </div>
+            <div>
+              <label class="block text-[11px] uppercase tracking-wider text-gray-500 mb-1">Working Directory</label>
+              <input type="text" id="f-workdir" class="w-full px-3 py-1.5 bg-surface-dark border border-border rounded-md text-gray-200 text-sm font-mono" placeholder="(project root)">
+            </div>
+            <div class="hidden" id="field-url">
+              <label class="block text-[11px] uppercase tracking-wider text-gray-500 mb-1">Preview URL</label>
+              <input type="text" id="f-url" class="w-full px-3 py-1.5 bg-surface-dark border border-border rounded-md text-gray-200 text-sm font-mono" placeholder="http://localhost:3000">
+            </div>
+            <div class="hidden" id="field-host">
+              <label class="block text-[11px] uppercase tracking-wider text-gray-500 mb-1">Host Header</label>
+              <input type="text" id="f-host" class="w-full px-3 py-1.5 bg-surface-dark border border-border rounded-md text-gray-200 text-sm font-mono" placeholder="(derived from URL)">
+            </div>
+            <div>
+              <label class="block text-[11px] uppercase tracking-wider text-gray-500 mb-1">Environment Variables</label>
+              <div id="env-list" class="space-y-1"></div>
+              <button id="btn-add-env" class="text-xs text-brand bg-transparent border-none cursor-pointer mt-1 hover:underline">+ Add Variable</button>
+            </div>
+            <div>
+              <label class="block text-[11px] uppercase tracking-wider text-gray-500 mb-1">Before-Run Tasks</label>
+              <div id="task-list" class="space-y-1"></div>
+              <button id="btn-add-task" class="text-xs text-brand bg-transparent border-none cursor-pointer mt-1 hover:underline">+ Add Task</button>
+            </div>
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <span class="text-sm text-gray-400">Allow Parallel</span>
+                <input type="checkbox" id="t-parallel" class="toggle toggle-sm toggle-primary">
+              </div>
+              <div class="flex items-center justify-between hidden" id="row-autorefresh">
+                <span class="text-sm text-gray-400">Auto-Refresh</span>
+                <input type="checkbox" id="t-autorefresh" class="toggle toggle-sm toggle-primary">
+              </div>
+            </div>
+            <div class="flex gap-2 pt-4 border-t border-border">
+              <button id="btn-run" class="px-3 py-1.5 bg-green-600 text-white border-none rounded-md text-sm cursor-pointer hover:bg-green-500">&#9654; Run</button>
+              <button id="btn-stop" class="px-3 py-1.5 bg-yellow-600 text-white border-none rounded-md text-sm cursor-pointer hover:bg-yellow-500 hidden">&#9632; Stop</button>
+              <button id="btn-delete" class="px-3 py-1.5 bg-transparent text-red-400 border border-red-400/50 rounded-md text-sm cursor-pointer hover:bg-red-400/10">Delete</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- Resize handle -->
+        <div id="resize-handle" class="w-[5px] cursor-col-resize flex-shrink-0 transition-colors hover:bg-brand/30"></div>
+
+        <!-- Right: Terminal output -->
+        <aside id="output-panel" class="bg-surface-darker border-l border-border flex flex-col flex-shrink-0 rounded-r-xl" style="width:380px;min-width:200px;">
+          <div class="flex items-center justify-between px-4 py-3 border-b border-border">
+            <h3 class="text-sm font-semibold text-gray-400">Output</h3>
+            <button id="btn-clear" class="text-xs text-gray-500 bg-transparent border-none cursor-pointer hover:text-gray-300">Clear</button>
+          </div>
+          <div id="terminal-container" class="flex-1 overflow-hidden p-1"></div>
+          <div id="output-status" class="px-4 py-2 border-t border-border text-xs text-gray-500 hidden"></div>
+        </aside>
+      </div>
+
+      <!-- Type selection modal -->
+      <dialog id="type-dialog" class="modal">
+        <div class="modal-box bg-surface max-w-xs border border-border">
+          <h3 class="text-lg font-bold text-gray-200 mb-4">New Configuration</h3>
+          <div class="space-y-1" id="type-options">
+            <button class="w-full flex items-center gap-3 px-3 py-2 rounded-lg bg-transparent border-none text-left cursor-pointer hover:bg-white/5 text-gray-200" data-type="preview">
+              <span>&#127760;</span><div><div class="text-sm">Preview</div><div class="text-xs text-gray-500">Web dev server with proxy</div></div>
+            </button>
+            <button class="w-full flex items-center gap-3 px-3 py-2 rounded-lg bg-transparent border-none text-left cursor-pointer hover:bg-white/5 text-gray-200" data-type="script">
+              <span>&#9000;</span><div><div class="text-sm">Script</div><div class="text-xs text-gray-500">Run a shell command</div></div>
+            </button>
+            <button class="w-full flex items-center gap-3 px-3 py-2 rounded-lg bg-transparent border-none text-left cursor-pointer hover:bg-white/5 text-gray-200" data-type="test">
+              <span>&#10003;</span><div><div class="text-sm">Test</div><div class="text-xs text-gray-500">Run test suite</div></div>
+            </button>
+            <button class="w-full flex items-center gap-3 px-3 py-2 rounded-lg bg-transparent border-none text-left cursor-pointer hover:bg-white/5 text-gray-200" data-type="custom">
+              <span>&#9881;</span><div><div class="text-sm">Custom</div><div class="text-xs text-gray-500">Generic configuration</div></div>
+            </button>
+          </div>
+          <div class="flex justify-end mt-4">
+            <button class="text-sm text-gray-500 bg-transparent border border-border rounded-md px-3 py-1.5 cursor-pointer hover:text-gray-300" onclick="document.getElementById('type-dialog').close()">Cancel</button>
+          </div>
+        </div>
+        <form method="dialog" class="modal-backdrop"><button>close</button></form>
+      </dialog>
     </section>
 
-    <!-- Settings -->
-    <section id="tab-settings" class="tab-content hidden">
-      <div style="background:#1a1b2e;border:1px solid #2a2b3e;border-radius:12px;padding:24px;">
-        <h2 style="font-size:16px;font-weight:600;color:#e0e0e0;margin-bottom:16px;">Settings</h2>
-        <div style="display:flex;flex-direction:column;gap:12px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #2a2b3e;">
-            <span style="font-size:14px;color:#6F7D96;">Listen Port</span>
-            <span id="setting-port" style="font-size:14px;font-family:monospace;color:#e0e0e0;">9600</span>
+    <!-- ══════════════════�?Settings Tab ══════════════════�?-->
+    <section id="tab-settings" class="tab-panel hidden">
+      <div class="bg-surface border border-border rounded-xl p-6">
+        <h2 class="text-base font-semibold text-gray-200 mb-4">Settings</h2>
+        <div class="flex flex-col gap-3">
+          <div class="flex justify-between items-center py-2 border-b border-border">
+            <span class="text-sm text-gray-500">Listen Port</span>
+            <span id="setting-port" class="text-sm font-mono text-gray-200">9600</span>
           </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #2a2b3e;">
-            <span style="font-size:14px;color:#6F7D96;">Working Directory</span>
-            <span id="setting-cwd" style="font-size:14px;font-family:monospace;color:#e0e0e0;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">--</span>
+          <div class="flex justify-between items-center py-2 border-b border-border">
+            <span class="text-sm text-gray-500">Working Directory</span>
+            <span id="setting-cwd" class="text-sm font-mono text-gray-200 max-w-[300px] overflow-hidden text-ellipsis whitespace-nowrap">--</span>
           </div>
-          <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;">
-            <span style="font-size:14px;color:#6F7D96;">Version</span>
-            <span id="setting-version" style="font-size:14px;font-family:monospace;color:#e0e0e0;">--</span>
+          <div class="flex justify-between items-center py-2">
+            <span class="text-sm text-gray-500">Version</span>
+            <span id="setting-version" class="text-sm font-mono text-gray-200">--</span>
           </div>
         </div>
       </div>
     </section>
   </main>
 
-  <!-- Project Picker Dialog -->
-  <div id="project-picker-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;align-items:center;justify-content:center;">
-    <div style="background:#1a1b2e;border:1px solid #2a2b3e;border-radius:12px;padding:24px;width:560px;max-width:90vw;max-height:80vh;display:flex;flex-direction:column;">
-      <h3 style="font-size:16px;font-weight:600;color:#e0e0e0;margin-bottom:12px;">Switch Project</h3>
+  <!-- ══════════════════�?Project Picker Dialog ══════════════════�?-->
+  <div id="project-picker-overlay" class="fixed inset-0 bg-black/60 z-[100] items-center justify-center" style="display:none;">
+    <div class="bg-surface border border-border rounded-xl p-6 w-[560px] max-w-[90vw] max-h-[80vh] flex flex-col">
+      <h3 class="text-base font-semibold text-gray-200 mb-3">Switch Project</h3>
       <!-- Registered projects -->
-      <div id="project-list-container" style="overflow-y:auto;margin-bottom:12px;max-height:150px;">
-        <span style="color:#6F7D96;font-size:13px;">Loading...</span>
+      <div id="project-list-container" class="overflow-y-auto mb-3 max-h-[150px]">
+        <span class="text-gray-500 text-[13px]">Loading...</span>
       </div>
       <!-- Directory browser -->
-      <div style="border-top:1px solid #2a2b3e;padding-top:12px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-          <span style="font-size:12px;color:#6F7D96;text-transform:uppercase;">Browse &amp; Add</span>
-          <button onclick="browseTo('')" style="font-size:11px;color:#6F7D96;background:none;border:1px solid #2a2b3e;border-radius:4px;padding:2px 8px;cursor:pointer;">Root</button>
+      <div class="border-t border-border pt-3">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs text-gray-500 uppercase">Browse &amp; Add</span>
+          <button onclick="browseTo('')" class="text-[11px] text-gray-500 bg-transparent border border-border rounded px-2 py-0.5 cursor-pointer hover:text-gray-300">Root</button>
         </div>
-        <div id="browse-path-bar" style="font-size:11px;font-family:monospace;color:#43e6c3;margin-bottom:8px;cursor:pointer;" onclick="browseUp()"></div>
-        <div id="browse-list" style="background:#0f1019;border:1px solid #2a2b3e;border-radius:8px;max-height:200px;overflow-y:auto;padding:4px;"></div>
-        <div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
-          <input type="text" id="new-project-path" placeholder="Or type path manually..." style="flex:1;background:#0f1019;border:1px solid #2a2b3e;color:#e0e0e0;padding:6px 10px;border-radius:6px;font-size:12px;font-family:monospace;">
-          <button onclick="addProjectFromDashboard()" style="font-size:11px;color:#43e6c3;background:rgba(67,230,195,0.08);border:1px solid rgba(67,230,195,0.3);border-radius:6px;padding:6px 10px;cursor:pointer;">Add</button>
+        <div id="browse-path-bar" class="text-[11px] font-mono text-brand mb-2 cursor-pointer" onclick="browseUp()"></div>
+        <div id="browse-list" class="bg-surface-dark border border-border rounded-lg max-h-[200px] overflow-y-auto p-1"></div>
+        <div class="flex gap-2 items-center mt-2">
+          <input type="text" id="new-project-path" placeholder="Or type path manually..." class="flex-1 bg-surface-dark border border-border text-gray-200 px-2.5 py-1.5 rounded-md text-xs font-mono">
+          <button onclick="addProjectFromDashboard()" class="text-[11px] text-brand bg-brand/10 border border-brand/30 rounded-md px-2.5 py-1.5 cursor-pointer hover:bg-brand/20">Add</button>
         </div>
       </div>
-      <div style="display:flex;justify-content:flex-end;margin-top:12px;">
-        <button onclick="closeProjectPicker()" style="font-size:13px;color:#6F7D96;background:none;border:1px solid #2a2b3e;border-radius:6px;padding:8px 16px;cursor:pointer;">Close</button>
+      <div class="flex justify-end mt-3">
+        <button onclick="closeProjectPicker()" class="text-[13px] text-gray-500 bg-transparent border border-border rounded-md px-4 py-2 cursor-pointer hover:text-gray-300">Close</button>
       </div>
     </div>
   </div>
 
-  <!-- Add Custom Agent Dialog -->
-  <div id="add-agent-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:100;align-items:center;justify-content:center;">
-    <div style="background:#1a1b2e;border:1px solid #2a2b3e;border-radius:12px;padding:24px;width:400px;max-width:90vw;">
-      <h3 style="font-size:16px;font-weight:600;color:#e0e0e0;margin-bottom:16px;">Add Custom Agent</h3>
-      <div style="display:flex;flex-direction:column;gap:12px;">
+  <!-- ══════════════════�?Add Custom Agent Dialog ══════════════════�?-->
+  <div id="add-agent-overlay" class="fixed inset-0 bg-black/60 z-[100] items-center justify-center" style="display:none;">
+    <div class="bg-surface border border-border rounded-xl p-6 w-[400px] max-w-[90vw]">
+      <h3 class="text-base font-semibold text-gray-200 mb-4">Add Custom Agent</h3>
+      <div class="flex flex-col gap-3">
         <div>
-          <label style="display:block;font-size:11px;color:#6F7D96;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Name (unique ID)</label>
-          <input type="text" id="ca-name" placeholder="my-agent" style="width:100%;background:#0f1019;border:1px solid #2a2b3e;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:13px;font-family:monospace;">
+          <label class="block text-[11px] text-gray-500 uppercase tracking-wider mb-1">Name (unique ID)</label>
+          <input type="text" id="ca-name" placeholder="my-agent" class="w-full bg-surface-dark border border-border text-gray-200 px-3 py-2 rounded-md text-[13px] font-mono">
         </div>
         <div>
-          <label style="display:block;font-size:11px;color:#6F7D96;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Command</label>
-          <input type="text" id="ca-command" placeholder="/usr/local/bin/my-cli" style="width:100%;background:#0f1019;border:1px solid #2a2b3e;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:13px;font-family:monospace;">
+          <label class="block text-[11px] text-gray-500 uppercase tracking-wider mb-1">Command</label>
+          <input type="text" id="ca-command" placeholder="/usr/local/bin/my-cli" class="w-full bg-surface-dark border border-border text-gray-200 px-3 py-2 rounded-md text-[13px] font-mono">
         </div>
         <div>
-          <label style="display:block;font-size:11px;color:#6F7D96;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Arguments (space-separated)</label>
-          <input type="text" id="ca-args" placeholder="--stdio" style="width:100%;background:#0f1019;border:1px solid #2a2b3e;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:13px;font-family:monospace;">
+          <label class="block text-[11px] text-gray-500 uppercase tracking-wider mb-1">Arguments (space-separated)</label>
+          <input type="text" id="ca-args" placeholder="--stdio" class="w-full bg-surface-dark border border-border text-gray-200 px-3 py-2 rounded-md text-[13px] font-mono">
         </div>
         <div>
-          <label style="display:block;font-size:11px;color:#6F7D96;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;">Display Name</label>
-          <input type="text" id="ca-display" placeholder="My Custom Agent" style="width:100%;background:#0f1019;border:1px solid #2a2b3e;color:#e0e0e0;padding:8px 12px;border-radius:6px;font-size:13px;">
+          <label class="block text-[11px] text-gray-500 uppercase tracking-wider mb-1">Display Name</label>
+          <input type="text" id="ca-display" placeholder="My Custom Agent" class="w-full bg-surface-dark border border-border text-gray-200 px-3 py-2 rounded-md text-[13px]">
         </div>
       </div>
-      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px;">
-        <button onclick="closeAddAgentDialog()" style="font-size:13px;color:#6F7D96;background:none;border:1px solid #2a2b3e;border-radius:6px;padding:8px 16px;cursor:pointer;">Cancel</button>
-        <button onclick="submitAddAgent()" style="font-size:13px;color:#43e6c3;background:rgba(67,230,195,0.12);border:1px solid rgba(67,230,195,0.3);border-radius:6px;padding:8px 16px;cursor:pointer;">Add</button>
+      <div class="flex justify-end gap-2 mt-5">
+        <button onclick="closeAddAgentDialog()" class="text-[13px] text-gray-500 bg-transparent border border-border rounded-md px-4 py-2 cursor-pointer hover:text-gray-300">Cancel</button>
+        <button onclick="submitAddAgent()" class="text-[13px] text-brand bg-brand/10 border border-brand/30 rounded-md px-4 py-2 cursor-pointer hover:bg-brand/20">Add</button>
       </div>
     </div>
   </div>
 
   <script src="/app.js"></script>
   <script src="/connection.js"></script>
+  <script src="/run-config.js"></script>
 </body>
 </html>

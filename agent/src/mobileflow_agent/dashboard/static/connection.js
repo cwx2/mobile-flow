@@ -162,31 +162,27 @@ function toggleTokenVisibility() {
 
 // ── Init on tab switch ──
 
-// Listen for tab changes to start/stop polling
-const _origTabSwitch = window.switchTab;
-if (typeof switchTab === 'function') {
-  // Monkey-patch the existing tab switch to hook into connection tab
-  const _origFn = switchTab;
-  window.switchTab = function(tab) {
-    _origFn(tab);
-    if (tab === 'connection') {
-      loadConnectionConfig();
-      loadConnectionStatus();
-      if (!_connStatusInterval) {
-        _connStatusInterval = setInterval(loadConnectionStatus, 5000);
-      }
-    } else {
-      if (_connStatusInterval) {
-        clearInterval(_connStatusInterval);
-        _connStatusInterval = null;
-      }
+// Start/stop polling when connection tab is shown/hidden
+document.querySelector('.nav-tab[data-tab="connection"]').addEventListener('click', () => {
+  loadConnectionConfig();
+  loadConnectionStatus();
+  if (!_connStatusInterval) {
+    _connStatusInterval = setInterval(loadConnectionStatus, 5000);
+  }
+});
+
+// Stop polling when switching away from connection tab
+document.querySelectorAll('.nav-tab:not([data-tab="connection"])').forEach(tab => {
+  tab.addEventListener('click', () => {
+    if (_connStatusInterval) {
+      clearInterval(_connStatusInterval);
+      _connStatusInterval = null;
     }
-  };
-}
+  });
+});
 
 // Also load on page load if connection tab is active
 document.addEventListener('DOMContentLoaded', () => {
-  // Check if connection tab is visible (unlikely on first load, but handle it)
   const connTab = document.getElementById('tab-connection');
   if (connTab && !connTab.classList.contains('hidden')) {
     loadConnectionConfig();

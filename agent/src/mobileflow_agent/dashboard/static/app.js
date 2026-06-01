@@ -4,11 +4,15 @@
 
 document.querySelectorAll('.nav-tab').forEach(tab => {
   tab.addEventListener('click', () => {
-    // Update tab active state
-    document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active-tab'));
-    tab.classList.add('active-tab');
+    // Update tab active state (Tailwind classes)
+    document.querySelectorAll('.nav-tab').forEach(t => {
+      t.classList.remove('bg-brand/10', 'text-brand');
+      t.classList.add('bg-transparent', 'text-gray-400');
+    });
+    tab.classList.remove('bg-transparent', 'text-gray-400');
+    tab.classList.add('bg-brand/10', 'text-brand');
     // Show/hide tab content
-    document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+    document.querySelectorAll('.tab-panel').forEach(c => c.classList.add('hidden'));
     const target = document.getElementById('tab-' + tab.dataset.tab);
     if (target) target.classList.remove('hidden');
   });

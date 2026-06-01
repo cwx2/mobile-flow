@@ -1,4 +1,5 @@
 /* Legacy stylesheet — no longer used.
- * All styling is now handled by Tailwind CSS + DaisyUI via CDN.
+ * All styling is handled by Tailwind CSS (vendor/tailwind.min.js) + DaisyUI (vendor/daisyui.min.css).
+ * Custom overrides are in <style> block within index.html.
  * This file is kept empty to avoid 404 errors from any cached references.
  */
