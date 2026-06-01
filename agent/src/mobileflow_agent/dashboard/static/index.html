@@ -39,6 +39,13 @@
     .badge { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
     .badge-success { background: rgba(61,219,140,0.15); color: #3ddb8c; }
     .badge-warning { background: rgba(255,180,84,0.15); color: #ffb454; }
+    .conn-mode-card { flex:1; background:#0d0e1a; border:1px solid #2a2b3e; border-radius:8px; padding:12px; display:flex; align-items:center; gap:8px; }
+    .conn-dot { width:8px; height:8px; border-radius:50%; }
+    .conn-dot.active { background:#43e6c3; box-shadow:0 0 6px #43e6c3; }
+    .conn-dot.inactive { background:#555; }
+    .conn-dot.error { background:#e57373; box-shadow:0 0 6px #e57373; }
+    .conn-label { font-size:13px; font-weight:500; color:#e0e0e0; }
+    .conn-detail { font-size:11px; color:#888; margin-left:auto; }
   </style>
 </head>
 <body>
@@ -49,8 +56,9 @@
       <button class="nav-tab active-tab" data-tab="home" data-i18n="nav.home">Home</button>
       <button class="nav-tab" data-tab="agents" data-i18n="nav.agent">Agent</button>
       <button class="nav-tab" data-tab="keys" data-i18n="nav.apiKey">API Key</button>
+      <button class="nav-tab" data-tab="connection" data-i18n="nav.connection">Connection</button>
       <button class="nav-tab" data-tab="logs" data-i18n="nav.logs">Logs</button>
-      <a class="nav-tab" href="/run-config.html" data-i18n="nav.runConfig">Run Config</a>
+      <button class="nav-tab" data-tab="runconfig" data-i18n="nav.runConfig">Run Config</button>
       <button class="nav-tab" data-tab="settings" data-i18n="nav.settings">Settings</button>
     </div>
   </div>
@@ -171,6 +179,77 @@
       </div>
     </section>
 
+    <!-- Connection -->
+    <section id="tab-connection" class="tab-content hidden">
+      <div style="background:#1a1b2e;border:1px solid #2a2b3e;border-radius:12px;padding:24px;">
+        <h2 style="font-size:16px;font-weight:600;color:#e0e0e0;margin-bottom:16px;" data-i18n="conn.title">Connection Modes</h2>
+
+        <!-- Status -->
+        <div id="conn-status" style="display:flex;gap:12px;margin-bottom:24px;">
+          <div class="conn-mode-card" id="conn-lan-card">
+            <span class="conn-dot active"></span>
+            <span class="conn-label">LAN</span>
+            <span class="conn-detail" id="conn-lan-detail">--</span>
+          </div>
+          <div class="conn-mode-card" id="conn-tunnel-card">
+            <span class="conn-dot inactive"></span>
+            <span class="conn-label">Tunnel</span>
+            <span class="conn-detail" id="conn-tunnel-detail">--</span>
+          </div>
+          <div class="conn-mode-card" id="conn-relay-card">
+            <span class="conn-dot inactive"></span>
+            <span class="conn-label">Relay</span>
+            <span class="conn-detail" id="conn-relay-detail">--</span>
+          </div>
+        </div>
+
+        <!-- Tunnel Config -->
+        <div style="margin-bottom:24px;">
+          <h3 style="font-size:14px;font-weight:500;color:#b0b0b0;margin-bottom:12px;" data-i18n="conn.tunnelTitle">Tunnel (WSS)</h3>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div>
+              <label style="font-size:11px;color:#888;display:block;margin-bottom:4px;" data-i18n="conn.certPath">TLS Certificate Path</label>
+              <input id="conn-tunnel-cert" type="text" placeholder="/path/to/cert.pem" style="width:100%;padding:8px 12px;background:#0d0e1a;border:1px solid #2a2b3e;border-radius:6px;color:#e0e0e0;font-size:13px;">
+            </div>
+            <div>
+              <label style="font-size:11px;color:#888;display:block;margin-bottom:4px;" data-i18n="conn.keyPath">TLS Key Path</label>
+              <input id="conn-tunnel-key" type="text" placeholder="/path/to/key.pem" style="width:100%;padding:8px 12px;background:#0d0e1a;border:1px solid #2a2b3e;border-radius:6px;color:#e0e0e0;font-size:13px;">
+            </div>
+            <div>
+              <label style="font-size:11px;color:#888;display:block;margin-bottom:4px;" data-i18n="conn.bearerToken">Bearer Token</label>
+              <div style="position:relative;">
+                <input id="conn-tunnel-token" type="password" placeholder="your-secret-token" style="width:100%;padding:8px 12px;background:#0d0e1a;border:1px solid #2a2b3e;border-radius:6px;color:#e0e0e0;font-size:13px;padding-right:36px;">
+                <button id="conn-token-toggle" onclick="toggleTokenVisibility()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:#888;cursor:pointer;font-size:14px;">👁</button>
+              </div>
+            </div>
+            <div>
+              <label style="font-size:11px;color:#888;display:block;margin-bottom:4px;" data-i18n="conn.port">Port</label>
+              <input id="conn-tunnel-port" type="number" value="9601" min="1" max="65535" style="width:100%;padding:8px 12px;background:#0d0e1a;border:1px solid #2a2b3e;border-radius:6px;color:#e0e0e0;font-size:13px;">
+            </div>
+          </div>
+        </div>
+
+        <!-- Relay Config -->
+        <div style="margin-bottom:24px;">
+          <h3 style="font-size:14px;font-weight:500;color:#b0b0b0;margin-bottom:12px;" data-i18n="conn.relayTitle">Relay Server</h3>
+          <div>
+            <label style="font-size:11px;color:#888;display:block;margin-bottom:4px;" data-i18n="conn.relayUrl">Relay Server URL</label>
+            <input id="conn-relay-url" type="text" placeholder="wss://relay.example.com" style="width:100%;padding:8px 12px;background:#0d0e1a;border:1px solid #2a2b3e;border-radius:6px;color:#e0e0e0;font-size:13px;">
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div style="display:flex;gap:12px;align-items:center;">
+          <button id="conn-save-btn" onclick="saveConnectionConfig()" style="padding:8px 20px;background:#43e6c3;color:#0d0e1a;border:none;border-radius:6px;font-weight:600;font-size:13px;cursor:pointer;" data-i18n="conn.saveApply">Save & Apply</button>
+          <span id="conn-save-status" style="font-size:12px;color:#888;"></span>
+        </div>
+
+        <!-- Validation errors -->
+        <div id="conn-errors" style="margin-top:12px;display:none;">
+        </div>
+      </div>
+    </section>
+
     <!-- Logs -->
     <section id="tab-logs" class="tab-content hidden">
       <div style="background:#1a1b2e;border:1px solid #2a2b3e;border-radius:12px;padding:16px;height:calc(100vh - 120px);display:flex;flex-direction:column;">
@@ -189,6 +268,11 @@
         </div>
         <div id="log-terminal-container" style="flex:1;border-radius:8px;overflow:hidden;"></div>
       </div>
+    </section>
+
+    <!-- Run Config -->
+    <section id="tab-runconfig" class="tab-content hidden">
+      <iframe src="/run-config.html" style="width:100%;height:calc(100vh - 80px);border:none;border-radius:8px;"></iframe>
     </section>
 
     <!-- Settings -->
@@ -270,5 +354,6 @@
   </div>
 
   <script src="/app.js"></script>
+  <script src="/connection.js"></script>
 </body>
 </html>

@@ -78,7 +78,14 @@ def _find_env_file() -> Path | None:
 
 
 def _load_layered_config() -> dict[str, Any]:
-    """Load config/default.json → config/{env}.json, deep-merged."""
+    """Load config/default.json → config/{env}.json → user-config.json, deep-merged.
+
+    Loading priority (low → high):
+        1. config/default.json (base defaults, committed)
+        2. config/{env}.json (environment override, committed)
+        3. ~/.mobileflow/user-config.json (user-specific, Dashboard-editable)
+        4. MOBILEFLOW_* environment variables (handled by pydantic-settings)
+    """
     root = _find_project_root()
     config_dir = root / "config"
 
@@ -91,6 +98,13 @@ def _load_layered_config() -> dict[str, Any]:
     if env_config:
         base = _deep_merge(base, env_config)
         logger.trace(f"环境配置已合并: {env}")
+
+    # Layer 3: user-specific config (Dashboard-editable, not committed)
+    user_config_path = Path.home() / ".mobileflow" / "user-config.json"
+    user_config = _load_json_config(user_config_path)
+    if user_config:
+        base = _deep_merge(base, user_config)
+        logger.trace("用户配置已合并: user-config.json")
 
     # Strip _comment keys recursively
     return _strip_comments(base)

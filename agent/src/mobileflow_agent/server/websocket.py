@@ -82,11 +82,13 @@ from ..crypto.crypto_module import CryptoModule
 from ..plugins.registry import PluginRegistry
 from ..services.cli_manager import CLIManager
 from ..services.file_service import FileService
+from ..services.hot_reload import HotReloadManager
 from ..services.run_config import RunConfigurationExecutor, RunConfigurationStore
 from ..services.git_state import GitStateManager
 from ..services.refresh_scheduler import RefreshScheduler
 from ..services.auto_fetcher import AutoFetcher
 from ..services.project_manager import ProjectManager
+from ..services.user_config import UserConfigManager
 from ..services.wsl_agent_manager import WslAgentManager
 from .wsl_proxy import WslProxy
 from ..services.project_scanner import ProjectScanner
@@ -279,6 +281,11 @@ class WebSocketServer:
         # Background task references
         self._file_watcher_task: asyncio.Task | None = None
         self._last_progress_busy: bool = False
+
+        # Hot reload manager for Tunnel/Relay mode lifecycle
+        self.hot_reload = HotReloadManager(self)
+        # User config manager for Dashboard-editable settings
+        self.user_config = UserConfigManager()
 
     @property
     def client_count(self) -> int:
@@ -480,26 +487,50 @@ class WebSocketServer:
         """Start all available connection modes in parallel.
 
         - LAN: always starts (port from config.port)
-        - Tunnel: starts if TLS cert + key are configured (port from config.tunnel_port)
+        - Tunnel: starts if TLS cert + key files exist on disk (port from config.tunnel_port)
         - Relay: starts if relay_url is configured
+
+        Registers Tunnel and Relay tasks with HotReloadManager for
+        later hot-reload via Dashboard config changes.
         """
         tasks = []
 
         # LAN mode: always available
         tasks.append(self._start_lan_mode(ws_cfg))
+        # Set LAN status immediately (it will start successfully)
+        self.hot_reload.set_lan_active(self.config.host, self.config.port)
 
-        # Tunnel mode: only if TLS certificate is configured
+        # Tunnel mode: only if TLS certificate files actually exist on disk
         if self.config.tunnel_tls_cert and self.config.tunnel_tls_key:
-            tasks.append(self._start_tunnel_mode(ws_cfg))
+            from pathlib import Path
+            cert_exists = Path(self.config.tunnel_tls_cert).is_file()
+            key_exists = Path(self.config.tunnel_tls_key).is_file()
+            if cert_exists and key_exists:
+                tunnel_task = asyncio.create_task(self._start_tunnel_mode(ws_cfg))
+                self.hot_reload.register_tunnel_task(tunnel_task)
+                self.hot_reload.set_tunnel_active(self.config.tunnel_port)
+                tasks.append(tunnel_task)
+            else:
+                missing = []
+                if not cert_exists:
+                    missing.append(f"cert={self.config.tunnel_tls_cert}")
+                if not key_exists:
+                    missing.append(f"key={self.config.tunnel_tls_key}")
+                logger.warning(f"📡 Tunnel 模式跳过（证书文件不存在）: {', '.join(missing)}")
         else:
             logger.info("📡 Tunnel 模式未启动（未配置 TLS 证书）")
 
         # Relay mode: only if relay_url is configured
         if self.config.relay_url:
-            tasks.append(self._start_relay_mode(conn_cfg))
+            relay_task = asyncio.create_task(self._start_relay_mode(conn_cfg))
+            self.hot_reload.register_relay_task(relay_task)
+            self.hot_reload.set_relay_active(self.config.relay_url)
+            tasks.append(relay_task)
         else:
             logger.info("📡 Relay 模式未启动（未配置 relay_url）")
 
+        # Wait for LAN (the only non-task item) — gather handles both
+        # raw coroutines and tasks
         await asyncio.gather(*tasks)
 
     async def _start_lan_mode(self, ws_cfg):
@@ -727,6 +758,8 @@ class WebSocketServer:
             port_proxy=self._test_panel.port_proxy,
             run_config_store=getattr(self, '_run_config_store', None),
             run_config_executor=getattr(self, '_run_config_executor', None),
+            user_config_manager=getattr(self, 'user_config', None),
+            hot_reload_manager=getattr(self, 'hot_reload', None),
         )
 
     def _dashboard_switch_project(self, path: str) -> None:

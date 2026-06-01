@@ -96,6 +96,8 @@ def create_dashboard_handler(
     port_proxy: PortProxy | None = None,
     run_config_store: RunConfigurationStore | None = None,
     run_config_executor: RunConfigurationExecutor | None = None,
+    user_config_manager=None,
+    hot_reload_manager=None,
 ) -> Callable:
     """Create the process_request handler for the dashboard.
 
@@ -482,6 +484,72 @@ def create_dashboard_handler(
             config_id = params.get("id", "")
             run_config_executor.clear_output(config_id)
             return _json_response({"success": True})
+
+        # ── Connection Configuration API routes ──
+
+        if path == "/api/connection/config" and user_config_manager:
+            from ..services.user_config import mask_token
+            config = user_config_manager.get_connection_config()
+            return _json_response({
+                "tunnel_tls_cert": config.tunnel_tls_cert,
+                "tunnel_tls_key": config.tunnel_tls_key,
+                "tunnel_bearer_token": mask_token(config.tunnel_bearer_token),
+                "tunnel_bearer_token_set": bool(config.tunnel_bearer_token),
+                "tunnel_port": config.tunnel_port,
+                "relay_url": config.relay_url,
+            })
+
+        if path == "/api/connection/status" and hot_reload_manager:
+            status = hot_reload_manager.get_status()
+            return _json_response({
+                k: v.model_dump(exclude_none=True) for k, v in status.items()
+            })
+
+        if path == "/api/connection/config/save" and user_config_manager and hot_reload_manager:
+            from ..services.user_config import ConnectionConfigData, ConnectionConfigValidator
+            # Parse config from query params
+            new_config = ConnectionConfigData(
+                tunnel_tls_cert=params.get("tunnel_tls_cert", ""),
+                tunnel_tls_key=params.get("tunnel_tls_key", ""),
+                tunnel_bearer_token=params.get("tunnel_bearer_token", ""),
+                tunnel_port=int(params.get("tunnel_port", "9601")),
+                relay_url=params.get("relay_url", ""),
+            )
+            # Validate
+            errors = ConnectionConfigValidator.validate(new_config)
+            if errors:
+                return _json_response({"success": False, "errors": errors}, 400)
+            # Persist
+            ok = user_config_manager.set_connection_config(new_config)
+            if not ok:
+                return _json_response({"success": False, "errors": {"_": "保存失败"}}, 500)
+            # Hot reload: update Agent config and restart modes
+            ws_server = hot_reload_manager._ws_server
+            ws_server.config.tunnel_tls_cert = new_config.tunnel_tls_cert
+            ws_server.config.tunnel_tls_key = new_config.tunnel_tls_key
+            ws_server.config.tunnel_bearer_token = new_config.tunnel_bearer_token
+            ws_server.config.tunnel_port = new_config.tunnel_port
+            ws_server.config.relay_url = new_config.relay_url
+            # Reload Tunnel
+            if new_config.tunnel_tls_cert and new_config.tunnel_tls_key:
+                await hot_reload_manager.reload_tunnel(
+                    lambda: ws_server._start_tunnel_mode(ws_server.config.websocket)
+                )
+            else:
+                await hot_reload_manager.stop_tunnel()
+            # Reload Relay
+            if new_config.relay_url:
+                await hot_reload_manager.reload_relay(
+                    lambda: ws_server._start_relay_mode(ws_server.config.connection)
+                )
+            else:
+                await hot_reload_manager.stop_relay()
+            # Return updated status
+            status = hot_reload_manager.get_status()
+            return _json_response({
+                "success": True,
+                "status": {k: v.model_dump(exclude_none=True) for k, v in status.items()},
+            })
 
         # ── Transparent proxy mode ──
         # When PortProxy is active, ALL non-API requests go to the dev
