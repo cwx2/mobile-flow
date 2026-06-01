@@ -400,14 +400,12 @@ class WebSocketService extends ChangeNotifier with ChatStateMixin, WidgetsBindin
     String? bearerToken,
     String? cfClientId,
     String? cfClientSecret,
-    String pairToken = '',
   }) =>
       _auth.connectTunnel(
         wssUrl: wssUrl,
         bearerToken: bearerToken,
         cfClientId: cfClientId,
         cfClientSecret: cfClientSecret,
-        pairToken: pairToken,
       );
 
   /// Subscribe to the transport's message stream.
