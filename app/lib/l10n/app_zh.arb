@@ -97,6 +97,12 @@
   "connectRelayConnect": "远程连接",
   "connectTunnelConnect": "直连",
 
+  "connectScanInstruction": "将摄像头对准电脑仪表盘上的二维码",
+  "connectQrInvalid": "无效二维码，请扫描 MobileFlow 仪表盘上的二维码",
+  "connectQrInvalidPort": "二维码中的连接参数无效",
+  "connectScanCameraRequired": "需要相机权限才能扫描二维码",
+  "connectScanClose": "关闭",
+
   "@_CHAT_SCREEN": {},
   "chatEmptyTitle": "开始和 AI 一起编程吧！",
   "chatEmptySubtitle": "输入消息或使用 / 命令",

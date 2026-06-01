@@ -44,6 +44,13 @@ async function loadStatus() {
     if (projName) projName.textContent = data.project_name || '--';
     if (projPath) projPath.textContent = data.work_dir || '--';
     if (defCli) defCli.textContent = data.default_cli || '--';
+    // Active connection modes (LAN / Tunnel / Relay)
+    const modesEl = document.getElementById('info-modes');
+    if (modesEl && data.active_modes) {
+      modesEl.innerHTML = data.active_modes.map(m =>
+        `<span class="badge badge-sm badge-outline badge-info">${m.toUpperCase()}</span>`
+      ).join(' ') || '--';
+    }
   } catch (e) {
     console.error('Failed to load status:', e);
   }

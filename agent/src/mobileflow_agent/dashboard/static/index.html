@@ -10,6 +10,7 @@
   <script src="/vendor/tailwind.min.js"></script>
   <script src="/vendor/xterm.min.js"></script>
   <script src="/vendor/addon-fit.min.js"></script>
+  <script src="/vendor/qrcode.min.js"></script>
   <script src="/i18n.js"></script>
   <script>
     tailwind.config = {
@@ -71,7 +72,7 @@
         <div class="bg-surface border border-border rounded-xl p-6">
           <h2 class="text-base font-semibold text-gray-200 mb-4">Connection Info</h2>
           <div class="flex gap-6 items-start">
-            <div id="qr-container" class="w-32 h-32 bg-white rounded-lg flex items-center justify-center flex-shrink-0"></div>
+            <div id="qr-container" class="w-36 h-36 bg-white rounded-xl p-2 flex items-center justify-center flex-shrink-0 shadow-lg ring-1 ring-white/10"></div>
             <div class="flex-1 flex flex-col gap-3">
               <div class="flex justify-between items-center">
                 <span class="text-xs text-gray-500 uppercase">IP</span>
@@ -91,6 +92,10 @@
               <div class="flex justify-between items-center">
                 <span class="text-xs text-gray-500 uppercase">Status</span>
                 <span id="info-status" class="text-sm text-gray-200">--</span>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-xs text-gray-500 uppercase">Modes</span>
+                <span id="info-modes" class="text-sm text-gray-200">--</span>
               </div>
             </div>
           </div>

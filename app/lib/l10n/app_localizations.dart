@@ -595,6 +595,36 @@ abstract class S {
   /// **'Direct Connect'**
   String get connectTunnelConnect;
 
+  /// No description provided for @connectScanInstruction.
+  ///
+  /// In en, this message translates to:
+  /// **'Point camera at the QR code on your computer dashboard'**
+  String get connectScanInstruction;
+
+  /// No description provided for @connectQrInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid QR code. Please scan the code from MobileFlow dashboard.'**
+  String get connectQrInvalid;
+
+  /// No description provided for @connectQrInvalidPort.
+  ///
+  /// In en, this message translates to:
+  /// **'Invalid connection parameters in QR code.'**
+  String get connectQrInvalidPort;
+
+  /// No description provided for @connectScanCameraRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Camera access is required to scan QR codes.'**
+  String get connectScanCameraRequired;
+
+  /// No description provided for @connectScanClose.
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get connectScanClose;
+
   /// No description provided for @chatEmptyTitle.
   ///
   /// In en, this message translates to:

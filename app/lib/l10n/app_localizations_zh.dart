@@ -263,6 +263,21 @@ class SZh extends S {
   String get connectTunnelConnect => '直连';
 
   @override
+  String get connectScanInstruction => '将摄像头对准电脑仪表盘上的二维码';
+
+  @override
+  String get connectQrInvalid => '无效二维码，请扫描 MobileFlow 仪表盘上的二维码';
+
+  @override
+  String get connectQrInvalidPort => '二维码中的连接参数无效';
+
+  @override
+  String get connectScanCameraRequired => '需要相机权限才能扫描二维码';
+
+  @override
+  String get connectScanClose => '关闭';
+
+  @override
   String get chatEmptyTitle => '开始和 AI 一起编程吧！';
 
   @override

@@ -277,6 +277,25 @@ class SEn extends S {
   String get connectTunnelConnect => 'Direct Connect';
 
   @override
+  String get connectScanInstruction =>
+      'Point camera at the QR code on your computer dashboard';
+
+  @override
+  String get connectQrInvalid =>
+      'Invalid QR code. Please scan the code from MobileFlow dashboard.';
+
+  @override
+  String get connectQrInvalidPort =>
+      'Invalid connection parameters in QR code.';
+
+  @override
+  String get connectScanCameraRequired =>
+      'Camera access is required to scan QR codes.';
+
+  @override
+  String get connectScanClose => 'Close';
+
+  @override
   String get chatEmptyTitle => 'Start coding with AI!';
 
   @override

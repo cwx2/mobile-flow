@@ -100,6 +100,12 @@
   "connectRelayConnect": "Remote Connect",
   "connectTunnelConnect": "Direct Connect",
 
+  "connectScanInstruction": "Point camera at the QR code on your computer dashboard",
+  "connectQrInvalid": "Invalid QR code. Please scan the code from MobileFlow dashboard.",
+  "connectQrInvalidPort": "Invalid connection parameters in QR code.",
+  "connectScanCameraRequired": "Camera access is required to scan QR codes.",
+  "connectScanClose": "Close",
+
   "@_CHAT_SCREEN": {},
   "chatEmptyTitle": "Start coding with AI!",
   "chatEmptySubtitle": "Type a message or use / commands",

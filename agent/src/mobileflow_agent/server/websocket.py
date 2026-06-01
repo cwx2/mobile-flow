@@ -693,6 +693,7 @@ class WebSocketServer:
                 "work_dir": self.config.work_dir,
                 "project_name": Path(self.config.work_dir).name if self.config.work_dir else "",
                 "default_cli": self.config.default_cli,
+                "active_modes": [m.value for m in self._conn_manager.active_modes],
             }
 
         def _get_connect_info():

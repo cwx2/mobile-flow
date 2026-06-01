@@ -25,6 +25,8 @@ import '../theme/theme_extensions.dart';
 import '../l10n/app_localizations.dart';
 import '../utils/connection_errors.dart';
 import '../utils/logger.dart';
+import '../utils/qr_parser.dart';
+import 'qr_scanner_screen.dart';
 
 final _log = getLogger('ConnectScreen');
 
@@ -1059,65 +1061,42 @@ class _ConnectScreenState extends State<ConnectScreen>
     }
   }
 
-  /// Open QR code scanner for relay pairing.
+  /// Open QR code scanner for LAN connection pairing.
   ///
-  /// Uses a text input dialog as fallback since `mobile_scanner` is not
-  /// yet added to dependencies. The dialog accepts a pasted pairing code
-  /// which is functionally equivalent to scanning.
-  // TODO: Replace with mobile_scanner when added to pubspec.yaml
-  void _scanQrCode() {
+  /// Navigates to [QrScannerScreen] which uses the device camera to scan
+  /// a mobileflow://connect QR code. On success, auto-fills the LAN fields
+  /// and triggers connection. Falls back to relay pairing dialog if the
+  /// scanned payload is a relay pairing code instead.
+  Future<void> _scanQrCode() async {
     _log.fine('用户触发扫码配对');
-    showDialog<String>(
-      context: context,
-      builder: (ctx) {
-        final controller = TextEditingController();
-        return AlertDialog(
-          title: Text(S.of(context).connectRelayScanQr),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                S.of(context).connectRelayScanDialogMessage,
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: controller,
-                decoration: InputDecoration(
-                  hintText: S.of(context).connectRelayScanDialogHint,
-                  border: OutlineInputBorder(),
-                ),
-                maxLines: 3,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(S.of(context).commonCancel),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, controller.text.trim()),
-              child: Text(S.of(context).commonConfirm),
-            ),
-          ],
-        );
-      },
-    ).then((code) {
-      if (code == null || code.isEmpty) return;
-      // Parse the scanned/pasted payload
-      try {
-        final payload = decodeRelayPairing(code);
-        // Fill the relay code field and trigger connect
-        _relayCodeController.text = code;
-        _log.info('配对码解析成功: relay_url=${payload.relayUrl}');
-        _connectRelay();
-      } on FormatException catch (e) {
-        _log.warning('无效的配对码: $e');
-        if (mounted) {
-          setState(() => _error = S.of(context).connectErrorInvalidRelayCodeRescan);
-        }
-      }
-    });
+    final result = await Navigator.of(context).push<ConnectionParams>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => const QrScannerScreen(),
+      ),
+    );
+
+    if (result == null || !mounted) return;
+
+    _log.info('扫码成功，自动填充连接参数: host=${result.host}, port=${result.port}');
+
+    // Auto-fill LAN fields with scanned parameters
+    _lanHostController.text = result.host;
+    _lanPortController.text = result.port.toString();
+    _lanTokenController.text = result.token;
+
+    // Switch to LAN tab if not already there
+    if (_tabController.index != 0) {
+      _suppressTabListener = true;
+      _tabController.animateTo(0);
+      Future.delayed(const Duration(milliseconds: 350), () {
+        _suppressTabListener = false;
+      });
+      _previousTabIndex = 0;
+    }
+
+    // Auto-connect with the scanned parameters
+    _connectLan();
   }
 
   @override
