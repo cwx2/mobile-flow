@@ -131,6 +131,7 @@
   "chatStatusExecuting": "执行",
   "chatStatusToolRunning": "工具执行中...",
   "chatStatusStreaming": "回复中...",
+  "chatStreamInterrupted": "回复中断 — 连接已断开",
   "chatPermissionToolCall": "工具调用",
   "chatAiResponding": "AI 正在回复中",
   "chatSwitchSessionWarning": "切换会话将中断当前对话，是否继续？",

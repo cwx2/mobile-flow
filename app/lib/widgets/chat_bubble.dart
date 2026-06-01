@@ -26,6 +26,7 @@ import 'blocks/file_edit_card.dart';
 import 'blocks/plan_card.dart';
 import 'blocks/code_block.dart';
 import 'blocks/error_block.dart';
+import 'blocks/interruption_block.dart';
 
 /// Renders a single chat message as a bubble.
 ///
@@ -154,6 +155,8 @@ class ChatBubble extends StatelessWidget {
         return CodeBlock(text: block.text, language: block.language);
       case BlockType.error:
         return ErrorBlock(text: block.text);
+      case BlockType.interruption:
+        return const InterruptionBlock();
       case BlockType.commandList:
       case BlockType.sessionInfo:
         return const SizedBox.shrink();

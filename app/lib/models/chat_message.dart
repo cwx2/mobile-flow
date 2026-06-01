@@ -16,6 +16,7 @@ enum BlockType {
   error, // error message
   commandList, // available command list
   sessionInfo, // session info
+  interruption, // stream interrupted (connection drop / watchdog timeout)
 }
 
 /// Tool call execution status.
@@ -32,6 +33,10 @@ class ChatMessage {
   final DateTime timestamp;
   bool isStreaming;
 
+  /// Whether this message was interrupted before completion (connection drop,
+  /// watchdog timeout, or manual disconnect). UI renders a visual indicator.
+  bool isInterrupted;
+
   /// Local attachment file paths (for user messages with images/files).
   /// These are local paths used for UI display only; the actual content
   /// is sent as base64 via the WebSocket payload.
@@ -43,6 +48,7 @@ class ChatMessage {
     List<ContentBlock>? blocks,
     DateTime? timestamp,
     this.isStreaming = false,
+    this.isInterrupted = false,
     List<String>? attachmentPaths,
   })  : id = id ?? DateTime.now().millisecondsSinceEpoch.toRadixString(36),
         blocks = blocks ?? [],
@@ -325,6 +331,14 @@ class ContentBlock {
         text: text,
         language: language,
       );
+
+  /// Create an interruption indicator block.
+  ///
+  /// Displayed as a subtle visual marker indicating the AI response
+  /// was cut short due to connection loss or watchdog timeout.
+  /// Distinct from error blocks (which indicate failures from the Agent).
+  factory ContentBlock.interruption() =>
+      ContentBlock(type: BlockType.interruption);
 }
 
 /// A single step within a plan block.

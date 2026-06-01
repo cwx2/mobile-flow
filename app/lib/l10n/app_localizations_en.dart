@@ -376,6 +376,9 @@ class SEn extends S {
   String get chatStatusStreaming => 'Responding...';
 
   @override
+  String get chatStreamInterrupted => 'Response interrupted — connection lost';
+
+  @override
   String get chatPermissionToolCall => 'Tool call';
 
   @override

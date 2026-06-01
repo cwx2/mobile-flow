@@ -24,6 +24,7 @@ import 'ws_message_sender.dart';
 import 'ws_heartbeat.dart';
 import 'ws_crypto.dart';
 import 'ws_auth.dart';
+import 'stream_watchdog.dart';
 import 'ws_operations/chat_operations.dart';
 import 'ws_operations/file_operations.dart';
 import 'ws_operations/git_operations.dart';
@@ -79,6 +80,11 @@ class WebSocketService extends ChangeNotifier with ChatStateMixin, WidgetsBindin
     connManager: _connManager,
     onConnectionDead: () => _auth.beginReconnect(),
     onStateChanged: notifyListeners,
+  );
+
+  // ── Stream watchdog (detects silent stream stalls) ──
+  late final StreamWatchdog _streamWatchdog = StreamWatchdog(
+    onTimeout: _onStreamWatchdogTimeout,
   );
 
   // ── Auth and reconnect (delegated to WsAuth) ──
@@ -571,6 +577,11 @@ class WebSocketService extends ChangeNotifier with ChatStateMixin, WidgetsBindin
   void _onError(dynamic error) {
     _log.severe('❌ WebSocket 错误: $error');
     _heartbeat.stop();
+    // Interrupt any active streaming turn immediately on error
+    if (agentStatus != AgentStatus.idle) {
+      interruptCurrentStream();
+      _streamWatchdog.cancel();
+    }
     // Tunnel auth failures are unrecoverable — go straight to disconnected
     if (error.toString().contains('tunnel_auth_failed')) {
       _connection?.disconnect();
@@ -586,6 +597,11 @@ class WebSocketService extends ChangeNotifier with ChatStateMixin, WidgetsBindin
   void _onDone() {
     _log.warning('⚠️ WebSocket stream 关闭');
     _heartbeat.stop();
+    // Interrupt any active streaming turn immediately on disconnect
+    if (agentStatus != AgentStatus.idle) {
+      interruptCurrentStream();
+      _streamWatchdog.cancel();
+    }
     // Only reconnect if we were in a connected state (not manual disconnect)
     if (_connection?.state == AppConnectionState.connected) {
       _auth.beginReconnect();
@@ -594,6 +610,61 @@ class WebSocketService extends ChangeNotifier with ChatStateMixin, WidgetsBindin
       _connection?.disconnect();
       notifyListeners();
     }
+  }
+
+  // ── Stream watchdog integration ──
+
+  /// Watchdog timeout callback — stream has silently stalled.
+  void _onStreamWatchdogTimeout() {
+    interruptCurrentStream();
+  }
+
+  /// Map agentStatus to StreamPhase for watchdog timeout selection.
+  StreamPhase _agentStatusToPhase(AgentStatus status) {
+    switch (status) {
+      case AgentStatus.thinking:
+        return StreamPhase.thinking;
+      case AgentStatus.streaming:
+        return StreamPhase.streaming;
+      case AgentStatus.toolRunning:
+        return StreamPhase.toolRunning;
+      case AgentStatus.idle:
+        return StreamPhase.idle;
+    }
+  }
+
+  // ── Streaming lifecycle overrides (watchdog hooks) ──
+
+  @override
+  void beginAssistantMessage() {
+    // Block new streams during reconnecting state
+    if (_connection?.state == AppConnectionState.reconnecting) {
+      _log.fine('重连中，阻止新的流式消息');
+      return;
+    }
+    super.beginAssistantMessage();
+    _streamWatchdog.start(StreamPhase.thinking);
+  }
+
+  @override
+  void handleStreamChunk(Map<String, dynamic> chunk) {
+    super.handleStreamChunk(chunk);
+    // Update watchdog phase and reset timer on each chunk
+    final phase = _agentStatusToPhase(agentStatus);
+    _streamWatchdog.updatePhase(phase);
+    _streamWatchdog.reset();
+  }
+
+  @override
+  void finishStream(AppEventBus? eventBus) {
+    _streamWatchdog.cancel();
+    super.finishStream(eventBus);
+  }
+
+  @override
+  void errorStream(String error, AppEventBus? eventBus) {
+    _streamWatchdog.cancel();
+    super.errorStream(error, eventBus);
   }
 
   // ── App lifecycle (delegated to WsAuth) ──
@@ -614,6 +685,7 @@ class WebSocketService extends ChangeNotifier with ChatStateMixin, WidgetsBindin
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _heartbeat.dispose();
+    _streamWatchdog.dispose();
     _auth.cancelReconnect();
     disposeChatState();
     _messageSub?.cancel();

@@ -47,3 +47,17 @@ const kReconnectJitter = Duration(milliseconds: 500);
 /// Maximum number of reconnect attempts before giving up and
 /// transitioning to the failed state.
 const kReconnectMaxAttempts = 10;
+
+// ── Stream Watchdog ──
+
+/// Watchdog timeout for the thinking phase (waiting for first chunk).
+/// Longer because the AI may take time to start generating.
+const kWatchdogThinkingTimeout = Duration(seconds: 60);
+
+/// Watchdog timeout for the active streaming phase (between chunks).
+/// Shorter because once streaming starts, chunks should arrive frequently.
+const kWatchdogStreamingTimeout = Duration(seconds: 30);
+
+/// Watchdog timeout while a tool is running.
+/// Extended because tools (file operations, searches) can take longer.
+const kWatchdogToolRunningTimeout = Duration(seconds: 120);

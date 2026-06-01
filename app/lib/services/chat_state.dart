@@ -414,6 +414,32 @@ mixin ChatStateMixin on ChangeNotifier {
     eventBus?.emit(AppEvents.chatError, {'error': error});
   }
 
+  /// Mark the current streaming message as interrupted.
+  ///
+  /// Called by: watchdog timeout, connection drop (onDone/onError),
+  /// manual disconnect, or failed state transition.
+  ///
+  /// Idempotent: safe to call multiple times — won't add duplicate
+  /// interruption markers or modify an already-interrupted message.
+  void interruptCurrentStream() {
+    if (_currentStreamMessage == null) return;
+    if (_currentStreamMessage!.isInterrupted) return; // idempotent guard
+
+    _log.warning('流式消息被中断');
+    _currentStreamMessage!.isInterrupted = true;
+    _currentStreamMessage!.isStreaming = false;
+    _currentStreamMessage!.finalizeAllTools();
+    _currentStreamMessage!.addBlock(ContentBlock.interruption());
+    _currentStreamMessage = null;
+    _agentStatus = AgentStatus.idle;
+    _agentStatusDetail = '';
+    _textChunkCount = 0;
+    _thinkingChunkCount = 0;
+    _streamNotifyPaused = false;
+    flushStreamNotify();
+    notifyListeners();
+  }
+
   /// Clear all messages (e.g. /clear command).
   void clearMessages() {
     _log.info('清空所有消息，原消息数: ${messages.length}');

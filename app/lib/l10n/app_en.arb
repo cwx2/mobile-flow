@@ -135,6 +135,7 @@
   "chatStatusExecuting": "Executing",
   "chatStatusToolRunning": "Tool running...",
   "chatStatusStreaming": "Responding...",
+  "chatStreamInterrupted": "Response interrupted — connection lost",
   "chatPermissionToolCall": "Tool call",
   "chatAiResponding": "AI is responding",
   "chatSwitchSessionWarning": "Switching session will interrupt the current conversation. Continue?",

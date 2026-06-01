@@ -361,6 +361,9 @@ class SZh extends S {
   String get chatStatusStreaming => '回复中...';
 
   @override
+  String get chatStreamInterrupted => '回复中断 — 连接已断开';
+
+  @override
   String get chatPermissionToolCall => '工具调用';
 
   @override

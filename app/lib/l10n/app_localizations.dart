@@ -787,6 +787,12 @@ abstract class S {
   /// **'Responding...'**
   String get chatStatusStreaming;
 
+  /// No description provided for @chatStreamInterrupted.
+  ///
+  /// In en, this message translates to:
+  /// **'Response interrupted — connection lost'**
+  String get chatStreamInterrupted;
+
   /// No description provided for @chatPermissionToolCall.
   ///
   /// In en, this message translates to:
