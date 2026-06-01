@@ -112,6 +112,13 @@
     "startup_timeout": 30.0
   },
 
+  "scope": {
+    "_comment": "Scope management settings — controls client scope lifecycle, grace period, and capacity limits",
+    "disconnect_grace_period": 600,
+    "max_suspended_scopes": 10,
+    "eviction_strategy": "lru"
+  },
+
   "stream_replay": {
     "_comment": "Stream replay buffer for disconnect recovery — buffers AI output so reconnecting clients can catch up",
     "max_chunks": 500

@@ -78,6 +78,12 @@ from mobileflow_protocol.types import MessageType
 from ..core.client_scope import ClientScope
 from ..core.event_bus import EventBus
 from ..core.events import Events
+from ..core.scope_manager import ScopeManager
+from ..core.identity_resolver import (
+    LANIdentityStrategy,
+    TunnelIdentityStrategy,
+    RelayIdentityStrategy,
+)
 from ..crypto.crypto_module import CryptoModule
 from ..plugins.registry import PluginRegistry
 from ..services.cli_manager import CLIManager
@@ -187,12 +193,6 @@ class WebSocketServer:
         # Per-client stream replay buffers for disconnect recovery.
         # Created alongside the ClientScope, survives scope suspension.
         self._stream_replays: dict[str, StreamReplay] = {}
-        # Suspended scopes: client_id → (scope, grace_timer_task).
-        # When a client disconnects, its scope is moved here instead of
-        # being disposed immediately. If the client reconnects within the
-        # grace period the scope is restored; otherwise the timer fires
-        # and disposes it.
-        self._suspended: dict[str, tuple[ClientScope, asyncio.Task]] = {}
         self._permission_futures: dict[str, asyncio.Future] = {}
         self._permission_counter = 0
 
@@ -264,6 +264,24 @@ class WebSocketServer:
             self._wsl_proxy = WslProxy(
                 self._wsl_manager,
                 broadcast_fn=self._broadcast_raw,
+            )
+
+        # Scope management (replaces inline _suspended, _scopes, _stream_replays logic)
+        if not self._is_wsl_child:
+            self.scope_manager = ScopeManager(
+                config=config,
+                cli_manager=self.cli_manager,
+                cleanup_factory=self._register_scope_cleanups,
+            )
+            self.scope_manager.register_strategy(LANIdentityStrategy(auth_manager=self.auth))
+            self.scope_manager.register_strategy(TunnelIdentityStrategy())
+            self.scope_manager.register_strategy(RelayIdentityStrategy())
+        else:
+            # WSL child mode: simplified scope management (no auth, no identity strategies)
+            self.scope_manager = ScopeManager(
+                config=config,
+                cli_manager=self.cli_manager,
+                cleanup_factory=self._register_scope_cleanups,
             )
 
         # Handler instances (some may be None in wsl-child mode)
@@ -366,17 +384,10 @@ class WebSocketServer:
         self._clients.clear()
         logger.debug("所有 WebSocket 连接已关闭")
 
-        # 2.5. Dispose all client scopes (cleans up any resources
-        # that weren't cleaned up by normal disconnect)
-        for scope in list(self._scopes.values()):
-            try:
-                await scope.dispose()
-            except Exception:
-                pass
+        # 2.5. Dispose all client scopes via ScopeManager
+        # (handles both active and suspended scopes, cancels grace timers)
+        await self.scope_manager.dispose_all()
         self._scopes.clear()
-
-        # 2.6. Dispose all suspended scopes (grace period clients)
-        await self._cleanup_all_suspended()
 
         # 3. Stop all terminal sessions
         #    Defensive: scope.dispose() already stops terminals for connected
@@ -858,10 +869,13 @@ class WebSocketServer:
         # and register the client + initialize CLI immediately.
         if getattr(self, '_is_wsl_child', False):
             self._clients[client_id] = ClientInfo(conn=websocket, mode=conn_mode)
-            await self._register_preauthenticated_client(client_id)
+            await self._register_preauthenticated_client(client_id, conn_mode)
         elif conn_mode == ConnectionMode.TUNNEL:
             self._clients[client_id] = ClientInfo(conn=websocket, mode=conn_mode)
-            await self._register_preauthenticated_client(client_id)
+            bearer = self.config.tunnel_bearer_token
+            await self._register_preauthenticated_client(
+                client_id, conn_mode, {"bearer_token": bearer} if bearer else None
+            )
             logger.info(f"Tunnel 客户端已认证（Bearer Token）: {client_id}")
 
         try:
@@ -890,12 +904,7 @@ class WebSocketServer:
         finally:
             self._clients.pop(client_id, None)
             logger.info(f"📱 客户端断开: {client_id}, mode={conn_mode.value}")
-            # Suspend scope instead of disposing immediately — keeps ACP
-            # processes alive during the grace period so the client can
-            # reconnect without losing AI conversation context.
-            scope = self._scopes.pop(client_id, None)
-            if scope:
-                await self._suspend_scope(client_id, scope)
+            await self.scope_manager.unregister_client(client_id)
 
     async def _route(self, client_id: str, ws: ConnectionProtocol, msg: Message):
         """Route an incoming message through the interceptor chain.
@@ -1183,6 +1192,9 @@ class WebSocketServer:
         VirtualConnection wraps the Relay WS client so handlers can call
         ``conn.send()`` transparently.
 
+        If this is a new Relay client, registers it via ScopeManager with
+        device_id credentials for identity-based scope resume.
+
         Args:
             client_id: Derived from Relay envelope ``from`` field (App's device_id).
             msg_dict: Decrypted message dict from the Relay envelope.
@@ -1196,7 +1208,20 @@ class WebSocketServer:
             )
             self._clients[client_id] = ClientInfo(conn=vc, mode=ConnectionMode.RELAY)
             logger.info(f"📱 Relay 新客户端: {client_id[:16]}")
-            # Scope will be created in _init_default_cli after auth
+
+        # Register via ScopeManager if no scope exists yet
+        if client_id not in self._scopes:
+            result = await self.scope_manager.register_client(
+                client_id, ConnectionMode.RELAY, {"device_id": client_id}
+            )
+            self._scopes[client_id] = result.scope
+            if not result.resumed:
+                await self._start_default_cli(client_id)
+            else:
+                cli_name = self.config.default_cli or ""
+                if cli_name:
+                    await self._push_cli_status_after_resume(client_id, cli_name)
+
         msg = Message(**msg_dict)
         await self._route(client_id, self._clients[client_id], msg)
 
@@ -1239,30 +1264,28 @@ class WebSocketServer:
         self._clients[client_id] = ClientInfo(conn=ws, mode=ConnectionMode.LAN)
         logger.info(f"✅ 配对成功: {client_id}")
 
-        # Try to resume a suspended scope (single-client optimization).
-        # auth.pair doesn't carry the old client_id, but in the typical
-        # single-user scenario there's at most one suspended scope.
-        resumed = False
+        # Register client via ScopeManager with LAN credentials
+        result = await self.scope_manager.register_client(
+            client_id, ConnectionMode.LAN, {"session_token": session_token}
+        )
+        self._scopes[client_id] = result.scope
+        resumed = result.resumed
         cli_state = ""
         cli_name = self.config.default_cli or ""
-        if self._suspended:
-            # Pick the most recent suspended scope (single-client: only one)
-            old_client_id = next(iter(self._suspended))
-            scope = self._try_resume(old_client_id)
-            if scope:
-                self._scopes[client_id] = scope
-                self.cli_manager.remap_client(old_client_id, client_id)
-                old_replay = self._stream_replays.pop(old_client_id, None)
+
+        if resumed:
+            # Transfer stream replay buffer
+            if result.old_client_id:
+                old_replay = self._stream_replays.pop(result.old_client_id, None)
                 if old_replay:
                     self._stream_replays[client_id] = old_replay
                 self.auth.update_session_client(session_token, client_id)
-                resumed = True
-                # Determine current CLI state for the App
-                session_key = (client_id, cli_name)
-                provider = self.cli_manager._sessions.get(session_key)
-                if provider and hasattr(provider, 'is_running') and provider.is_running:
-                    cli_state = "ready"
-                logger.info(f"♻️ 配对恢复 scope: {old_client_id} → {client_id}")
+            # Determine current CLI state for the App
+            session_key = (client_id, cli_name)
+            provider = self.cli_manager._sessions.get(session_key)
+            if provider and hasattr(provider, 'is_running') and provider.is_running:
+                cli_state = "ready"
+            logger.info(f"♻️ 配对恢复 scope: old={result.old_client_id} → {client_id}")
 
         # Send auth.result with secret BEFORE activating encryption
         # (this message is the last plaintext message)
@@ -1288,7 +1311,7 @@ class WebSocketServer:
 
         if not resumed:
             # No scope to resume — initialize fresh
-            await self._init_default_cli(client_id)
+            await self._start_default_cli(client_id)
         else:
             # Scope resumed — push current CLI status so App updates UI
             await self._push_cli_status_after_resume(client_id, cli_name)
@@ -1332,26 +1355,27 @@ class WebSocketServer:
                 self._clients[client_id] = ClientInfo(conn=EncryptedConnection(ws, crypto), mode=ConnectionMode.LAN)
                 logger.info(f"🔒 LAN 加密已重新激活: client={client_id}")
 
-            # Try to resume a suspended scope from the original client_id.
-            resumed = False
+            # Register client via ScopeManager with LAN credentials for resume
+            reg_result = await self.scope_manager.register_client(
+                client_id, ConnectionMode.LAN, {"session_token": connect_payload.session_token}
+            )
+            self._scopes[client_id] = reg_result.scope
+            resumed = reg_result.resumed
             cli_state = ""
             cli_name = self.config.default_cli or ""
-            if result.client_id and result.client_id != client_id:
-                scope = self._try_resume(result.client_id)
-                if scope:
-                    self._scopes[client_id] = scope
-                    self.cli_manager.remap_client(result.client_id, client_id)
-                    old_replay = self._stream_replays.pop(result.client_id, None)
-                    if old_replay:
-                        self._stream_replays[client_id] = old_replay
-                    self.auth.update_session_client(connect_payload.session_token, client_id)
-                    resumed = True
-                    # Determine current CLI state
-                    session_key = (client_id, cli_name)
-                    provider = self.cli_manager._sessions.get(session_key)
-                    if provider and hasattr(provider, 'is_running') and provider.is_running:
-                        cli_state = "ready"
-                    logger.info(f"♻️ 会话恢复: {result.client_id} → {client_id}")
+
+            if resumed and reg_result.old_client_id:
+                # Transfer stream replay buffer
+                old_replay = self._stream_replays.pop(reg_result.old_client_id, None)
+                if old_replay:
+                    self._stream_replays[client_id] = old_replay
+                self.auth.update_session_client(connect_payload.session_token, client_id)
+                # Determine current CLI state
+                session_key = (client_id, cli_name)
+                provider = self.cli_manager._sessions.get(session_key)
+                if provider and hasattr(provider, 'is_running') and provider.is_running:
+                    cli_state = "ready"
+                logger.info(f"♻️ 会话恢复: {reg_result.old_client_id} → {client_id}")
 
             # Build and send auth.result with resume status
             secret_b64 = (
@@ -1372,7 +1396,7 @@ class WebSocketServer:
             ).model_dump_json())
 
             if not resumed:
-                await self._init_default_cli(client_id)
+                await self._start_default_cli(client_id)
             else:
                 await self._push_cli_status_after_resume(client_id, cli_name)
 
@@ -1839,97 +1863,76 @@ class WebSocketServer:
             MessageType.STATUS_PONG, StatusPongPayload(),
         ).model_dump_json())
 
-    async def _register_preauthenticated_client(self, client_id: str) -> None:
-        """Register a client that was authenticated before WebSocket handshake.
+    async def _register_preauthenticated_client(self, client_id: str, mode: ConnectionMode, credentials: dict | None = None) -> None:
+        """Register a pre-authenticated client via ScopeManager.
 
-        Unified entry point for modes where auth happens at a layer below
-        WebSocket (HTTP Bearer Token for Tunnel, localhost trust for WSL child).
-        Creates scope and initializes the default CLI — same as what
-        _init_default_cli does for LAN/Relay after auth.pair/auth.connect.
+        For Tunnel mode, passes bearer_token for identity resolution.
+        For WSL child mode, no credentials (no identity-based resume).
 
         Args:
             client_id: The pre-authenticated client's identifier.
+            mode: The connection mode (Tunnel or LAN for WSL child).
+            credentials: Mode-specific auth data for identity resolution.
         """
-        await self._init_default_cli(client_id)
+        result = await self.scope_manager.register_client(client_id, mode, credentials)
+        self._scopes[client_id] = result.scope
 
-    async def _init_default_cli(self, client_id: str) -> None:
-        """Initialize the default CLI's provider after client authentication.
+        if result.resumed:
+            # Transfer stream replay buffer
+            if result.old_client_id:
+                old_replay = self._stream_replays.pop(result.old_client_id, None)
+                if old_replay:
+                    self._stream_replays[client_id] = old_replay
+            cli_name = self.config.default_cli or ""
+            if cli_name:
+                await self._push_cli_status_after_resume(client_id, cli_name)
+        else:
+            await self._start_default_cli(client_id)
 
-        Called once when a client successfully authenticates (pair or reconnect).
-        Creates a ClientScope for lifecycle management, then starts the default
-        CLI provider. The scope binds all client resources (terminal, CLI,
-        permissions) so they are automatically cleaned up on disconnect.
+    async def _start_default_cli(self, client_id: str) -> None:
+        """Start the default CLI provider for a newly registered client.
 
-        This is the single authoritative trigger for CLI initialization on
-        client connect. All other paths (cli.switch, _ensure_session) are
-        for explicit user actions or lazy fallback.
+        Called after scope creation (by ScopeManager). Only starts the CLI
+        provider — scope creation and cleanup registration are handled by
+        ScopeManager.
 
         Args:
             client_id: The authenticated client's identifier.
         """
-        # Create client scope for lifecycle management
-        scope = await self._create_client_scope(client_id)
-
+        scope = self._scopes.get(client_id)
         cli_name = self.config.default_cli
-        if cli_name and self.config.work_dir:
+        if cli_name and self.config.work_dir and scope:
             logger.info(f"客户端已认证，初始化默认 CLI: {cli_name}")
             task = asyncio.create_task(
                 self.cli_manager._ensure_provider(client_id, cli_name)
             )
             scope.track_task(task)
 
-    async def _create_client_scope(self, client_id: str) -> ClientScope:
-        """Create a ClientScope and register all standard resource cleanups.
+    async def _register_scope_cleanups(self, client_id: str, scope: ClientScope) -> None:
+        """Register service-specific cleanups on a new scope.
 
-        Centralizes scope creation so the cleanup registrations are in one
-        place, not scattered across handlers. Each resource type registers
-        exactly once, regardless of how many times the resource is
-        created/destroyed during the connection lifetime.
-
-        Cleanup order (LIFO — reverse of registration):
-        4. Permission futures cancelled
-        3. Terminal PTY stopped + forward task cancelled
-        2. CLI providers shut down + background tasks cancelled
-        1. (scope.cancelled event set — background loops exit)
+        Called by ScopeManager._create_scope() as the cleanup_factory callback.
+        Registers terminal, permission, stream replay, and test panel cleanups.
 
         Args:
-            client_id: The authenticated client's identifier.
-
-        Returns:
-            The newly created ClientScope.
+            client_id: The client's identifier.
+            scope: The newly created ClientScope to register cleanups on.
         """
-        # Dispose any stale scope from a previous connection with the same ID
-        old_scope = self._scopes.pop(client_id, None)
-        if old_scope:
-            await old_scope.dispose()
-
-        scope = ClientScope(client_id)
-        self._scopes[client_id] = scope
-
-        # 1. CLI cleanup — shut down providers and cancel background tasks
-        scope.on_dispose(lambda: self.cli_manager.cleanup_sessions(client_id))
-
-        # 2. Terminal cleanup — cancel forward task and stop PTY session.
-        #    Registered once here (not per terminal.start) to avoid duplicate
-        #    cleanups when the user restarts the terminal multiple times.
+        # Terminal cleanup — cancel forward task and stop PTY session.
         async def _cleanup_terminal():
             await self._terminal._cancel_forward_task(client_id)
             await self.terminal_manager.stop_session(client_id)
             self._terminal._generations.pop(client_id, None)
         scope.on_dispose(_cleanup_terminal)
 
-        # 3. Permission future cleanup — cancel pending permission requests.
-        #    Currently cancels ALL futures because the system is single-client.
-        #    If multi-client support is added, refactor _permission_futures to
-        #    track owner client_id per future.
+        # Permission future cleanup — cancel pending permission requests.
         def _cancel_permissions():
             for req_id, future in list(self._permission_futures.items()):
                 if not future.done():
                     future.set_result({"outcome": {"outcome": "cancelled"}})
         scope.on_dispose(_cancel_permissions)
 
-        # 4. StreamReplay — create buffer for disconnect recovery.
-        #    Survives scope suspension; cleaned up on dispose.
+        # StreamReplay — create buffer for disconnect recovery.
         replay = StreamReplay(max_chunks=self.config.stream_replay.max_chunks)
         self._stream_replays[client_id] = replay
 
@@ -1937,11 +1940,8 @@ class WebSocketServer:
             self._stream_replays.pop(client_id, None)
         scope.on_dispose(_cleanup_replay)
 
-        # 5. Test Panel cleanup — stop running preview/script subprocesses.
-        #    Prevents zombie processes when client disconnects.
+        # Test Panel cleanup — stop running preview/script subprocesses.
         scope.on_dispose(lambda: self._test_panel.cleanup_client(client_id))
-
-        return scope
 
     def get_stream_replay(self, client_id: str) -> StreamReplay | None:
         """Get the StreamReplay buffer for a client.
@@ -2008,99 +2008,6 @@ class WebSocketServer:
                 ).model_dump_json())
             except Exception:
                 pass
-
-    # ── Disconnect grace period ──
-
-    async def _suspend_scope(self, client_id: str, scope: ClientScope) -> None:
-        """Suspend a client scope instead of disposing it immediately.
-
-        Starts a grace-period timer. If the client reconnects before the
-        timer fires, _try_resume() cancels it and reuses the scope (keeping
-        ACP processes alive). If the timer expires, the scope is disposed
-        normally.
-
-        Side effects of suspension (scope.cancelled.set()):
-          - Terminal forward tasks exit their read loop and stop.
-          - File search cancel events are triggered.
-          - Any background loop checking scope.cancelled will exit.
-
-        On resume (scope.reset()):
-          - cancelled is cleared so NEW loops can run.
-          - Already-exited loops (terminal, search) are NOT restarted
-            automatically — the user must re-open them from the App.
-          - ACP provider processes survive because they run independently
-            of the cancelled event.
-
-        Args:
-            client_id: The disconnected client's identifier.
-            scope: The scope to suspend.
-        """
-        grace = self.config.connection.disconnect_grace_period
-        if grace <= 0:
-            await scope.dispose()
-            return
-
-        # Cancel any previous suspension for the same client_id
-        old = self._suspended.pop(client_id, None)
-        if old:
-            old[1].cancel()
-
-        # Signal background loops to pause (but don't dispose yet)
-        scope.cancelled.set()
-
-        async def _grace_timer():
-            try:
-                await asyncio.sleep(grace)
-                logger.info(f"⏰ 宽限期到期 ({grace}s)，清理: {client_id}")
-                self._suspended.pop(client_id, None)
-                await scope.dispose()
-            except asyncio.CancelledError:
-                pass
-
-        timer = asyncio.create_task(_grace_timer())
-        self._suspended[client_id] = (scope, timer)
-        logger.info(f"💤 客户端挂起: {client_id}, 宽限期={grace}s")
-
-    def _try_resume(self, client_id: str) -> ClientScope | None:
-        """Try to resume a suspended scope for a reconnecting client.
-
-        If the client_id has a suspended scope whose grace timer has not
-        yet fired, cancels the timer, resets the scope, and returns it.
-
-        The caller is responsible for placing the scope into _scopes
-        under the correct (possibly remapped) client_id.
-
-        Args:
-            client_id: The reconnecting client's identifier.
-
-        Returns:
-            The resumed ClientScope, or None if no suspended scope exists
-            or the scope was already disposed.
-        """
-        entry = self._suspended.pop(client_id, None)
-        if entry is None:
-            return None
-
-        scope, timer = entry
-        timer.cancel()
-
-        if scope.is_alive:
-            scope.reset()
-            logger.info(f"♻️ 客户端恢复: {client_id}")
-            return scope
-
-        logger.debug(f"恢复失败（scope 已销毁）: {client_id}")
-        return None
-
-    async def _cleanup_all_suspended(self) -> None:
-        """Dispose all suspended scopes. Called during Agent shutdown."""
-        for cid, (scope, timer) in list(self._suspended.items()):
-            timer.cancel()
-            try:
-                await scope.dispose()
-            except Exception:
-                pass
-        self._suspended.clear()
 
     # ── File watcher ──
 

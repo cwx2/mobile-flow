@@ -264,6 +264,27 @@ class ConnectionConfig(BaseSettings):
     disconnect_grace_period: int = 600
 
 
+class ScopeConfig(BaseSettings):
+    """Scope management configuration.
+
+    Controls client scope lifecycle: how long disconnected scopes are
+    kept alive (grace period), maximum number of suspended scopes
+    before LRU eviction, and the eviction strategy.
+    """
+
+    # Seconds to keep scope alive after client disconnects.
+    # Set to 0 to disable grace period (immediate cleanup).
+    disconnect_grace_period: int = 600
+
+    # Maximum number of suspended scopes before LRU eviction.
+    # Prevents unbounded memory growth from repeated connect/disconnect cycles.
+    max_suspended_scopes: int = 10
+
+    # Eviction strategy when capacity is exceeded.
+    # "lru" = evict the scope that was suspended longest ago.
+    eviction_strategy: str = "lru"
+
+
 class StreamReplayConfig(BaseSettings):
     """Stream replay buffer settings for disconnect recovery.
 
@@ -465,6 +486,7 @@ class AgentConfig(BaseSettings):
     context: ContextConfig = Field(default_factory=ContextConfig)
     project_scanner: ProjectScannerConfig = Field(default_factory=ProjectScannerConfig)
     connection: ConnectionConfig = Field(default_factory=ConnectionConfig)
+    scope: ScopeConfig = Field(default_factory=ScopeConfig)
     history: HistoryConfig = Field(default_factory=HistoryConfig)
     timeouts: TimeoutsConfig = Field(default_factory=TimeoutsConfig)
     cache: CacheConfig = Field(default_factory=CacheConfig)
