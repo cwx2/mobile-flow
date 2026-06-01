@@ -122,6 +122,43 @@ from .interceptors import (
 from ..utils.i18n import t
 
 
+from dataclasses import dataclass, field
+import time as _time
+
+
+@dataclass
+class ClientInfo:
+    """Per-connection metadata stored in WebSocketServer._clients.
+
+    Replaces the bare ConnectionProtocol reference with a structured record
+    that carries the connection mode, timestamps, and the actual transport.
+    Handlers access the transport via ``client_info.conn`` which implements
+    ConnectionProtocol (send() method).
+
+    Attributes:
+        conn: The connection adapter (ServerConnection, EncryptedConnection,
+            or VirtualConnection). Implements ConnectionProtocol.
+        mode: The connection mode this client connected through.
+        connected_at: Unix timestamp when the client was registered.
+    """
+
+    conn: ConnectionProtocol
+    mode: ConnectionMode
+    connected_at: float = field(default_factory=_time.time)
+
+    async def send(self, data: str) -> None:
+        """Proxy send() to the underlying connection (ConnectionProtocol).
+
+        This allows ClientInfo to be used as a drop-in replacement where
+        ConnectionProtocol was expected, maintaining backward compatibility
+        with handler signatures that call ws.send().
+
+        Args:
+            data: JSON string to send.
+        """
+        await self.conn.send(data)
+
+
 class WebSocketServer:
     """Core WebSocket server that wires together services, handlers, and routing.
 
@@ -145,7 +182,7 @@ class WebSocketServer:
 
         # Connection management (needed in all modes)
         self._conn_manager = ServerConnectionManager()
-        self._clients: dict[str, ConnectionProtocol] = {}
+        self._clients: dict[str, ClientInfo] = {}
         self._scopes: dict[str, ClientScope] = {}
         # Per-client stream replay buffers for disconnect recovery.
         # Created alongside the ClientScope, survives scope suspension.
@@ -319,9 +356,11 @@ class WebSocketServer:
             logger.debug("文件监听已停止")
 
         # 2. Close all WebSocket connections
-        for client_id, ws in list(self._clients.items()):
+        for client_id, client_info in list(self._clients.items()):
             try:
-                await asyncio.wait_for(ws.close(), timeout=3)
+                conn = client_info.conn
+                if hasattr(conn, 'close'):
+                    await asyncio.wait_for(conn.close(), timeout=3)
             except Exception:
                 pass
         self._clients.clear()
@@ -791,37 +830,37 @@ class WebSocketServer:
     async def _handle_connection(self, websocket: ServerConnection):
         """Handle a single WebSocket client lifecycle (connect → messages → disconnect).
 
+        Each connection is tagged with its mode by the ConnectionManager's handler
+        wrapper (ws._mf_connection_mode). This tag is used to determine pre-auth
+        behavior and is stored in ClientInfo for the connection's lifetime.
+
         For LAN mode, incoming messages may be encrypted after pairing. The
         ``decrypt_if_needed`` call transparently handles both plaintext
         (pre-pairing) and ciphertext (post-pairing) messages.
 
         Args:
-            websocket: The incoming WebSocket connection.
+            websocket: The incoming WebSocket connection (tagged with _mf_connection_mode).
         """
         client_id = secrets.token_hex(6)
+
+        # Read connection mode from the tag set by ConnectionManager's handler wrapper.
+        # WSL child mode overrides the transport-level tag.
+        if getattr(self, '_is_wsl_child', False):
+            conn_mode = ConnectionMode.LAN  # WSL child uses LAN semantics
+        else:
+            conn_mode = getattr(websocket, '_mf_connection_mode', ConnectionMode.LAN)
+
+        logger.info(f"📱 新连接: {client_id}, mode={conn_mode.value}")
 
         # Pre-auth registration: modes where authentication happens BEFORE
         # the WebSocket connection is established (Bearer Token at HTTP level,
         # or trusted localhost). These skip the auth.pair/auth.connect handshake
         # and register the client + initialize CLI immediately.
-        #
-        # Detection: Tunnel connections use TLS (transport.get_extra_info('ssl_object')
-        # is not None), which distinguishes them from LAN connections in multi-mode
-        # parallel operation where _conn_manager.mode may not reflect this connection.
-        is_tunnel = (
-            hasattr(websocket, 'transport')
-            and websocket.transport is not None
-            and websocket.transport.get_extra_info('ssl_object') is not None
-        )
-        conn_mode = "wsl-child" if getattr(self, '_is_wsl_child', False) else "tunnel" if is_tunnel else "lan"
-        logger.info(f"📱 新连接: {client_id}, mode={conn_mode}")
         if getattr(self, '_is_wsl_child', False):
-            # WSL child: parent Agent is the only client, localhost-only
-            self._clients[client_id] = websocket
+            self._clients[client_id] = ClientInfo(conn=websocket, mode=conn_mode)
             await self._register_preauthenticated_client(client_id)
-        elif is_tunnel or self._conn_manager.mode == ConnectionMode.TUNNEL:
-            # Tunnel: Bearer Token validated at HTTP upgrade level
-            self._clients[client_id] = websocket
+        elif conn_mode == ConnectionMode.TUNNEL:
+            self._clients[client_id] = ClientInfo(conn=websocket, mode=conn_mode)
             await self._register_preauthenticated_client(client_id)
             logger.info(f"Tunnel 客户端已认证（Bearer Token）: {client_id}")
 
@@ -850,7 +889,7 @@ class WebSocketServer:
             logger.info(f"Connection closed: {client_id} code={e.code} reason={e.reason}")
         finally:
             self._clients.pop(client_id, None)
-            logger.info(f"📱 客户端断开: {client_id}")
+            logger.info(f"📱 客户端断开: {client_id}, mode={conn_mode.value}")
             # Suspend scope instead of disposing immediately — keeps ACP
             # processes alive during the grace period so the client can
             # reconnect without losing AI conversation context.
@@ -889,7 +928,7 @@ class WebSocketServer:
             requires_cli=entry.requires_cli,
             requires_project=entry.requires_project,
             is_background=entry.is_background,
-            metadata={"_connection_mode": self._conn_manager.mode.value},
+            metadata={"_connection_mode": self._get_client_mode(client_id).value},
         )
 
         if entry.is_background:
@@ -1155,7 +1194,7 @@ class WebSocketServer:
                 self._conn_manager._crypto,
                 target_device_id=client_id,
             )
-            self._clients[client_id] = vc
+            self._clients[client_id] = ClientInfo(conn=vc, mode=ConnectionMode.RELAY)
             logger.info(f"📱 Relay 新客户端: {client_id[:16]}")
             # Scope will be created in _init_default_cli after auth
         msg = Message(**msg_dict)
@@ -1197,7 +1236,7 @@ class WebSocketServer:
         # Generate shared secret for LAN encryption
         secret = os.urandom(32)
         session_token = self.auth.create_session(client_id, secret)
-        self._clients[client_id] = ws
+        self._clients[client_id] = ClientInfo(conn=ws, mode=ConnectionMode.LAN)
         logger.info(f"✅ 配对成功: {client_id}")
 
         # Try to resume a suspended scope (single-client optimization).
@@ -1244,7 +1283,7 @@ class WebSocketServer:
         # Activate encryption for subsequent messages
         crypto = CryptoModule(secret)
         self._conn_manager.activate_encryption(client_id, crypto)
-        self._clients[client_id] = EncryptedConnection(ws, crypto)
+        self._clients[client_id] = ClientInfo(conn=EncryptedConnection(ws, crypto), mode=ConnectionMode.LAN)
         logger.info(f"🔒 LAN 加密已激活: client={client_id}")
 
         if not resumed:
@@ -1283,14 +1322,14 @@ class WebSocketServer:
         result = self.auth.verify_session(connect_payload.session_token)
 
         if result.success:
-            self._clients[client_id] = ws
+            self._clients[client_id] = ClientInfo(conn=ws, mode=ConnectionMode.LAN)
             logger.info(f"✅ 会话验证成功: {client_id}")
 
             # Re-activate encryption if secret is available
             if result.secret:
                 crypto = CryptoModule(result.secret)
                 self._conn_manager.activate_encryption(client_id, crypto)
-                self._clients[client_id] = EncryptedConnection(ws, crypto)
+                self._clients[client_id] = ClientInfo(conn=EncryptedConnection(ws, crypto), mode=ConnectionMode.LAN)
                 logger.info(f"🔒 LAN 加密已重新激活: client={client_id}")
 
             # Try to resume a suspended scope from the original client_id.
@@ -1671,14 +1710,30 @@ class WebSocketServer:
             client_id: Target client identifier.
             message: Protocol message to deliver.
         """
-        ws = self._clients.get(client_id)
-        if ws:
+        client_info = self._clients.get(client_id)
+        if client_info:
             try:
-                await ws.send(message.model_dump_json())
+                await client_info.send(message.model_dump_json())
             except Exception as e:
                 logger.warning(f"广播消息失败: client={client_id}, type={message.type}, error={e}")
         else:
             logger.debug(f"广播目标客户端不存在: client={client_id}")
+
+    def _get_client_mode(self, client_id: str) -> ConnectionMode:
+        """Get the connection mode for a specific client.
+
+        Reads from ClientInfo if available, falls back to LAN.
+
+        Args:
+            client_id: The client identifier.
+
+        Returns:
+            The ConnectionMode for this client.
+        """
+        client_info = self._clients.get(client_id)
+        if client_info:
+            return client_info.mode
+        return ConnectionMode.LAN
 
     async def _broadcast_raw(self, raw: str) -> None:
         """Broadcast a raw JSON string to all connected App clients.
@@ -1689,9 +1744,9 @@ class WebSocketServer:
         Args:
             raw: JSON-serialized message string.
         """
-        for ws in list(self._clients.values()):
+        for client_info in list(self._clients.values()):
             try:
-                await ws.send(raw)
+                await client_info.send(raw)
             except Exception:
                 pass
 
@@ -1714,9 +1769,9 @@ class WebSocketServer:
             MessageType.STATE_PUSH,
             StatePushPayload(key=key, data=state_data),
         )
-        for ws in list(self._clients.values()):
+        for client_info in list(self._clients.values()):
             try:
-                await ws.send(msg.model_dump_json())
+                await client_info.send(msg.model_dump_json())
             except Exception:
                 pass
 
@@ -1740,9 +1795,9 @@ class WebSocketServer:
             MessageType.CLI_COMMANDS,
             CliCommandsPayload(cli=cli_name, commands=commands),
         )
-        for ws in list(self._clients.values()):
+        for client_info in list(self._clients.values()):
             try:
-                await ws.send(msg.model_dump_json())
+                await client_info.send(msg.model_dump_json())
             except Exception:
                 pass
 
@@ -1772,9 +1827,9 @@ class WebSocketServer:
                 },
             ),
         )
-        for ws in list(self._clients.values()):
+        for client_info in list(self._clients.values()):
             try:
-                await ws.send(msg.model_dump_json())
+                await client_info.send(msg.model_dump_json())
             except Exception:
                 pass
 
@@ -1913,8 +1968,8 @@ class WebSocketServer:
             client_id: The reconnected client's identifier.
             cli_name: The CLI adapter name.
         """
-        ws = self._clients.get(client_id)
-        if not ws:
+        client_info = self._clients.get(client_id)
+        if not client_info:
             return
 
         # Push cli.status=ready so App stops showing spinner
@@ -1925,7 +1980,7 @@ class WebSocketServer:
             caps = provider.capabilities.to_capability_dict()
 
         try:
-            await ws.send(Message.from_typed(
+            await client_info.send(Message.from_typed(
                 type=MessageType.CLI_STATUS,
                 payload=CliStatusPayload(
                     cli=cli_name,
@@ -1942,7 +1997,7 @@ class WebSocketServer:
         replay = self._stream_replays.get(client_id)
         if replay and (replay.is_active or replay.is_finished):
             try:
-                await ws.send(Message.from_typed(
+                await client_info.send(Message.from_typed(
                     type=MessageType.CHAT_REPLAY_RESULT,
                     payload=ChatReplayResultPayload(
                         chunks=[],
@@ -2128,9 +2183,9 @@ class WebSocketServer:
                     # The operation will trigger a full refresh when it completes.
                     if not self.git_state.operations.should_block():
                         msg = Message.from_typed(type=MessageType.FILE_CHANGED, payload=FileChangedPayload(path=rel, change=change))
-                        for ws in list(self._clients.values()):
+                        for client_info in list(self._clients.values()):
                             try:
-                                await ws.send(msg.model_dump_json())
+                                await client_info.send(msg.model_dump_json())
                             except Exception:
                                 pass
 

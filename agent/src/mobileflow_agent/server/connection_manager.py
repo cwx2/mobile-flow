@@ -44,15 +44,19 @@ class ServerConnectionManager:
     Abstracts away the transport differences so that the handler layer
     can send and receive messages without caring about the underlying mode.
 
+    Supports multi-mode parallel operation: LAN, Tunnel, and Relay can all
+    run simultaneously. Each connection carries its own mode tag rather than
+    relying on a global mode field.
+
     Attributes:
-        _mode: The currently active connection mode.
+        _active_modes: Set of currently running connection modes.
         _crypto: E2E encryption module (used in Relay mode).
         _relay_ws: WebSocket client connection for Relay mode.
         _clients: Active client connections (LAN / Tunnel mode).
     """
 
     def __init__(self):
-        self._mode = ConnectionMode.LAN
+        self._active_modes: set[ConnectionMode] = set()
         self._crypto: Optional[CryptoModule] = None
         # WebSocket client connection for Relay mode
         self._relay_ws: Optional[Any] = None
@@ -67,8 +71,22 @@ class ServerConnectionManager:
 
     @property
     def mode(self) -> ConnectionMode:
-        """Return the currently active connection mode."""
-        return self._mode
+        """Return the primary active connection mode (backward-compatible).
+
+        Priority: TUNNEL > RELAY > LAN. Used by legacy code that expects
+        a single mode value. New code should use active_modes or per-connection
+        mode from ClientInfo instead.
+        """
+        if ConnectionMode.TUNNEL in self._active_modes:
+            return ConnectionMode.TUNNEL
+        if ConnectionMode.RELAY in self._active_modes:
+            return ConnectionMode.RELAY
+        return ConnectionMode.LAN
+
+    @property
+    def active_modes(self) -> set[ConnectionMode]:
+        """Return all currently active connection modes."""
+        return self._active_modes.copy()
 
     def set_message_handler(
         self,
@@ -160,10 +178,16 @@ class ServerConnectionManager:
                 the dashboard. Returns an HTTP Response for non-WebSocket
                 requests, or None to proceed with the WebSocket handshake.
         """
-        self._mode = ConnectionMode.LAN
+        self._active_modes.add(ConnectionMode.LAN)
         logger.info(f"📡 LAN 模式: ws://{host}:{port}")
+
+        # Wrap handler to tag each connection with its mode
+        async def _lan_handler(ws):
+            ws._mf_connection_mode = ConnectionMode.LAN
+            await handler(ws)
+
         async with websockets.serve(
-            handler, host, port,
+            _lan_handler, host, port,
             max_size=max_size,
             ping_interval=ping_interval,
             ping_timeout=ping_timeout,
@@ -205,7 +229,7 @@ class ServerConnectionManager:
             initial_delay: Initial backoff delay in seconds.
             max_delay: Maximum backoff delay cap in seconds.
         """
-        self._mode = ConnectionMode.RELAY
+        self._active_modes.add(ConnectionMode.RELAY)
         self._crypto = crypto
         ws_url = f"{relay_url}/ws/agent/{device_id}"
         logger.info(f"📡 Relay 模式: {ws_url}")
@@ -317,7 +341,7 @@ class ServerConnectionManager:
             ssl_context: TLS/SSL context with certificate and key.
             max_size: Maximum incoming message size in bytes.
         """
-        self._mode = ConnectionMode.TUNNEL
+        self._active_modes.add(ConnectionMode.TUNNEL)
         self._tunnel_bearer_token = bearer_token
         logger.info(f"📡 Tunnel 模式: wss://{host}:{port}")
 
@@ -342,8 +366,13 @@ class ServerConnectionManager:
             process_request = _check_bearer
             logger.info("Tunnel Bearer Token 验证已启用")
 
+        # Wrap handler to tag each connection with its mode
+        async def _tunnel_handler(ws):
+            ws._mf_connection_mode = ConnectionMode.TUNNEL
+            await handler(ws)
+
         async with websockets.serve(
-            handler, host, port,
+            _tunnel_handler, host, port,
             ssl=ssl_context,
             max_size=max_size,
             process_request=process_request,

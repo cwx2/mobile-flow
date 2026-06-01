@@ -105,8 +105,8 @@ class BaseHandler:
         Args:
             msg: The protocol message to broadcast.
         """
-        for ws in list(self.server._clients.values()):
+        for client_info in list(self.server._clients.values()):
             try:
-                await self.send(ws, msg)
+                await client_info.send(msg.model_dump_json())
             except Exception:
                 pass
