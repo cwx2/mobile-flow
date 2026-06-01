@@ -146,6 +146,38 @@ async function saveConnectionConfig() {
   }
 }
 
+// ── Token copy ──
+
+async function copyToken() {
+  // If the input has a value (just generated or user typed), copy that
+  const input = document.getElementById('conn-tunnel-token');
+  if (input.value) {
+    await navigator.clipboard.writeText(input.value);
+    _flashCopyFeedback();
+    return;
+  }
+  // Otherwise fetch the real token from backend
+  try {
+    const res = await fetch('/api/connection/token');
+    const data = await res.json();
+    if (data.token) {
+      await navigator.clipboard.writeText(data.token);
+      _flashCopyFeedback();
+    }
+  } catch (e) {
+    console.error('Failed to copy token:', e);
+  }
+}
+
+function _flashCopyFeedback() {
+  const statusEl = document.getElementById('conn-gen-cert-status');
+  if (statusEl) {
+    statusEl.textContent = t('conn.tokenCopied');
+    statusEl.style.color = '#43e6c3';
+    setTimeout(() => { statusEl.textContent = ''; }, 3000);
+  }
+}
+
 // ── Token visibility toggle ──
 
 function toggleTokenVisibility() {
@@ -157,6 +189,61 @@ function toggleTokenVisibility() {
   } else {
     input.type = 'password';
     btn.textContent = '👁';
+  }
+}
+
+// ── Tunnel help toggle ──
+
+function toggleTunnelHelp() {
+  const el = document.getElementById('tunnel-help');
+  if (el.style.display === 'none') {
+    el.style.display = 'block';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+// ── Generate self-signed certificate ──
+
+async function generateCert() {
+  const btn = document.getElementById('conn-gen-cert-btn');
+  const statusEl = document.getElementById('conn-gen-cert-status');
+
+  // Warn if cert paths are already filled (regeneration invalidates existing connections)
+  const existingCert = document.getElementById('conn-tunnel-cert').value;
+  if (existingCert && !confirm(t('conn.regenConfirm'))) {
+    return;
+  }
+
+  btn.disabled = true;
+  btn.style.opacity = '0.5';
+  statusEl.textContent = t('conn.generating');
+  statusEl.style.color = '#888';
+
+  try {
+    const res = await fetch('/api/connection/generate-cert');
+    const data = await res.json();
+
+    if (data.success) {
+      // Auto-fill cert paths and generated token
+      document.getElementById('conn-tunnel-cert').value = data.cert_path;
+      document.getElementById('conn-tunnel-key').value = data.key_path;
+      if (data.token) {
+        document.getElementById('conn-tunnel-token').value = data.token;
+      }
+      statusEl.textContent = t('conn.certGenerated');
+      statusEl.style.color = '#43e6c3';
+    } else {
+      statusEl.textContent = t('conn.certGenFailed', data.error || 'Unknown error');
+      statusEl.style.color = '#e57373';
+    }
+  } catch (e) {
+    statusEl.textContent = t('conn.certGenFailed', e.message);
+    statusEl.style.color = '#e57373';
+  } finally {
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    setTimeout(() => { statusEl.textContent = ''; }, 8000);
   }
 }
 

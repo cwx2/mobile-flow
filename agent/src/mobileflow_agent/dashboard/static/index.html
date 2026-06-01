@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="zh" data-theme="dark">
 <head>
   <meta charset="UTF-8">
@@ -64,7 +64,7 @@
 
   <main class="p-6 max-w-[1100px] mx-auto">
 
-    <!-- ══════════════════�?Home Tab ══════════════════�?-->
+    <!-- ═══════════════════ Home Tab ═══════════════════ -->
     <section id="tab-home" class="tab-panel">
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <!-- Connection info card -->
@@ -138,7 +138,7 @@
       </div>
     </section>
 
-    <!-- ══════════════════�?Agents Tab ══════════════════�?-->
+    <!-- ═══════════════════ Agents Tab ═══════════════════ -->
     <section id="tab-agents" class="tab-panel hidden">
       <div class="flex gap-4" style="height:calc(100vh - 120px);">
         <!-- Left: CLI list -->
@@ -160,7 +160,7 @@
       </div>
     </section>
 
-    <!-- ══════════════════�?API Keys Tab ══════════════════�?-->
+    <!-- ═══════════════════ API Keys Tab ═══════════════════ -->
     <section id="tab-keys" class="tab-panel hidden">
       <div class="bg-surface border border-border rounded-xl p-6">
         <h2 class="text-base font-semibold text-gray-200 mb-2">API Key Configuration</h2>
@@ -179,7 +179,7 @@
       </div>
     </section>
 
-    <!-- ══════════════════�?Connection Tab ══════════════════�?-->
+    <!-- ═══════════════════ Connection Tab ═══════════════════ -->
     <section id="tab-connection" class="tab-panel hidden">
       <div class="bg-surface border border-border rounded-xl p-6">
         <h2 class="text-base font-semibold text-gray-200 mb-4" data-i18n="conn.title">Connection Modes</h2>
@@ -205,7 +205,35 @@
 
         <!-- Tunnel Config -->
         <div class="mb-6">
-          <h3 class="text-sm font-medium text-gray-400 mb-3" data-i18n="conn.tunnelTitle">Tunnel (WSS)</h3>
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="text-sm font-medium text-gray-400" data-i18n="conn.tunnelTitle">Tunnel (WSS)</h3>
+            <div class="flex items-center gap-2">
+              <button onclick="generateCert()" id="conn-gen-cert-btn" class="text-[11px] text-brand bg-brand/10 border border-brand/30 rounded px-2.5 py-1 cursor-pointer hover:bg-brand/20" data-i18n="conn.generateCert">🔐 Generate Certificate</button>
+              <button onclick="toggleTunnelHelp()" class="text-[11px] text-gray-500 bg-transparent border border-border rounded px-2 py-1 cursor-pointer hover:text-gray-300" data-i18n="conn.help">? Help</button>
+            </div>
+          </div>
+
+          <!-- Help/Tutorial (collapsed by default) -->
+          <div id="tunnel-help" class="mb-3 bg-surface-dark border border-border rounded-lg p-4 text-xs text-gray-400 leading-relaxed" style="display:none;">
+            <p class="font-medium text-gray-300 mb-2" data-i18n="conn.helpTitle">What is Tunnel mode?</p>
+            <p class="mb-2" data-i18n="conn.helpDesc">Tunnel creates a TLS-encrypted WebSocket (WSS) server on your computer, allowing your phone to connect securely over any network — even across the internet.</p>
+            <p class="font-medium text-gray-300 mb-2 mt-3" data-i18n="conn.helpQuickTitle">Quick Setup (recommended)</p>
+            <p class="mb-2" data-i18n="conn.helpQuickDesc">Click "Generate Certificate" to auto-create a self-signed certificate. Set a Bearer Token as your password, then click Save &amp; Apply.</p>
+            <p class="font-medium text-gray-300 mb-2 mt-3" data-i18n="conn.helpManualTitle">Manual Setup (advanced)</p>
+            <ul class="list-disc pl-4 space-y-1 mb-2">
+              <li><span data-i18n="conn.helpManual1">Generate your own cert:</span> <code class="bg-black/30 px-1 rounded">openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes</code></li>
+              <li data-i18n="conn.helpManual2">Or use a CA-signed certificate (Let's Encrypt, etc.) for production</li>
+              <li data-i18n="conn.helpManual3">Fill in the absolute paths to your cert and key files below</li>
+            </ul>
+            <p class="font-medium text-gray-300 mb-2 mt-3" data-i18n="conn.helpSecurityTitle">Security Notes</p>
+            <ul class="list-disc pl-4 space-y-1">
+              <li data-i18n="conn.helpSecurity1">Self-signed certs are fine for dev/home use. Your phone may show a security warning — this is expected.</li>
+              <li data-i18n="conn.helpSecurity2">Bearer Token is required — it authenticates your phone to the Agent.</li>
+              <li data-i18n="conn.helpSecurity3">For public internet exposure, use a proper CA-signed certificate and a strong token.</li>
+              <li data-i18n="conn.helpSecurity4">Private keys are stored in ~/.mobileflow/certs/ with restricted permissions.</li>
+            </ul>
+          </div>
+
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="text-[11px] text-gray-500 block mb-1" data-i18n="conn.certPath">TLS Certificate Path</label>
@@ -218,8 +246,11 @@
             <div>
               <label class="text-[11px] text-gray-500 block mb-1" data-i18n="conn.bearerToken">Bearer Token</label>
               <div class="relative">
-                <input id="conn-tunnel-token" type="password" placeholder="your-secret-token" class="w-full px-3 py-2 pr-9 bg-surface-dark border border-border rounded-md text-gray-200 text-[13px]">
-                <button id="conn-token-toggle" onclick="toggleTokenVisibility()" class="absolute right-2 top-1/2 -translate-y-1/2 bg-transparent border-none text-gray-500 cursor-pointer text-sm">👁</button>
+                <input id="conn-tunnel-token" type="password" placeholder="your-secret-token" class="w-full px-3 py-2 pr-16 bg-surface-dark border border-border rounded-md text-gray-200 text-[13px]">
+                <div class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                  <button onclick="copyToken()" class="bg-transparent border-none text-gray-500 cursor-pointer text-sm hover:text-gray-300" title="Copy">📋</button>
+                  <button id="conn-token-toggle" onclick="toggleTokenVisibility()" class="bg-transparent border-none text-gray-500 cursor-pointer text-sm hover:text-gray-300">👁</button>
+                </div>
               </div>
             </div>
             <div>
@@ -227,6 +258,7 @@
               <input id="conn-tunnel-port" type="number" value="9601" min="1" max="65535" class="w-full px-3 py-2 bg-surface-dark border border-border rounded-md text-gray-200 text-[13px]">
             </div>
           </div>
+          <span id="conn-gen-cert-status" class="text-xs text-gray-500 mt-2 block"></span>
         </div>
 
         <!-- Relay Config -->
@@ -249,7 +281,7 @@
       </div>
     </section>
 
-    <!-- ══════════════════�?Logs Tab ══════════════════�?-->
+    <!-- ═══════════════════ Logs Tab ═══════════════════ -->
     <section id="tab-logs" class="tab-panel hidden">
       <div class="bg-surface border border-border rounded-xl p-4 flex flex-col" style="height:calc(100vh - 120px);">
         <div class="flex items-center justify-between mb-3">
@@ -269,7 +301,7 @@
       </div>
     </section>
 
-    <!-- ══════════════════�?Run Config Tab ══════════════════�?-->
+    <!-- ═══════════════════ Run Config Tab ═══════════════════ -->
     <section id="tab-runconfig" class="tab-panel hidden">
       <div class="flex" style="height:calc(100vh - 120px);">
         <!-- Left: Config list -->
@@ -377,7 +409,7 @@
       </dialog>
     </section>
 
-    <!-- ══════════════════�?Settings Tab ══════════════════�?-->
+    <!-- ═══════════════════ Settings Tab ═══════════════════ -->
     <section id="tab-settings" class="tab-panel hidden">
       <div class="bg-surface border border-border rounded-xl p-6">
         <h2 class="text-base font-semibold text-gray-200 mb-4">Settings</h2>
@@ -399,7 +431,7 @@
     </section>
   </main>
 
-  <!-- ══════════════════�?Project Picker Dialog ══════════════════�?-->
+  <!-- ═══════════════════ Project Picker Dialog ═══════════════════ -->
   <div id="project-picker-overlay" class="fixed inset-0 bg-black/60 z-[100] items-center justify-center" style="display:none;">
     <div class="bg-surface border border-border rounded-xl p-6 w-[560px] max-w-[90vw] max-h-[80vh] flex flex-col">
       <h3 class="text-base font-semibold text-gray-200 mb-3">Switch Project</h3>
@@ -426,7 +458,7 @@
     </div>
   </div>
 
-  <!-- ══════════════════�?Add Custom Agent Dialog ══════════════════�?-->
+  <!-- ═══════════════════ Add Custom Agent Dialog ═══════════════════ -->
   <div id="add-agent-overlay" class="fixed inset-0 bg-black/60 z-[100] items-center justify-center" style="display:none;">
     <div class="bg-surface border border-border rounded-xl p-6 w-[400px] max-w-[90vw]">
       <h3 class="text-base font-semibold text-gray-200 mb-4">Add Custom Agent</h3>

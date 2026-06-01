@@ -39,6 +39,7 @@ dependencies = [
     "pystray>=0.19",
     "Pillow>=10.0",
     "python-i18n[json]>=0.3.9",
+    "cryptography>=42.0",
 ]
 
 [project.optional-dependencies]

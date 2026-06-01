@@ -499,6 +499,40 @@ def create_dashboard_handler(
                 "relay_url": config.relay_url,
             })
 
+        if path == "/api/connection/generate-cert" and user_config_manager:
+            from ..crypto.cert_generator import generate_self_signed_cert
+            from ..services.user_config import ConnectionConfigData
+            import secrets
+            try:
+                result = generate_self_signed_cert()
+                # Generate a secure random bearer token (16 bytes = 22 chars url-safe)
+                token = secrets.token_urlsafe(16)
+                # Read current config and merge new cert + token
+                current = user_config_manager.get_connection_config()
+                new_config = ConnectionConfigData(
+                    tunnel_tls_cert=result["cert_path"],
+                    tunnel_tls_key=result["key_path"],
+                    tunnel_bearer_token=token,
+                    tunnel_port=current.tunnel_port or 9601,
+                    relay_url=current.relay_url,
+                )
+                # Persist to config file immediately
+                user_config_manager.set_connection_config(new_config)
+                logger.info(f"证书和 Token 已生成并保存到配置文件")
+                return _json_response({
+                    "success": True,
+                    "cert_path": result["cert_path"],
+                    "key_path": result["key_path"],
+                    "token": token,
+                })
+            except Exception as e:
+                logger.error(f"证书生成失败: {e}")
+                return _json_response({"success": False, "error": str(e)}, 500)
+
+        if path == "/api/connection/token" and user_config_manager:
+            config = user_config_manager.get_connection_config()
+            return _json_response({"token": config.tunnel_bearer_token})
+
         if path == "/api/connection/status" and hot_reload_manager:
             status = hot_reload_manager.get_status()
             return _json_response({

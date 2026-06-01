@@ -799,17 +799,27 @@ class WebSocketServer:
             websocket: The incoming WebSocket connection.
         """
         client_id = secrets.token_hex(6)
-        logger.info(f"📱 新连接: {client_id}")
 
         # Pre-auth registration: modes where authentication happens BEFORE
         # the WebSocket connection is established (Bearer Token at HTTP level,
         # or trusted localhost). These skip the auth.pair/auth.connect handshake
         # and register the client + initialize CLI immediately.
+        #
+        # Detection: Tunnel connections use TLS (transport.get_extra_info('ssl_object')
+        # is not None), which distinguishes them from LAN connections in multi-mode
+        # parallel operation where _conn_manager.mode may not reflect this connection.
+        is_tunnel = (
+            hasattr(websocket, 'transport')
+            and websocket.transport is not None
+            and websocket.transport.get_extra_info('ssl_object') is not None
+        )
+        conn_mode = "wsl-child" if getattr(self, '_is_wsl_child', False) else "tunnel" if is_tunnel else "lan"
+        logger.info(f"📱 新连接: {client_id}, mode={conn_mode}")
         if getattr(self, '_is_wsl_child', False):
             # WSL child: parent Agent is the only client, localhost-only
             self._clients[client_id] = websocket
             await self._register_preauthenticated_client(client_id)
-        elif self._conn_manager.mode == ConnectionMode.TUNNEL:
+        elif is_tunnel or self._conn_manager.mode == ConnectionMode.TUNNEL:
             # Tunnel: Bearer Token validated at HTTP upgrade level
             self._clients[client_id] = websocket
             await self._register_preauthenticated_client(client_id)
