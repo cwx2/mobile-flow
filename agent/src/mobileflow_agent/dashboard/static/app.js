@@ -304,11 +304,36 @@ async function saveKey() {
     if (result.success) {
       alert(t('apiKey.saved'));
       document.getElementById('key-value').value = '';
+      loadApiKeys(); // Refresh the list
     } else {
       alert(t('apiKey.saveFailed', result.message));
     }
   } catch (e) {
     alert(t('apiKey.saveFailed', e.message));
+  }
+}
+
+async function loadApiKeys() {
+  const listEl = document.getElementById('key-list');
+  if (!listEl) return;
+  try {
+    const data = await fetchJSON('/api/keys');
+    const keys = data.keys || [];
+    if (keys.length === 0) {
+      listEl.innerHTML = '<span class="text-gray-500 text-[13px]">No API keys configured.</span>';
+      return;
+    }
+    listEl.innerHTML = keys.map(k => {
+      const dot = k.configured
+        ? '<span class="inline-block w-2 h-2 rounded-full bg-green-400 mr-2"></span>'
+        : '<span class="inline-block w-2 h-2 rounded-full bg-gray-600 mr-2"></span>';
+      const val = k.configured
+        ? `<span class="font-mono text-gray-300">${k.value}</span>`
+        : '<span class="text-gray-600">Not set</span>';
+      return `<div class="flex justify-between items-center py-1.5">${dot}<span class="text-[13px] text-gray-400 flex-1">${k.name}</span>${val}</div>`;
+    }).join('');
+  } catch (e) {
+    listEl.innerHTML = '<span class="text-red-400 text-[13px]">Failed to load keys.</span>';
   }
 }
 
@@ -644,6 +669,11 @@ setInterval(loadStatus, 5000);
 // Start log polling when logs tab is opened
 document.querySelector('.nav-tab[data-tab="logs"]').addEventListener('click', () => {
   startLogPolling();
+});
+
+// Load API keys when keys tab is opened
+document.querySelector('.nav-tab[data-tab="keys"]').addEventListener('click', () => {
+  loadApiKeys();
 });
 
 // ── Install terminal (xterm.js) ──
