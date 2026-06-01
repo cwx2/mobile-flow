@@ -18,6 +18,7 @@ import 'package:provider/provider.dart';
 
 import '../components/app_bottom_sheet.dart';
 import '../l10n/app_localizations.dart';
+import '../screens/connect_screen.dart';
 import '../services/connection_manager.dart';
 import '../services/connection_service.dart';
 import '../services/websocket_service.dart';
@@ -314,8 +315,11 @@ class _LiveConnectionSheetState extends State<_LiveConnectionSheet>
               onPressed: () {
                 _log.info('用户手动断开连接');
                 Navigator.of(context).pop();
-                ws.connectionManager.disconnect();
+                // Mark state as disconnected FIRST to prevent auto-reconnect
                 conn.disconnect();
+                ws.connectionManager.disconnect();
+                // Prevent ConnectScreen from auto-connecting on next mount
+                ConnectScreen.suppressAutoConnect();
               },
               icon: Icon(Icons.link_off, color: colors.error),
               label: Text(S.of(context).connectionStatusDisconnect,

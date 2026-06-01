@@ -79,6 +79,12 @@ class _ConnectScreenLayout {
 class ConnectScreen extends StatefulWidget {
   const ConnectScreen({super.key});
 
+  /// Suppress auto-connect on next ConnectScreen mount.
+  /// Call this when user manually disconnects to prevent immediate reconnection.
+  static void suppressAutoConnect() {
+    _ConnectScreenState._skipAutoConnect = true;
+  }
+
   /// Clear all persisted connection parameters across all modes.
   ///
   /// Intended for a "Forget saved connections" action in Settings.
@@ -125,6 +131,10 @@ class _ConnectScreenState extends State<ConnectScreen>
 
   String? _error;
   static const _storage = FlutterSecureStorage();
+
+  /// When true, skip auto-connect on next ConnectScreen mount.
+  /// Set by manual disconnect actions to prevent immediate reconnection.
+  static bool _skipAutoConnect = false;
 
   // Mode-specific storage key prefixes to avoid collisions
   static const _keyLanHost = 'conn_lan_host';
@@ -195,9 +205,13 @@ class _ConnectScreenState extends State<ConnectScreen>
     );
 
     if (confirmed == true && mounted) {
-      // Disconnect current connection
+      // Disconnect current connection — mark state as disconnected FIRST
+      // to prevent the auto-reconnect loop from triggering
       final ws = context.read<WebSocketService>();
+      ws.connection?.disconnect();
       await ws.connectionManager.disconnect();
+      // Prevent auto-connect from firing when ConnectScreen rebuilds
+      _skipAutoConnect = true;
       _previousTabIndex = newIndex;
       setState(() => _error = null);
     } else if (mounted) {
@@ -276,6 +290,13 @@ class _ConnectScreenState extends State<ConnectScreen>
     // Silent auto-connect for LAN only
     // Strategy: try session_token first (no pairing needed), fall back to password
     _log.info('自动连接检查: host=${host ?? "空"}, port=${port ?? "空"}, token=${token != null ? "有" : "无"}');
+
+    // Skip auto-connect if user just manually disconnected
+    if (_skipAutoConnect) {
+      _skipAutoConnect = false;
+      _log.info('跳过自动连接（用户主动断开）');
+      return;
+    }
     if (host != null && host.isNotEmpty) {
       final ws = context.read<WebSocketService>();
       final portNum = int.tryParse(port ?? '9600') ?? 9600;

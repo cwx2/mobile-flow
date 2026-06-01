@@ -16,6 +16,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../l10n/app_localizations.dart';
+import '../screens/connect_screen.dart';
 import '../services/connection_service.dart';
 import '../services/websocket_service.dart';
 import '../theme/theme_extensions.dart';
@@ -98,8 +99,11 @@ class _ConnectionBannerState extends State<ConnectionBanner> {
         onDisconnect: () {
           _log.info('用户点击断开');
           final ws = context.read<WebSocketService>();
-          ws.connectionManager.disconnect();
+          // Mark state as disconnected FIRST to prevent auto-reconnect
           conn.disconnect();
+          ws.connectionManager.disconnect();
+          // Prevent ConnectScreen from auto-connecting on next mount
+          ConnectScreen.suppressAutoConnect();
         },
       );
     } else if (_showReconnectedFlash) {

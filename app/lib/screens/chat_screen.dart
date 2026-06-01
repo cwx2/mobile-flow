@@ -62,6 +62,7 @@ class _ChatScreenState extends State<ChatScreen> {
   // so the ListView doesn't rebuild and shift their view.
   static const _kScrollLockThreshold = 20.0;
   bool _userScrolledUp = false;
+  late final WebSocketService _ws;
 
   // ── Immersive reading mode ──
   // Single source of truth is [widget.immersiveMode] ValueNotifier.
@@ -72,19 +73,19 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    final ws = context.read<WebSocketService>();
+    _ws = context.read<WebSocketService>();
     _scrollController.addListener(_onScroll);
 
     // Exit immersive mode when AI starts responding — the user needs
     // to see the status indicator and input bar during active streaming.
-    ws.addListener(_onWebSocketChanged);
+    _ws.addListener(_onWebSocketChanged);
 
     // Rebuild when immersive mode changes (driven by scroll or AI status).
     widget.immersiveMode?.addListener(_onImmersiveModeChanged);
 
     // Permission dialog queue manager
     _permissionManager = PermissionDialogManager(context);
-    _permissionManager.listen(ws);
+    _permissionManager.listen(_ws);
 
     // Listen for external terminal toggle (from HomeScreen navigateToTerminal)
     widget.showTerminal?.addListener(_onTerminalToggleChanged);
@@ -612,7 +613,7 @@ class _ChatScreenState extends State<ChatScreen> {
     _permissionManager.dispose();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
-    context.read<WebSocketService>().removeListener(_onWebSocketChanged);
+    _ws.removeListener(_onWebSocketChanged);
     widget.immersiveMode?.removeListener(_onImmersiveModeChanged);
     widget.showTerminal?.removeListener(_onTerminalToggleChanged);
     super.dispose();

@@ -126,6 +126,8 @@ class WsAuth {
   }) async {
     _ws.isConnectingFlag = true;
     try {
+      // Tunnel uses TLS for encryption — disable LAN-level NaCl encryption
+      _crypto.reset();
       await _connManager.connectTunnel(wssUrl: wssUrl, bearerToken: bearerToken,
           cfClientId: cfClientId, cfClientSecret: cfClientSecret);
       _ws.listenMessages();
