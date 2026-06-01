@@ -59,7 +59,6 @@
       <button class="nav-tab text-xs px-3 py-1.5 rounded-md cursor-pointer border-none bg-transparent text-gray-400 hover:bg-white/5 hover:text-gray-200 transition-colors" data-tab="connection" data-i18n="nav.connection">Connection</button>
       <button class="nav-tab text-xs px-3 py-1.5 rounded-md cursor-pointer border-none bg-transparent text-gray-400 hover:bg-white/5 hover:text-gray-200 transition-colors" data-tab="logs" data-i18n="nav.logs">Logs</button>
       <button class="nav-tab text-xs px-3 py-1.5 rounded-md cursor-pointer border-none bg-transparent text-gray-400 hover:bg-white/5 hover:text-gray-200 transition-colors" data-tab="runconfig" data-i18n="nav.runConfig">Run Config</button>
-      <button class="nav-tab text-xs px-3 py-1.5 rounded-md cursor-pointer border-none bg-transparent text-gray-400 hover:bg-white/5 hover:text-gray-200 transition-colors" data-tab="settings" data-i18n="nav.settings">Settings</button>
     </div>
   </div>
 
@@ -100,14 +99,23 @@
             </div>
           </div>
         </div>
-        <!-- Quick start card -->
+        <!-- System Info card (replaces Quick Start — settings merged here) -->
         <div class="bg-surface border border-border rounded-xl p-6">
-          <h2 class="text-base font-semibold text-gray-200 mb-4">Quick Start</h2>
-          <ol class="list-decimal pl-5 text-gray-400 text-sm leading-[2.2]">
-            <li>Install MobileFlow App on your phone</li>
-            <li>Open App, enter IP and password</li>
-            <li>Start coding with AI!</li>
-          </ol>
+          <h2 class="text-base font-semibold text-gray-200 mb-4">⚙️ System Info</h2>
+          <div class="flex flex-col gap-3">
+            <div class="flex justify-between items-center">
+              <span class="text-xs text-gray-500 uppercase">Listen Port</span>
+              <span id="setting-port" class="text-sm font-mono text-gray-200">9600</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-xs text-gray-500 uppercase">Working Directory</span>
+              <span id="setting-cwd" class="text-sm font-mono text-gray-200 max-w-[250px] overflow-hidden text-ellipsis whitespace-nowrap">--</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="text-xs text-gray-500 uppercase">Version</span>
+              <span id="setting-version" class="text-sm font-mono text-gray-200">--</span>
+            </div>
+          </div>
         </div>
       </div>
       <!-- Second row -->
@@ -414,26 +422,6 @@
       </dialog>
     </section>
 
-    <!-- ═══════════════════ Settings Tab ═══════════════════ -->
-    <section id="tab-settings" class="tab-panel hidden">
-      <div class="bg-surface border border-border rounded-xl p-6">
-        <h2 class="text-base font-semibold text-gray-200 mb-4">Settings</h2>
-        <div class="flex flex-col gap-3">
-          <div class="flex justify-between items-center py-2 border-b border-border">
-            <span class="text-sm text-gray-500">Listen Port</span>
-            <span id="setting-port" class="text-sm font-mono text-gray-200">9600</span>
-          </div>
-          <div class="flex justify-between items-center py-2 border-b border-border">
-            <span class="text-sm text-gray-500">Working Directory</span>
-            <span id="setting-cwd" class="text-sm font-mono text-gray-200 max-w-[300px] overflow-hidden text-ellipsis whitespace-nowrap">--</span>
-          </div>
-          <div class="flex justify-between items-center py-2">
-            <span class="text-sm text-gray-500">Version</span>
-            <span id="setting-version" class="text-sm font-mono text-gray-200">--</span>
-          </div>
-        </div>
-      </div>
-    </section>
   </main>
 
   <!-- ═══════════════════ Project Picker Dialog ═══════════════════ -->
