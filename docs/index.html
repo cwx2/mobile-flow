@@ -89,20 +89,60 @@ a:hover { text-decoration: underline; }
 .feature-card h3 { font-size: 1.1rem; margin-bottom: 0.5rem; }
 .feature-card p { color: var(--muted); font-size: 0.9rem; }
 
-/* Screenshots */
-.screenshots { padding: 80px 2rem; overflow: hidden; }
-.screenshots h2 { text-align: center; font-size: 2rem; margin-bottom: 2.5rem; }
-.screenshot-scroll {
-  display: flex; gap: 1.5rem; overflow-x: auto; padding: 1rem 0;
-  scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
+/* Screenshots Carousel */
+.screenshots { padding: 100px 2rem; overflow: hidden; }
+.screenshots h2 { text-align: center; font-size: 2rem; margin-bottom: 3rem; }
+.carousel {
+  position: relative; height: 520px; perspective: 1200px;
+  max-width: 900px; margin: 0 auto;
 }
-.screenshot-scroll::-webkit-scrollbar { height: 6px; }
-.screenshot-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-.screenshot-scroll img {
-  width: 220px; height: auto; border-radius: 16px;
-  border: 1px solid var(--border); scroll-snap-align: center;
-  flex-shrink: 0;
+.carousel-track {
+  position: absolute; width: 100%; height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.6s cubic-bezier(0.25, 0.1, 0.25, 1);
 }
+.carousel-item {
+  position: absolute; left: 50%; top: 0;
+  width: 220px; height: 440px;
+  transform-style: preserve-3d;
+  transition: transform 0.6s cubic-bezier(0.25, 0.1, 0.25, 1), opacity 0.6s;
+}
+.carousel-item img {
+  width: 100%; height: 100%; object-fit: cover;
+  border-radius: 16px; border: 1px solid var(--border);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+}
+.carousel-item .caption {
+  text-align: center; margin-top: 16px;
+  font-size: 0.95rem; color: var(--brand); font-weight: 600;
+  opacity: 0; transition: opacity 0.4s;
+}
+.carousel-item.active .caption { opacity: 1; }
+.carousel-item.active img { border-color: var(--brand); }
+.carousel-nav {
+  display: flex; justify-content: center; gap: 12px; margin-top: 24px;
+  position: relative; top: 490px;
+}
+.carousel-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--border); cursor: pointer; transition: background 0.3s, transform 0.3s;
+  border: none;
+}
+.carousel-dot.active { background: var(--brand); transform: scale(1.3); }
+.carousel-arrows {
+  position: absolute; top: 50%; left: 0; right: 0;
+  display: flex; justify-content: space-between; padding: 0 1rem;
+  transform: translateY(-50%); pointer-events: none;
+}
+.carousel-arrow {
+  width: 44px; height: 44px; border-radius: 50%;
+  background: var(--surface); border: 1px solid var(--border);
+  color: var(--text); font-size: 1.2rem;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; pointer-events: all;
+  transition: border-color 0.2s, background 0.2s;
+}
+.carousel-arrow:hover { border-color: var(--brand); background: var(--brand-dim); }
 
 /* Quick Start */
 .quickstart { padding: 100px 2rem; max-width: 800px; margin: 0 auto; }
@@ -199,14 +239,42 @@ a:hover { text-decoration: underline; }
 
 <section class="screenshots">
   <h2 data-en="Screenshots" data-zh="截图展示">Screenshots</h2>
-  <div class="screenshot-scroll">
-    <img src="screenshots/chat.png" alt="AI Chat">
-    <img src="screenshots/white-chat.png" alt="Light Theme">
-    <img src="screenshots/files.png" alt="Files">
-    <img src="screenshots/terminal.png" alt="Terminal">
-    <img src="screenshots/git-history.png" alt="Git">
-    <img src="screenshots/file-edit.png" alt="Editor">
-    <img src="screenshots/setting.png" alt="Settings">
+  <div class="carousel" id="carousel">
+    <div class="carousel-track" id="carouselTrack">
+      <div class="carousel-item" data-caption-en="AI Chat" data-caption-zh="AI 聊天">
+        <img src="screenshots/chat.png" alt="AI Chat">
+        <div class="caption">AI Chat</div>
+      </div>
+      <div class="carousel-item" data-caption-en="Light Theme" data-caption-zh="浅色主题">
+        <img src="screenshots/white-chat.png" alt="Light Theme">
+        <div class="caption">Light Theme</div>
+      </div>
+      <div class="carousel-item" data-caption-en="File Browser" data-caption-zh="文件浏览">
+        <img src="screenshots/files.png" alt="File Browser">
+        <div class="caption">File Browser</div>
+      </div>
+      <div class="carousel-item" data-caption-en="Terminal" data-caption-zh="终端">
+        <img src="screenshots/terminal.png" alt="Terminal">
+        <div class="caption">Terminal</div>
+      </div>
+      <div class="carousel-item" data-caption-en="Git History" data-caption-zh="Git 历史">
+        <img src="screenshots/git-history.png" alt="Git History">
+        <div class="caption">Git History</div>
+      </div>
+      <div class="carousel-item" data-caption-en="Code Editor" data-caption-zh="代码编辑">
+        <img src="screenshots/file-edit.png" alt="Code Editor">
+        <div class="caption">Code Editor</div>
+      </div>
+      <div class="carousel-item" data-caption-en="Settings" data-caption-zh="设置">
+        <img src="screenshots/setting.png" alt="Settings">
+        <div class="caption">Settings</div>
+      </div>
+    </div>
+    <div class="carousel-arrows">
+      <button class="carousel-arrow" onclick="carouselPrev()">‹</button>
+      <button class="carousel-arrow" onclick="carouselNext()">›</button>
+    </div>
+    <div class="carousel-nav" id="carouselNav"></div>
   </div>
 </section>
 
@@ -259,7 +327,63 @@ function toggleLang() {
     const text = el.getAttribute('data-' + currentLang);
     if (text) el.innerHTML = text;
   });
+  // Update carousel captions
+  document.querySelectorAll('.carousel-item').forEach(item => {
+    const caption = item.querySelector('.caption');
+    if (caption) {
+      caption.textContent = item.getAttribute('data-caption-' + currentLang) || caption.textContent;
+    }
+  });
 }
+
+// 3D Carousel
+const items = document.querySelectorAll('.carousel-item');
+const total = items.length;
+let current = 0;
+let autoTimer = null;
+
+function updateCarousel() {
+  const angleStep = 360 / total;
+  const radius = 320;
+  items.forEach((item, i) => {
+    const offset = ((i - current) % total + total) % total;
+    const angle = offset * angleStep;
+    const rad = (angle * Math.PI) / 180;
+    const x = Math.sin(rad) * radius;
+    const z = Math.cos(rad) * radius - radius;
+    const scale = (z + radius) / (2 * radius) * 0.5 + 0.5;
+    const opacity = scale < 0.6 ? 0.4 : 1;
+    item.style.transform = `translateX(calc(-50% + ${x}px)) translateZ(${z}px) scale(${scale})`;
+    item.style.opacity = opacity;
+    item.style.zIndex = Math.round(scale * 100);
+    item.classList.toggle('active', i === current);
+  });
+  // Update dots
+  document.querySelectorAll('.carousel-dot').forEach((dot, i) => {
+    dot.classList.toggle('active', i === current);
+  });
+}
+
+function carouselNext() { current = (current + 1) % total; updateCarousel(); resetAuto(); }
+function carouselPrev() { current = (current - 1 + total) % total; updateCarousel(); resetAuto(); }
+function carouselGo(i) { current = i; updateCarousel(); resetAuto(); }
+
+function resetAuto() {
+  clearInterval(autoTimer);
+  autoTimer = setInterval(carouselNext, 4000);
+}
+
+// Build dots
+const navEl = document.getElementById('carouselNav');
+for (let i = 0; i < total; i++) {
+  const dot = document.createElement('button');
+  dot.className = 'carousel-dot';
+  dot.onclick = () => carouselGo(i);
+  navEl.appendChild(dot);
+}
+
+updateCarousel();
+autoTimer = setInterval(carouselNext, 4000);
 </script>
 </body>
 </html>
