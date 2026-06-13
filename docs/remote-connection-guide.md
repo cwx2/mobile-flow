@@ -147,15 +147,68 @@ ngrok http 9600
 
 ---
 
+## Virtual Networking: ZeroTier (Recommended)
+
+Want to use LAN mode when your phone and computer aren't on the same WiFi? Use ZeroTier to put them on the same virtual LAN, then connect normally.
+
+ZeroTier has strong P2P hole-punching capabilities, so in most network environments devices connect directly with 10-30ms latency.
+
+### How It Works
+
+ZeroTier assigns each device a virtual IP (e.g. `10.147.17.x`). Devices communicate as if they were on the same router. MobileFlow connects using this virtual IP.
+
+### Steps
+
+1. **Sign up**: Go to [my.zerotier.com](https://my.zerotier.com), create an account, click Create A Network, note the 16-digit Network ID
+
+2. **Computer joins network**:
+   - Download ZeroTier client: [zerotier.com/download](https://www.zerotier.com/download/)
+   - After install, a ZeroTier icon appears in system tray
+   - Right-click icon → Join New Network → paste Network ID → Join
+
+3. **Phone joins network**:
+   - Install "ZeroTier One" from App Store / Google Play
+   - Open app → Add Network → enter the same Network ID
+
+4. **Authorize devices**: Go back to [my.zerotier.com](https://my.zerotier.com) → your network → Members list → check the Auth checkbox for your computer and phone. Each device gets a virtual IP.
+
+5. **Connect with MobileFlow**: Phone App → LAN mode → enter computer's ZeroTier virtual IP + port 9600 → Connect
+
+All GUI operations, no command line needed.
+
+### Optimization
+
+In most cases ZeroTier establishes direct P2P connections automatically. If latency is high (traffic going through overseas relay), you can set up a Moon node on a local cloud server for acceleration. Search "ZeroTier Moon setup" for tutorials.
+
+### Common Issues
+
+- **Can't connect?** Check if devices are authorized in ZeroTier dashboard, and if computer firewall allows port 9600
+- **Android ZeroTier keeps disconnecting?** Disable battery optimization for ZeroTier in system settings
+- **Is the free tier enough?** Free plan supports 25 devices. MobileFlow only needs 2 (computer + phone)
+
+---
+
+## Virtual Networking: Tailscale (Simplest Setup)
+
+Tailscale is even simpler than ZeroTier (just install and sign in, no manual authorization needed). Based on WireGuard protocol.
+
+1. Install Tailscale on both computer and phone, sign in with the same account
+2. Each device automatically gets a `100.x.x.x` virtual IP
+3. MobileFlow App → LAN mode → enter computer's Tailscale IP + port 9600
+
+Note: Tailscale's relay servers (DERP) are outside China. If you're in China without a VPN and hole-punching fails, latency may be high. Consider ZeroTier instead.
+
+---
+
 ## Virtual Network Tools Comparison
 
-When not on the same network, besides Relay and Tunnel, you can use virtual network tools to make devices appear on the same LAN, then connect via LAN mode.
+| Tool | Free Tier | Best For | Setup |
+|------|-----------|----------|-------|
+| [ZeroTier](https://zerotier.com) | 25 devices | Strong P2P, works in China | Easy (GUI) |
+| [Tailscale](https://tailscale.com) | 100 devices | Simplest setup, global | Easiest |
+| [Headscale](https://github.com/juanfont/headscale) | Unlimited (self-hosted) | Full control | Requires ops skills |
 
-| Tool | Free Tier | Global Experience | Setup Difficulty |
-|------|-----------|-------------------|-----------------|
-| [Tailscale](https://tailscale.com) | 100 devices | Good | Easiest |
-| [ZeroTier](https://zerotier.com) | 10 devices | Good (Asia nodes) | Easy |
-| [Headscale](https://github.com/juanfont/headscale) | Unlimited (self-hosted) | Depends on server | Requires ops skills |
+> 💡 Using ZeroTier/Tailscale + LAN mode gives you remote access with the simplicity of LAN direct connection — no need to set up Relay or Tunnel.
 
 ---
 

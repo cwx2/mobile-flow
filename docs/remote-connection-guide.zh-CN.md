@@ -147,17 +147,68 @@ ngrok http 9600
 
 ---
 
-## 虚拟组网工具对比
+## 虚拟组网：ZeroTier（国内推荐）
 
-不在同一网络时，除了 Relay 和 Tunnel，还可以用虚拟组网工具让设备"假装"在同一个局域网，然后用 LAN 模式连接。
+不在同一 WiFi 也想用 LAN 模式？用 ZeroTier 把电脑和手机组到同一个虚拟局域网里，然后照常用 LAN 直连。
+
+国内网络环境下 ZeroTier 比 Tailscale 好用，P2P 打洞成功率高，直连延迟 10-30ms。
+
+### 工作原理
+
+ZeroTier 给每台设备分配一个虚拟 IP（如 `10.147.17.x`）。设备之间像在同一个路由器下一样通信。MobileFlow 用这个虚拟 IP 连接就行。
+
+### 使用步骤
+
+1. **注册**：打开 [my.zerotier.com](https://my.zerotier.com)，注册账号，点 Create A Network，记下 16 位 Network ID
+
+2. **电脑加入网络**：
+   - 下载 ZeroTier 客户端：[zerotier.com/download](https://www.zerotier.com/download/)
+   - 安装后系统托盘出现图标
+   - 右键图标 → Join New Network → 粘贴 Network ID → 加入
+
+3. **手机加入网络**：
+   - Android / iOS 应用商店搜索 "ZeroTier One" 安装
+   - 打开 App → 添加网络 → 输入同一个 Network ID
+
+4. **授权设备**：回到 [my.zerotier.com](https://my.zerotier.com) → 你的网络 → Members 列表 → 勾选 Auth 授权电脑和手机。每台设备会分配一个虚拟 IP。
+
+5. **MobileFlow 连接**：手机 MobileFlow App → LAN 模式 → 输入电脑的 ZeroTier 虚拟 IP + 端口 9600 → 连接
+
+全程图形界面操作，不需要命令行。
+
+### 国内加速
+
+大部分情况 ZeroTier 能自动打洞直连。如果延迟偏高（走了海外中继），可以在一台国内云服务器上搭一个 Moon 节点做加速，具体教程网上搜 "ZeroTier Moon 搭建" 很多。
+
+### 常见问题
+
+- **连不上？** 检查 ZeroTier 后台是否授权了设备，电脑防火墙是否放行 9600 端口
+- **Android 后台断？** 关闭 ZeroTier 的电池优化，允许后台运行
+- **免费够用吗？** 免费版 25 台设备，MobileFlow 只需要 2 台（电脑+手机），绰绰有余
+
+---
+
+## 虚拟组网：Tailscale（海外用户推荐）
+
+Tailscale 比 ZeroTier 更简单（装好登录就行，不用手动授权），但依赖海外中继服务器，国内不科学上网的话可能不稳定。
+
+1. 电脑和手机都安装 Tailscale 客户端，同一账号登录
+2. 自动分配 `100.x.x.x` 虚拟 IP
+3. MobileFlow App → LAN 模式 → 输入电脑的 Tailscale IP + 端口 9600
+
+国内用户如果 Tailscale 连接不稳定，换 ZeroTier。
+
+---
+
+## 虚拟组网工具对比
 
 | 工具 | 免费额度 | 国内体验 | 安装难度 |
 |------|---------|---------|---------|
-| [Tailscale](https://tailscale.com) | 100 台设备 | 一般 | 最简单 |
-| [ZeroTier](https://zerotier.com) | 10 台设备 | 较好 | 简单 |
+| [ZeroTier](https://zerotier.com) | 25 台设备 | 好（P2P 直连） | 简单（图形界面） |
+| [Tailscale](https://tailscale.com) | 100 台设备 | 一般（需科学上网） | 最简单 |
 | [Headscale](https://github.com/juanfont/headscale) | 无限（自建） | 取决于服务器 | 需要运维能力 |
 
-国内用户如果 Tailscale 连接不稳定，推荐试 ZeroTier。
+> 💡 用 ZeroTier/Tailscale + LAN 模式，等于用虚拟组网的便利 + LAN 直连的简单配置，不需要折腾 Relay 或 Tunnel。
 
 ---
 
