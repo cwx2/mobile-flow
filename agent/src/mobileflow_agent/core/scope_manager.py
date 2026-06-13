@@ -189,10 +189,11 @@ class ScopeManager:
 
         Algorithm:
         1. Pop entry from _active_scopes
-        2. If grace_period <= 0: dispose immediately
-        3. Else: transition ACTIVE→SUSPENDED, set scope.cancelled, start timer
-        4. Store in _suspended_scopes keyed by stable_id
-        5. Call _enforce_capacity()
+        2. If grace_period == 0: dispose immediately
+        3. If grace_period > 0: suspend with timer
+        4. If grace_period < 0: suspend without timer (never expire)
+        5. Store in _suspended_scopes keyed by stable_id
+        6. Call _enforce_capacity()
 
         Args:
             client_id: The disconnecting client's identifier.
@@ -208,7 +209,7 @@ class ScopeManager:
         identity = self._identity_map.pop(client_id, None)
         grace = self._config.scope.disconnect_grace_period
 
-        if grace <= 0:
+        if grace == 0:
             # No grace period — dispose immediately
             entry.transition(ScopeLifecycleState.DISPOSED)
             await entry.scope.dispose()
@@ -226,24 +227,29 @@ class ScopeManager:
         # Determine stable_id for suspended map key
         stable_id = identity.stable_id if identity else client_id
 
-        # Start grace timer
-        async def _grace_timer_expired():
-            """Dispose scope after grace period expires."""
-            try:
-                await asyncio.sleep(grace)
-                # Timer expired — dispose the scope
-                if entry.state == ScopeLifecycleState.SUSPENDED:
-                    entry.transition(ScopeLifecycleState.DISPOSED)
-                    self._suspended_scopes.pop(stable_id, None)
-                    await entry.scope.dispose()
-                    logger.info(
-                        f"[ScopeManager] grace 超时，scope 已销毁: "
-                        f"stable_id={stable_id[:16]}"
-                    )
-            except asyncio.CancelledError:
-                pass
+        # Start grace timer (only if grace > 0; -1 means never expire)
+        if grace > 0:
+            async def _grace_timer_expired():
+                """Dispose scope after grace period expires."""
+                try:
+                    await asyncio.sleep(grace)
+                    # Timer expired — dispose the scope
+                    if entry.state == ScopeLifecycleState.SUSPENDED:
+                        entry.transition(ScopeLifecycleState.DISPOSED)
+                        self._suspended_scopes.pop(stable_id, None)
+                        await entry.scope.dispose()
+                        logger.info(
+                            f"[ScopeManager] grace 超时，scope 已销毁: "
+                            f"stable_id={stable_id[:16]}"
+                        )
+                except asyncio.CancelledError:
+                    pass
 
-        entry.grace_timer = asyncio.create_task(_grace_timer_expired())
+            entry.grace_timer = asyncio.create_task(_grace_timer_expired())
+        else:
+            # grace < 0: never expire — scope stays suspended indefinitely
+            # until client reconnects or LRU eviction kicks in
+            entry.grace_timer = None
 
         # Store in suspended map
         self._suspended_scopes[stable_id] = entry
@@ -251,7 +257,7 @@ class ScopeManager:
         logger.info(
             f"[ScopeManager] scope 已挂起: "
             f"client_id={client_id[:12]}, stable_id={stable_id[:16]}, "
-            f"grace={grace}s"
+            f"grace={'永不过期' if grace < 0 else f'{grace}s'}"
         )
 
         # Enforce capacity

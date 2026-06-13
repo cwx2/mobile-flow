@@ -4,6 +4,7 @@ library;
 import 'dart:convert';
 
 import '../../models/protocol.dart';
+import '../../models/chat_message.dart';
 import '../../models/payloads/chat_payloads.g.dart';
 import '../../utils/logger.dart';
 import '../foreground_service.dart';
@@ -114,17 +115,46 @@ class ChatHandler extends MessageHandler {
   void _handleReplayResult(WsMessage msg, WebSocketService ws) {
     final result = ChatReplayResultPayload.fromJson(msg.payload);
 
+    // Track the latest sequence number for incremental replay
+    if (result.seq > 0) {
+      ws.updateLastStreamSeq(result.seq);
+    }
+
     // Initial signal from Agent (empty chunks + streaming_state):
-    // request the full replay with all buffered chunks.
+    // Determines whether to request replay or rely on chat.history.
     if (result.streamingState != null && result.chunks.isEmpty) {
-      _log.info('🔄 Agent 通知流式状态: ${result.streamingState}, '
-          'seq=${result.seq}，请求回放');
-      ws.chatOps.requestChatReplay();
+      if (result.streamingState == 'streaming') {
+        // AI is still actively outputting — we need replay to catch up
+        // and then continue receiving real-time chunks.
+        _log.info('🔄 AI 仍在输出中，请求回放: seq=${result.seq}');
+        ws.chatOps.requestChatReplay(afterSeq: ws.lastStreamSeq);
+      } else {
+        // AI finished while we were disconnected. chat.history (already
+        // requested via _handleAuthSuccess) will contain the complete
+        // response. Replay is not needed — skip to avoid duplication.
+        _log.info('🔄 AI 已完成，chat.history 将提供完整内容，跳过 replay');
+      }
       return;
     }
 
     _log.info('🔄 收到流式回放: ${result.chunks.length} chunks, '
         'streaming=${result.streaming}');
+
+    // If there's an interrupted partial message at the end (from pre-disconnect
+    // streaming), remove it — the replay will provide the complete version.
+    if (ws.messages.isNotEmpty && result.chunks.isNotEmpty) {
+      final lastMsg = ws.messages.last;
+      if (lastMsg.role == ChatRole.assistant && !lastMsg.isStreaming) {
+        // Check if it was interrupted (has an interruption block added by
+        // interruptCurrentStream on disconnect)
+        final hasInterruption = lastMsg.blocks.any(
+            (b) => b.type == BlockType.interruption);
+        if (hasInterruption) {
+          _log.fine('移除中断消息，将由 replay 替代');
+          ws.messages.removeLast();
+        }
+      }
+    }
 
     // Create a streaming assistant message if we don't have one yet
     if (ws.agentStatus == AgentStatus.idle && result.chunks.isNotEmpty) {

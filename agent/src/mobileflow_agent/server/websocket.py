@@ -28,6 +28,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import gc
+import hashlib
 import json
 import os
 import secrets
@@ -110,6 +111,7 @@ from .connection_manager import (
 from .connection_protocol import ConnectionProtocol
 from .handler_registry import HandlerRegistry
 from .stream_replay import StreamReplay
+from .scope_persistence import get_replay_path, has_persisted_replay
 from .handlers.chat_handler import ChatHandler
 from .handlers.file_handler import FileHandler
 from .handlers.permission_handler import PermissionHandler
@@ -1288,6 +1290,10 @@ class WebSocketServer:
                 cli_state = "ready"
             logger.info(f"♻️ 配对恢复 scope: old={result.old_client_id} → {client_id}")
 
+        # Enable disk persistence for stream replay (uses session_token as stable_id)
+        stable_id = hashlib.sha256(session_token.encode()).hexdigest()
+        self._setup_replay_persistence(client_id, stable_id)
+
         # Send auth.result with secret BEFORE activating encryption
         # (this message is the last plaintext message)
         secret_b64 = base64.b64encode(secret).decode("ascii")
@@ -1377,6 +1383,10 @@ class WebSocketServer:
                 if provider and hasattr(provider, 'is_running') and provider.is_running:
                     cli_state = "ready"
                 logger.info(f"♻️ 会话恢复: {reg_result.old_client_id} → {client_id}")
+
+            # Enable disk persistence for stream replay
+            stable_id = hashlib.sha256(connect_payload.session_token.encode()).hexdigest()
+            self._setup_replay_persistence(client_id, stable_id)
 
             # Build and send auth.result with resume status
             secret_b64 = (
@@ -1890,6 +1900,13 @@ class WebSocketServer:
         else:
             await self._start_default_cli(client_id)
 
+        # Enable disk persistence for Tunnel/Relay modes
+        if credentials and mode == ConnectionMode.TUNNEL:
+            bearer = credentials.get("bearer_token", "")
+            if bearer:
+                stable_id = hashlib.sha256(bearer.encode()).hexdigest()
+                self._setup_replay_persistence(client_id, stable_id)
+
     async def _start_default_cli(self, client_id: str) -> None:
         """Start the default CLI provider for a newly registered client.
 
@@ -1934,11 +1951,21 @@ class WebSocketServer:
         scope.on_dispose(_cancel_permissions)
 
         # StreamReplay — create buffer for disconnect recovery.
+        # persist_path is set later by _setup_replay_persistence() after
+        # identity resolution, since we don't have stable_id here yet.
         replay = StreamReplay(max_chunks=self.config.stream_replay.max_chunks)
         self._stream_replays[client_id] = replay
 
         def _cleanup_replay():
-            self._stream_replays.pop(client_id, None)
+            removed = self._stream_replays.pop(client_id, None)
+            # Clean up disk files if this replay had persistence enabled
+            if removed and removed._persist_path:
+                try:
+                    for f in removed._persist_path.iterdir():
+                        f.unlink(missing_ok=True)
+                    removed._persist_path.rmdir()
+                except Exception:
+                    pass  # Non-fatal — stale files get overwritten on next turn
         scope.on_dispose(_cleanup_replay)
 
         # Test Panel cleanup — stop running preview/script subprocesses.
@@ -1954,6 +1981,58 @@ class WebSocketServer:
             The StreamReplay instance, or None if no scope exists.
         """
         return self._stream_replays.get(client_id)
+
+    def _setup_replay_persistence(self, client_id: str, stable_id: str) -> None:
+        """Enable disk persistence for a client's StreamReplay buffer.
+
+        Called after identity resolution (auth.pair/auth.connect/tunnel register)
+        when we know the stable_id. Sets the persist_path on the existing
+        StreamReplay instance so subsequent push() calls write to disk.
+
+        Also attempts to restore from disk if the memory buffer is empty
+        (Agent restart scenario): checks if persisted replay files exist
+        for this stable_id and restores them.
+
+        Args:
+            client_id: The current client identifier.
+            stable_id: The stable identity string for disk path resolution.
+        """
+        if not self.config.stream_replay.persist_to_disk:
+            return
+
+        persist_path = get_replay_path(stable_id)
+        replay = self._stream_replays.get(client_id)
+
+        if replay is None:
+            # No replay buffer yet — check if we can restore from disk
+            if has_persisted_replay(stable_id):
+                restored = StreamReplay.restore_from_disk(
+                    persist_path,
+                    max_chunks=self.config.stream_replay.max_chunks,
+                )
+                self._stream_replays[client_id] = restored
+                logger.info(
+                    f"♻️ StreamReplay 从磁盘恢复: "
+                    f"client={client_id[:12]}, stable_id={stable_id[:16]}, "
+                    f"seq={restored.seq}, chunks={restored.buffered_count}"
+                )
+            return
+
+        # Existing replay buffer — just set the persist_path for future writes
+        if replay.buffered_count == 0 and has_persisted_replay(stable_id):
+            # Buffer is empty but disk has data (Agent restart with scope resume)
+            restored = StreamReplay.restore_from_disk(
+                persist_path,
+                max_chunks=self.config.stream_replay.max_chunks,
+            )
+            self._stream_replays[client_id] = restored
+            logger.info(
+                f"♻️ StreamReplay 从磁盘恢复（scope resume）: "
+                f"client={client_id[:12]}, seq={restored.seq}"
+            )
+        else:
+            # Buffer has data — enable persistence for future writes
+            replay._persist_path = persist_path
 
     async def _push_cli_status_after_resume(self, client_id: str, cli_name: str) -> None:
         """Push cli.status=ready to the App after scope resumption.

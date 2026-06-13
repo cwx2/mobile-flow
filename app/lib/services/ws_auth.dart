@@ -43,6 +43,7 @@ class WsAuth {
   final WsCrypto _crypto;
   final WsHeartbeat _heartbeat;
   bool _isReconnecting = false;
+  bool _isSilentReconnecting = false;
   Timer? _reconnectTimer;
   DateTime? _backgroundedAt;
   bool get isReconnecting => _isReconnecting;
@@ -436,6 +437,7 @@ class WsAuth {
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
     _isReconnecting = false;
+    _isSilentReconnecting = false;
   }
 
   // ═══════════════════════════════════════════════════════════════════
@@ -448,22 +450,88 @@ class WsAuth {
   }
 
   /// Check connection health when the app returns to foreground.
+  ///
+  /// Strategy based on background duration and connection state:
+  ///   - Connected + short background (≤3s): restart heartbeat only
+  ///   - Connected + longer background (>3s): probe ping to confirm alive
+  ///   - Disconnected/Failed: attempt silent reconnect (no UI change)
+  ///   - Already reconnecting: don't interfere
+  ///
+  /// Silent reconnect avoids showing the "reconnecting..." banner for
+  /// cases where the reconnect completes quickly (< 5s). If it fails,
+  /// falls back to the normal visible reconnect flow.
   void handleAppResumed() {
     final s = _ws.connection?.state;
-    if (s == null ||
-        s == AppConnectionState.disconnected ||
-        s == AppConnectionState.failed ||
-        _isReconnecting) {
+    if (s == null) {
       _backgroundedAt = null;
       return;
     }
+
     final bgSec = _backgroundedAt != null
         ? DateTime.now().difference(_backgroundedAt!).inSeconds
         : 0;
     _backgroundedAt = null;
-    if (s == AppConnectionState.connected) {
-      _log.fine('后台时间 ${bgSec}s，重启心跳探测');
-      _heartbeat.start();
+    _log.fine('App 回到前台: 后台 ${bgSec}s, state=$s');
+
+    switch (s) {
+      case AppConnectionState.connected:
+        if (bgSec <= 3) {
+          // Short background — connection almost certainly fine
+          _heartbeat.start();
+        } else {
+          // Longer background — probe to confirm connection is alive.
+          // On iOS the WebSocket is likely dead after 30s+ in background.
+          _heartbeat.sendImmediateProbe(
+            onSuccess: () {
+              _log.fine('探测成功，连接存活');
+              _heartbeat.start();
+            },
+            onFail: () {
+              _log.info('探测超时，启动静默重连');
+              _silentReconnect();
+            },
+          );
+        }
+      case AppConnectionState.connecting:
+        // Still connecting — don't interfere
+        break;
+      case AppConnectionState.reconnecting:
+        // Already in reconnect loop — don't interfere
+        break;
+      case AppConnectionState.disconnected:
+      case AppConnectionState.failed:
+        // Connection is dead — try silent reconnect first
+        if (!_isReconnecting && !_isSilentReconnecting) {
+          _silentReconnect();
+        }
     }
+  }
+
+  /// Attempt a single reconnect without changing connection UI state.
+  ///
+  /// Does not call [markReconnecting], so the user never sees a
+  /// "reconnecting..." banner. On success, the auth.result flow
+  /// automatically triggers chat.replay if there's buffered content.
+  /// On failure, falls back to the normal visible [beginReconnect] flow.
+  Future<void> _silentReconnect() async {
+    if (_isSilentReconnecting) return;
+    _isSilentReconnecting = true;
+    _log.info('🔇 静默重连开始...');
+    try {
+      final success = await _performReconnect();
+      if (success) {
+        _log.info('🔇 静默重连成功');
+        _isSilentReconnecting = false;
+        _ws.notifyUI();
+        return;
+      }
+    } on TunnelAuthException {
+      _log.severe('🔇 Tunnel 认证失败，降级到可见重连');
+    } catch (e) {
+      _log.warning('🔇 静默重连失败: $e');
+    }
+    _isSilentReconnecting = false;
+    // Silent reconnect failed — fall back to visible reconnect
+    beginReconnect();
   }
 }

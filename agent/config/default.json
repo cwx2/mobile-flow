@@ -77,7 +77,7 @@
     "pair_lockout_seconds": 60,
     "tunnel_reconnect_max_attempts": 5,
     "tunnel_reconnect_delay": 2.0,
-    "disconnect_grace_period": 600
+    "disconnect_grace_period": -1
   },
 
   "history": {
@@ -113,15 +113,16 @@
   },
 
   "scope": {
-    "_comment": "Scope management settings — controls client scope lifecycle, grace period, and capacity limits",
-    "disconnect_grace_period": 600,
-    "max_suspended_scopes": 10,
+    "_comment": "Scope management — controls client scope lifecycle. grace=-1 means never expire (Agent is always-on server). LRU eviction is the safety valve for memory.",
+    "disconnect_grace_period": -1,
+    "max_suspended_scopes": 50,
     "eviction_strategy": "lru"
   },
 
   "stream_replay": {
-    "_comment": "Stream replay buffer for disconnect recovery — buffers AI output so reconnecting clients can catch up",
-    "max_chunks": 500
+    "_comment": "Stream replay buffer for disconnect recovery. persist_to_disk enables Agent-restart recovery via JSONL files in ~/.mobileflow/replay/",
+    "max_chunks": 500,
+    "persist_to_disk": true
   },
 
   "preview": {

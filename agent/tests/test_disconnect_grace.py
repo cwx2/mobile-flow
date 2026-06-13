@@ -202,7 +202,7 @@ class TestGracePeriodConfig:
 
     def test_default_value(self):
         config = AgentConfig()
-        assert config.connection.disconnect_grace_period == 600
+        assert config.connection.disconnect_grace_period == -1
 
     def test_override(self):
         config = AgentConfig(connection={"disconnect_grace_period": 0})
@@ -211,3 +211,7 @@ class TestGracePeriodConfig:
     def test_custom_value(self):
         config = AgentConfig(connection={"disconnect_grace_period": 1800})
         assert config.connection.disconnect_grace_period == 1800
+
+    def test_never_expire(self):
+        config = AgentConfig(connection={"disconnect_grace_period": -1})
+        assert config.connection.disconnect_grace_period == -1

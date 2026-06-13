@@ -140,6 +140,11 @@ class WsHeartbeat {
     _pongTimeoutTimer?.cancel();
     // Notify UI widgets to trigger heartbeat pulse animation
     pongNotifier.value++;
+    // Invoke probe success callback if this pong is a probe response
+    if (_probeSuccessCallback != null) {
+      _probeSuccessCallback!();
+      _probeSuccessCallback = null;
+    }
     onStateChanged();
   }
 
@@ -160,6 +165,38 @@ class WsHeartbeat {
   void dispose() {
     stop();
     pongNotifier.dispose();
+  }
+
+  // ── Immediate probe (for app resume) ──
+
+  /// One-shot callback for probe success, cleared after invocation.
+  VoidCallback? _probeSuccessCallback;
+
+  /// Send a single immediate ping to verify connection is still alive.
+  ///
+  /// Used by [WsAuth.handleAppResumed] to quickly check connection health
+  /// after returning from background, without waiting for the next
+  /// scheduled heartbeat cycle.
+  ///
+  /// [onSuccess] called if pong received within 5 seconds.
+  /// [onFail] called if pong not received (connection likely dead).
+  void sendImmediateProbe({VoidCallback? onSuccess, VoidCallback? onFail}) {
+    _log.fine('发送即时探测 ping');
+    _lastPingTime = DateTime.now();
+    _sender.send(WsMessage(
+      type: MessageType.statusPing,
+      payload: const StatusPingPayload().toJson(),
+    ));
+
+    // Arm a short timeout for the probe response
+    _pongTimeoutTimer?.cancel();
+    _pongTimeoutTimer = Timer(const Duration(seconds: 5), () {
+      _log.warning('探测 pong 超时（5s）');
+      _probeSuccessCallback = null;
+      onFail?.call();
+    });
+
+    _probeSuccessCallback = onSuccess;
   }
 
   // ── Internal ──

@@ -49,6 +49,7 @@ import 'message_handlers/session_handler.dart';
 import 'message_handlers/plugin_handler.dart';
 import 'message_handlers/state_push_handler.dart';
 import 'message_handlers/test_panel_handler.dart';
+import 'wake_lock_service.dart';
 
 // Re-export for consumers that import from this file
 export 'chat_state.dart' show AgentStatus, CliLifecycleState;
@@ -644,6 +645,7 @@ class WebSocketService extends ChangeNotifier with ChatStateMixin, WidgetsBindin
     }
     super.beginAssistantMessage();
     _streamWatchdog.start(StreamPhase.thinking);
+    WakeLockService.acquire();
   }
 
   @override
@@ -659,12 +661,14 @@ class WebSocketService extends ChangeNotifier with ChatStateMixin, WidgetsBindin
   void finishStream(AppEventBus? eventBus) {
     _streamWatchdog.cancel();
     super.finishStream(eventBus);
+    WakeLockService.scheduleRelease();
   }
 
   @override
   void errorStream(String error, AppEventBus? eventBus) {
     _streamWatchdog.cancel();
     super.errorStream(error, eventBus);
+    WakeLockService.scheduleRelease();
   }
 
   // ── App lifecycle (delegated to WsAuth) ──
@@ -692,6 +696,7 @@ class WebSocketService extends ChangeNotifier with ChatStateMixin, WidgetsBindin
     _connManager.disconnect();
     _messageController.close();
     _permissionController.close();
+    WakeLockService.forceRelease();
     super.dispose();
   }
 }

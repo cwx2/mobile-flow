@@ -261,7 +261,8 @@ class ConnectionConfig(BaseSettings):
     # Disconnect grace period (seconds): keep ACP processes alive after
     # client disconnects, allowing seamless reconnection within this window.
     # Set to 0 to disable (immediate cleanup on disconnect).
-    disconnect_grace_period: int = 600
+    # Set to -1 for infinite (Agent is always-on, scopes never expire).
+    disconnect_grace_period: int = -1
 
 
 class ScopeConfig(BaseSettings):
@@ -273,12 +274,15 @@ class ScopeConfig(BaseSettings):
     """
 
     # Seconds to keep scope alive after client disconnects.
-    # Set to 0 to disable grace period (immediate cleanup).
-    disconnect_grace_period: int = 600
+    # Set to 0 to disable (immediate cleanup on disconnect).
+    # Set to -1 for infinite (scope never expires — Agent is always-on server).
+    # Positive values set a finite grace period in seconds.
+    disconnect_grace_period: int = -1
 
     # Maximum number of suspended scopes before LRU eviction.
+    # With grace=-1, this is the primary memory safety valve.
     # Prevents unbounded memory growth from repeated connect/disconnect cycles.
-    max_suspended_scopes: int = 10
+    max_suspended_scopes: int = 50
 
     # Eviction strategy when capacity is exceeded.
     # "lru" = evict the scope that was suspended longest ago.
@@ -298,6 +302,12 @@ class StreamReplayConfig(BaseSettings):
     # Oldest chunks are silently dropped when the buffer is full;
     # the App can fall back to chat.history for the complete conversation.
     max_chunks: int = 500
+
+    # Persist stream replay chunks to disk (JSONL append-only).
+    # Enables recovery after Agent restart — reconnecting clients can
+    # catch up on AI output that was generated before the restart.
+    # Disk path: ~/.mobileflow/replay/{stable_id}/current_turn.jsonl
+    persist_to_disk: bool = True
 
 
 class TimeoutsConfig(BaseSettings):

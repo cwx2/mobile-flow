@@ -73,6 +73,24 @@ mixin ChatStateMixin on ChangeNotifier {
   AgentStatus get agentStatus => _agentStatus;
   String get agentStatusDetail => _agentStatusDetail;
 
+  // ── Stream sequence tracking (for incremental replay) ──
+
+  /// Last received stream chunk sequence number from the Agent.
+  ///
+  /// Used for incremental replay after reconnect: chat.replay(after_seq: N)
+  /// only fetches chunks newer than what the App already rendered.
+  /// Reset to 0 on new turn or disconnect.
+  int _lastStreamSeq = 0;
+  int get lastStreamSeq => _lastStreamSeq;
+
+  /// Update the last known stream sequence number.
+  ///
+  /// Called by chat_handler when processing stream chunks or replay results
+  /// that include a sequence number from the Agent.
+  void updateLastStreamSeq(int seq) {
+    if (seq > _lastStreamSeq) _lastStreamSeq = seq;
+  }
+
   // History loading state
   bool _isLoadingHistory = false;
   bool get isLoadingHistory => _isLoadingHistory;
