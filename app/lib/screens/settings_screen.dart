@@ -59,9 +59,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void initState() {
     super.initState();
     final ws = context.read<WebSocketService>();
-    ws.cliOps.requestCLIList();
-    ws.projectOps.requestProjectList();
 
+    // Register listener BEFORE sending requests to avoid race condition
+    // (Agent may respond before listen() completes on fast connections)
     _sub = ws.messageStream.listen((msg) {
       if (msg.type == MessageType.cliListResult) {
         final listResult = CliListResultPayload.fromJson(msg.payload);
@@ -98,6 +98,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         }
       }
     });
+
+    // Send requests AFTER listener is registered to avoid race condition
+    ws.cliOps.requestCLIList();
+    ws.projectOps.requestProjectList();
   }
 
   @override

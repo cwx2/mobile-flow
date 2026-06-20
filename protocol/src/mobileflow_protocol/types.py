@@ -90,6 +90,8 @@ class MessageType(str, Enum):
 
     GIT_STATUS = "git.status"             # App -> Agent: request repo status
     GIT_STATUS_RESULT = "git.status.result"  # Agent -> App: repo status
+    GIT_STATUS_ALL = "git.status.all"      # App -> Agent: request all repos status
+    GIT_STATUS_ALL_RESULT = "git.status.all.result"  # Agent -> App: all repos status
     GIT_DIFF = "git.diff"                 # App -> Agent: request file diff
     GIT_DIFF_RESULT = "git.diff.result"   # Agent -> App: diff content
     GIT_STAGE = "git.stage"               # App -> Agent: stage files
@@ -120,7 +122,6 @@ class MessageType(str, Enum):
     GIT_DISCARD_RESULT = "git.discard.result"  # Agent -> App: discard result
     GIT_REPOS = "git.repos"              # App -> Agent: discover git repositories
     GIT_REPOS_RESULT = "git.repos.result"  # Agent -> App: repository list
-    GIT_SWITCH_REPO = "git.switch_repo"   # App -> Agent: switch active repository
     GIT_EXEC = "git.exec"                # App -> Agent: execute arbitrary git command
     GIT_EXEC_RESULT = "git.exec.result"   # Agent -> App: execution result
 

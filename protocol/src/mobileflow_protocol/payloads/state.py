@@ -60,10 +60,12 @@ class StatePushPayload(PayloadBase):
     Attributes:
         key: State key identifying the data type (e.g. "git.status").
         data: The updated state data (structure depends on key).
+        repo_path: Repository path for multi-repo routing (empty for global state).
     """
 
     key: str
     data: Any
+    repo_path: str = ""
 
 
 # ── Confirm (legacy) ──

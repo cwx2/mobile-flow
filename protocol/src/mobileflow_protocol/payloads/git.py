@@ -33,7 +33,6 @@ Defines typed Pydantic models for the 28 git-related message types:
   - git.discard.result   (GIT_DISCARD_RESULT)   — discard result
   - git.repos            (GIT_REPOS)            — discover git repositories
   - git.repos.result     (GIT_REPOS_RESULT)     — repository list
-  - git.switch_repo      (GIT_SWITCH_REPO)      — switch active repository
   - git.exec             (GIT_EXEC)             — execute arbitrary git command
   - git.exec.result      (GIT_EXEC_RESULT)      — execution result
 
@@ -57,11 +56,32 @@ from .base import PayloadBase
 class GitStatusPayload(PayloadBase):
     """Payload for ``git.status`` — request repo status.
 
-    Sent by the App to request the current Git status. No fields
-    required; the Agent uses the active working directory.
+    Attributes:
+        repo: Target repository path. Empty = use default/first repo.
+    """
+
+    repo: str = ""
+
+
+class GitStatusAllPayload(PayloadBase):
+    """Payload for ``git.status.all`` — request status of all repositories.
+
+    Returns the aggregated status of every discovered repository in
+    parallel. Used by the multi-repo aggregated view.
     """
 
     pass
+
+
+class GitStatusAllResultPayload(PayloadBase):
+    """Payload for ``git.status.all.result`` — all repositories status.
+
+    Attributes:
+        repos: List of repository status dicts. Each contains:
+            path, name, branch, ahead, behind, staged, unstaged, untracked, error.
+    """
+
+    repos: list[dict[str, Any]] = []
 
 
 class GitDiffPayload(PayloadBase):
@@ -73,10 +93,12 @@ class GitDiffPayload(PayloadBase):
     Attributes:
         path: File path to diff (empty for whole-repo diff).
         staged: Whether to show staged changes only.
+        repo: Target repository path.
     """
 
     path: str = ""
     staged: bool = False
+    repo: str = ""
 
 
 class GitStagePayload(PayloadBase):
@@ -87,10 +109,12 @@ class GitStagePayload(PayloadBase):
     Attributes:
         paths: List of file paths to stage.
         all: Whether to stage all changed files.
+        repo: Target repository path (required).
     """
 
     paths: list[str] = []
     all: bool = False
+    repo: str = ""
 
 
 class GitUnstagePayload(PayloadBase):
@@ -101,10 +125,12 @@ class GitUnstagePayload(PayloadBase):
     Attributes:
         paths: List of file paths to unstage.
         all: Whether to unstage all staged files.
+        repo: Target repository path (required).
     """
 
     paths: list[str] = []
     all: bool = False
+    repo: str = ""
 
 
 class GitCommitPayload(PayloadBase):
@@ -112,36 +138,41 @@ class GitCommitPayload(PayloadBase):
 
     Attributes:
         message: Commit message text.
+        repo: Target repository path (required).
     """
 
     message: str = ""
+    repo: str = ""
 
 
 class GitPushPayload(PayloadBase):
     """Payload for ``git.push`` — push commits to remote.
 
-    No fields required; the Agent pushes the current branch.
+    Attributes:
+        repo: Target repository path (required).
     """
 
-    pass
+    repo: str = ""
 
 
 class GitPullPayload(PayloadBase):
     """Payload for ``git.pull`` — pull changes from remote.
 
-    No fields required; the Agent pulls the current branch.
+    Attributes:
+        repo: Target repository path (required).
     """
 
-    pass
+    repo: str = ""
 
 
 class GitBranchesPayload(PayloadBase):
     """Payload for ``git.branches`` — list all branches.
 
-    No fields required; the Agent returns all local and remote branches.
+    Attributes:
+        repo: Target repository path.
     """
 
-    pass
+    repo: str = ""
 
 
 class GitCheckoutPayload(PayloadBase):
@@ -149,9 +180,11 @@ class GitCheckoutPayload(PayloadBase):
 
     Attributes:
         branch: Name of the branch to check out.
+        repo: Target repository path (required).
     """
 
     branch: str = ""
+    repo: str = ""
 
 
 class GitLogPayload(PayloadBase):
@@ -159,9 +192,11 @@ class GitLogPayload(PayloadBase):
 
     Attributes:
         count: Maximum number of commits to return.
+        repo: Target repository path.
     """
 
     count: int = 50
+    repo: str = ""
 
 
 class GitLogSearchPayload(PayloadBase):
@@ -178,6 +213,7 @@ class GitLogSearchPayload(PayloadBase):
         until: End date filter (maps to --until).
         skip: Number of commits to skip (pagination offset).
         count: Maximum number of commits to return.
+        repo: Target repository path.
     """
 
     query: str = ""
@@ -187,15 +223,17 @@ class GitLogSearchPayload(PayloadBase):
     until: str = ""
     skip: int = 0
     count: int = 50
+    repo: str = ""
 
 
 class GitLogAuthorsPayload(PayloadBase):
     """Payload for ``git.log.authors`` — list unique commit authors.
 
-    No fields required; the Agent scans the log for unique authors.
+    Attributes:
+        repo: Target repository path.
     """
 
-    pass
+    repo: str = ""
 
 
 class GitShowPayload(PayloadBase):
@@ -203,9 +241,11 @@ class GitShowPayload(PayloadBase):
 
     Attributes:
         hash: Commit hash to show.
+        repo: Target repository path.
     """
 
     hash: str = ""
+    repo: str = ""
 
 
 class GitDiffCommitPayload(PayloadBase):
@@ -216,10 +256,12 @@ class GitDiffCommitPayload(PayloadBase):
     Attributes:
         hash: Commit hash.
         path: File path within the commit.
+        repo: Target repository path.
     """
 
     hash: str = ""
     path: str = ""
+    repo: str = ""
 
 
 class GitDiscardPayload(PayloadBase):
@@ -227,9 +269,11 @@ class GitDiscardPayload(PayloadBase):
 
     Attributes:
         path: File path whose changes should be discarded.
+        repo: Target repository path (required).
     """
 
     path: str = ""
+    repo: str = ""
 
 
 class GitReposPayload(PayloadBase):
@@ -242,16 +286,6 @@ class GitReposPayload(PayloadBase):
     max_depth: int = 3
 
 
-class GitSwitchRepoPayload(PayloadBase):
-    """Payload for ``git.switch_repo`` — switch active repository.
-
-    Attributes:
-        path: Repository root path to switch to.
-    """
-
-    path: str = ""
-
-
 class GitExecPayload(PayloadBase):
     """Payload for ``git.exec`` — execute arbitrary git command.
 
@@ -261,10 +295,12 @@ class GitExecPayload(PayloadBase):
     Attributes:
         command: Git command string to execute.
         confirmed: Whether the user confirmed a dangerous command.
+        repo: Target repository path (required).
     """
 
     command: str = ""
     confirmed: bool = False
+    repo: str = ""
 
 
 # ── Response payloads (Agent -> App) ──
@@ -554,6 +590,8 @@ class GitExecResultPayload(PayloadBase):
 
 register_payload(MessageType.GIT_STATUS, GitStatusPayload)
 register_payload(MessageType.GIT_STATUS_RESULT, GitStatusResultPayload)
+register_payload(MessageType.GIT_STATUS_ALL, GitStatusAllPayload)
+register_payload(MessageType.GIT_STATUS_ALL_RESULT, GitStatusAllResultPayload)
 register_payload(MessageType.GIT_DIFF, GitDiffPayload)
 register_payload(MessageType.GIT_DIFF_RESULT, GitDiffResultPayload)
 register_payload(MessageType.GIT_STAGE, GitStagePayload)
@@ -584,6 +622,5 @@ register_payload(MessageType.GIT_DISCARD, GitDiscardPayload)
 register_payload(MessageType.GIT_DISCARD_RESULT, GitDiscardResultPayload)
 register_payload(MessageType.GIT_REPOS, GitReposPayload)
 register_payload(MessageType.GIT_REPOS_RESULT, GitReposResultPayload)
-register_payload(MessageType.GIT_SWITCH_REPO, GitSwitchRepoPayload)
 register_payload(MessageType.GIT_EXEC, GitExecPayload)
 register_payload(MessageType.GIT_EXEC_RESULT, GitExecResultPayload)

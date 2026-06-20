@@ -118,10 +118,6 @@ class ProjectHandler(BaseHandler):
         current = self.project_manager.apply_current(self.server)
         await self.cli_manager.cleanup_sessions(client_id)
 
-        # Reset git handler's active repo — the new project may have
-        # different sub-repositories, so the previous selection is stale.
-        self.server._git.reset_active_repo()
-
         projects = self.project_manager.list_projects()
         await self.send(ws, Message.from_typed(
             MessageType.PROJECT_LIST_RESULT,
@@ -135,12 +131,18 @@ class ProjectHandler(BaseHandler):
         # Load chat history for the new project (empty if no project)
         cli_name = self.config.default_cli
         if current.get("path"):
-            history = await self.cli_manager.read_history(cli_name, client_id)
+            result = await self.cli_manager.read_history(cli_name, client_id)
         else:
-            history = []
+            result = {"messages": [], "total": 0, "has_more": False, "resumed": False}
         await self.send(ws, Message.from_typed(
             type=MessageType.CHAT_HISTORY_RESULT,
-            payload=ChatHistoryResultPayload(messages=history, cli=cli_name),
+            payload=ChatHistoryResultPayload(
+                messages=result.get("messages", []),
+                total=result.get("total", 0),
+                has_more=result.get("has_more", False),
+                cli=cli_name,
+                resumed=result.get("resumed", False),
+            ),
         ))
 
     async def handle_project_current(self, client_id, ws, msg):

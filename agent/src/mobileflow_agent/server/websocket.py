@@ -38,6 +38,7 @@ from pathlib import Path
 
 import websockets
 from loguru import logger
+from nacl.exceptions import CryptoError
 from websockets.server import ServerConnection
 
 from mobileflow_protocol.envelope import Message
@@ -215,6 +216,7 @@ class WebSocketServer:
             self.file_service = None
             self.git_service = None
             self.git_state = None
+            self.multi_repo_manager = None
             self.refresh_scheduler = None
             self.auto_fetcher = None
             self.plugin_registry = None
@@ -235,6 +237,12 @@ class WebSocketServer:
                 git_service=self.git_service,
                 event_bus=self.event_bus,
                 status_limit=config.cache.status_limit,
+            )
+            # Multi-repo manager: tracks all discovered repos in parallel
+            from ..services.multi_repo_manager import MultiRepoManager
+            self.multi_repo_manager = MultiRepoManager(
+                git_service=self.git_service,
+                event_bus=self.event_bus,
             )
             self.refresh_scheduler = RefreshScheduler(
                 git_state=self.git_state,
@@ -424,6 +432,8 @@ class WebSocketServer:
             self.refresh_scheduler.dispose()
         if self.git_state:
             self.git_state.dispose()
+        if hasattr(self, 'multi_repo_manager') and self.multi_repo_manager:
+            self.multi_repo_manager.dispose()
 
         # 6. Plugin cleanup (skip in wsl-child mode)
         if not self._is_wsl_child and self.plugin_registry:
@@ -495,14 +505,16 @@ class WebSocketServer:
                 self.config.default_cli = available[0] if available else ""
             self._file_watcher_task = asyncio.create_task(self._watch_files())
 
-            # Initialize git state cache (first full refresh)
+            # Initialize multi-repo: discover and register all repos
             if self.config.work_dir:
                 try:
-                    await self.git_state.initialize()
-                    logger.info("✅ Git 状态缓存已初始化")
+                    repos = await self.git_service.discover_repos()
+                    if repos:
+                        await self.multi_repo_manager.open_discovered_repos(repos)
+                        logger.info(f"✅ 多仓库管理器已初始化: {self.multi_repo_manager.repo_count} 个仓库")
                     self.auto_fetcher.start()
                 except Exception as e:
-                    logger.warning(f"Git 状态缓存初始化失败（非致命）: {e}")
+                    logger.warning(f"Git 初始化失败（非致命）: {e}")
 
             # Load run configurations from disk
             if self.config.work_dir:
@@ -892,6 +904,28 @@ class WebSocketServer:
                     logger.warning(f"无效 JSON: {str(raw)[:100]}")
                 except PayloadValidationError as e:
                     logger.warning(f"消息 payload 校验失败: client={client_id}, {e}")
+                except CryptoError as e:
+                    # Encryption key mismatch — App's secret is stale.
+                    # Send plaintext auth.result telling App to re-pair.
+                    logger.warning(
+                        f"🔑 解密失败（密钥不同步）: client={client_id}, error={e}. "
+                        f"通知 App 重新配对"
+                    )
+                    try:
+                        await websocket.send(Message.from_typed(
+                            type=MessageType.AUTH_RESULT,
+                            payload=AuthResultPayload(
+                                success=False,
+                                error="encryption_mismatch",
+                                should_repair=True,
+                            ),
+                        ).model_dump_json())
+                    except Exception:
+                        pass
+                    # Deactivate stale encryption so subsequent messages
+                    # (if any) are not double-decrypted
+                    self._conn_manager.deactivate_encryption(client_id)
+                    break
                 except Exception as e:
                     logger.error(f"处理消息出错: client={client_id}, error={e}", exc_info=True)
                     # Best-effort error response — don't let send failure crash the loop
@@ -1119,6 +1153,8 @@ class WebSocketServer:
         if not self._is_wsl_child:
             r.register(MessageType.GIT_STATUS, self._git.handle_git_status,
                        requires_project=True)
+            r.register(MessageType.GIT_STATUS_ALL, self._git.handle_git_status_all,
+                       requires_project=True)
             r.register(MessageType.GIT_DIFF, self._git.handle_git_diff,
                        requires_project=True)
             r.register(MessageType.GIT_STAGE, self._git.handle_git_stage,
@@ -1148,8 +1184,6 @@ class WebSocketServer:
             r.register(MessageType.GIT_DISCARD, self._git.handle_git_discard,
                        requires_project=True)
             r.register(MessageType.GIT_REPOS, self._git.handle_git_repos,
-                       requires_project=True)
-            r.register(MessageType.GIT_SWITCH_REPO, self._git.handle_git_switch_repo,
                        requires_project=True)
             r.register(MessageType.GIT_EXEC, self._git.handle_git_exec,
                        requires_project=True)
@@ -1793,16 +1827,17 @@ class WebSocketServer:
         connected clients so the App can update its UI without polling.
 
         Args:
-            data: {key: "git.status"|"git.branches"|..., data: <state_dict>}
+            data: {key: "git.status"|..., data: <state_dict>, repo_path: "..."}
         """
         key = data.get("key", "")
         state_data = data.get("data")
+        repo_path = data.get("repo_path", "")
         if not key or state_data is None:
             return
 
         msg = Message.from_typed(
             MessageType.STATE_PUSH,
-            StatePushPayload(key=key, data=state_data),
+            StatePushPayload(key=key, data=state_data, repo_path=repo_path),
         )
         for client_info in list(self._clients.values()):
             try:

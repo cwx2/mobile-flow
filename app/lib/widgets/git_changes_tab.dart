@@ -1,33 +1,37 @@
-/// git_changes_tab.dart — Git changed files list (staged/unstaged/untracked).
+/// git_changes_tab.dart — Multi-repo git changes view.
 ///
 /// Module: widgets/
 /// Responsibility:
-///   Displays categorized file change lists with stage/unstage/discard actions.
-///   Each file item shows status icon, path, and action buttons.
+///   Displays all repositories with their file changes in a scrollable list.
+///   Each repository is a collapsible section showing staged/unstaged/untracked.
+///   All repos visible simultaneously, no switching.
+library;
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../models/repo_state.dart';
+import '../screens/repo_detail_screen.dart';
+import '../services/git_state.dart';
 import '../services/websocket_service.dart';
 import '../l10n/app_localizations.dart';
 import '../theme/theme_extensions.dart';
 
-/// Git changes tab: staged + unstaged + untracked file lists.
+/// Git changes tab: multi-repo aggregated view.
 ///
-/// Callbacks are used for actions that require parent coordination
-/// (diff viewing, discard confirmation).
+/// When [isMultiRepo] is true, renders all repos as collapsible sections.
+/// When false (single repo), renders a flat list without repo header.
 class GitChangesTab extends StatelessWidget {
-  final List<Map<String, dynamic>> staged;
-  final List<Map<String, dynamic>> unstaged;
-  final List<Map<String, dynamic>> untracked;
+  final List<RepoState> allRepos;
+  final bool isMultiRepo;
   final WebSocketService ws;
-  final void Function(String path, {required bool staged}) onShowDiff;
+  final void Function(String path, {required String repo, required bool staged}) onShowDiff;
   final void Function(String path) onConfirmDiscard;
 
   const GitChangesTab({
     super.key,
-    required this.staged,
-    required this.unstaged,
-    required this.untracked,
+    required this.allRepos,
+    required this.isMultiRepo,
     required this.ws,
     required this.onShowDiff,
     required this.onConfirmDiscard,
@@ -35,82 +39,242 @@ class GitChangesTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (staged.isEmpty && unstaged.isEmpty && untracked.isEmpty) {
-      final colors = context.colors;
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.check_circle_outline,
-                size: 40, color: colors.secondary.withValues(alpha: 0.5)),
-            const SizedBox(height: 12),
-            Text(S.of(context).gitChangesClean,
-                style: TextStyle(
-                    fontSize: 14, color: colors.onSurfaceVariant)),
-            const SizedBox(height: 4),
-            Text(S.of(context).gitChangesCleanDesc,
-                style: TextStyle(
-                    fontSize: 12, color: colors.onSurfaceMuted)),
-          ],
-        ),
-      );
+    if (allRepos.isEmpty) {
+      return _buildCleanState(context);
     }
 
+    return ListView.builder(
+      itemCount: allRepos.length,
+      itemBuilder: (context, index) {
+        final repo = allRepos[index];
+        return _RepoSection(
+          repo: repo,
+          initiallyExpanded: repo.hasChanges,
+          showHeader: isMultiRepo,
+          ws: ws,
+          onShowDiff: onShowDiff,
+          onConfirmDiscard: onConfirmDiscard,
+        );
+      },
+    );
+  }
+
+  Widget _buildCleanState(BuildContext context) {
     final colors = context.colors;
-    return ListView(
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.check_circle_outline,
+              size: 40, color: colors.secondary.withValues(alpha: 0.5)),
+          const SizedBox(height: 12),
+          Text(S.of(context).gitChangesClean,
+              style: TextStyle(fontSize: 14, color: colors.onSurfaceVariant)),
+          const SizedBox(height: 4),
+          Text(S.of(context).gitChangesCleanDesc,
+              style: TextStyle(fontSize: 12, color: colors.onSurfaceMuted)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Collapsible repository section.
+class _RepoSection extends StatefulWidget {
+  final RepoState repo;
+  final bool initiallyExpanded;
+  final bool showHeader;
+  final WebSocketService ws;
+  final void Function(String path, {required String repo, required bool staged}) onShowDiff;
+  final void Function(String path) onConfirmDiscard;
+
+  const _RepoSection({
+    required this.repo,
+    required this.initiallyExpanded,
+    required this.showHeader,
+    required this.ws,
+    required this.onShowDiff,
+    required this.onConfirmDiscard,
+  });
+
+  @override
+  State<_RepoSection> createState() => _RepoSectionState();
+}
+
+class _RepoSectionState extends State<_RepoSection> {
+  late bool _expanded;
+
+  @override
+  void initState() {
+    super.initState();
+    _expanded = widget.initiallyExpanded;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final repo = widget.repo;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (staged.isNotEmpty) ...[
-          _SectionHeader(
-            title: S.of(context).gitChangesStagedCount(staged.length),
-            color: colors.secondary,
-            actionLabel: S.of(context).gitChangesUnstageAll,
-            onAction: () => ws.gitOps.gitUnstageAll(),
+        // Repository header (hidden in single-repo mode)
+        if (widget.showHeader)
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: colors.surfaceVariant.withValues(alpha: 0.3),
+                border: Border(
+                  bottom: BorderSide(color: colors.border.withValues(alpha: 0.5)),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _expanded ? Icons.expand_more : Icons.chevron_right,
+                    size: 18,
+                    color: colors.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 8),
+                  // Repo name
+                  Expanded(
+                    child: Text(
+                      repo.name,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: colors.onSurface,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  // Branch
+                  Icon(Icons.account_tree_outlined, size: 12, color: colors.onSurfaceMuted),
+                  const SizedBox(width: 3),
+                  Text(
+                    repo.branch.isNotEmpty ? repo.branch : '-',
+                    style: TextStyle(fontSize: 11, color: colors.onSurfaceMuted),
+                  ),
+                  const SizedBox(width: 8),
+                  // Sync status
+                  Icon(Icons.sync, size: 12, color: colors.onSurfaceMuted),
+                  const SizedBox(width: 2),
+                  Text(
+                    '${repo.behind}↓ ${repo.ahead}↑',
+                    style: TextStyle(fontSize: 10, color: colors.onSurfaceMuted),
+                  ),
+                  // Change count badge
+                  if (repo.hasChanges) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: colors.warning.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '${repo.totalChanges}',
+                        style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: colors.warning),
+                      ),
+                    ),
+                  ],
+                  // Enter detail page arrow
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      Navigator.of(context).push(MaterialPageRoute(
+                        builder: (_) => RepoDetailScreen(repoPath: repo.path),
+                      ));
+                    },
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      child: Icon(Icons.arrow_forward_ios, size: 14),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-          ...staged.map((f) => _FileItem(
-                file: f,
-                staged: true,
-                ws: ws,
-                onTap: () => onShowDiff(f['path'] as String? ?? '', staged: true),
-                onDiscard: null,
-              )),
-        ],
-        if (unstaged.isNotEmpty) ...[
-          _SectionHeader(
-            title: S.of(context).gitChangesUnstagedCount(unstaged.length),
-            color: colors.warning,
-            actionLabel: S.of(context).gitChangesStageAll,
-            onAction: () => ws.gitOps.gitStageAll(),
-          ),
-          ...unstaged.map((f) => _FileItem(
-                file: f,
-                staged: false,
-                ws: ws,
-                onTap: () =>
-                    onShowDiff(f['path'] as String? ?? '', staged: false),
-                onDiscard: () =>
-                    onConfirmDiscard(f['path'] as String? ?? ''),
-              )),
-        ],
-        if (untracked.isNotEmpty) ...[
-          _SectionHeader(
-            title: S.of(context).gitChangesUntrackedCount(untracked.length),
-            color: colors.onSurfaceVariant,
-            actionLabel: S.of(context).gitChangesAddAll,
-            onAction: () {
-              final paths =
-                  untracked.map((f) => f['path'] as String).toList();
-              ws.gitOps.gitStage(paths);
-            },
-          ),
-          ...untracked.map((f) => _FileItem(
-                file: f,
-                staged: false,
-                untracked: true,
-                ws: ws,
-                onTap: () =>
-                    onShowDiff(f['path'] as String? ?? '', staged: false),
-                onDiscard: null,
-              )),
+
+        // Expanded file list
+        if (_expanded || !widget.showHeader) ...[
+          if (!repo.hasChanges && widget.showHeader)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  Icon(Icons.check_circle_outline, size: 14, color: colors.secondary),
+                  const SizedBox(width: 8),
+                  Text(
+                    S.of(context).gitChangesClean,
+                    style: TextStyle(fontSize: 12, color: colors.onSurfaceMuted),
+                  ),
+                ],
+              ),
+            )
+          else ...[
+            if (repo.staged.isNotEmpty) ...[
+              _SectionHeader(
+                title: S.of(context).gitChangesStagedCount(repo.staged.length),
+                color: colors.secondary,
+                actionLabel: S.of(context).gitChangesUnstageAll,
+                onAction: () {
+                  final git = context.read<GitStateProvider>();
+                  git.unstageAll(repo: repo.path);
+                },
+              ),
+              ...repo.staged.map((f) => _FileItem(
+                    file: f,
+                    staged: true,
+                    repoPath: repo.path,
+                    onTap: () => widget.onShowDiff(f['path'] as String? ?? '', repo: repo.path, staged: true),
+                    onDiscard: null,
+                  )),
+            ],
+            if (repo.unstaged.isNotEmpty) ...[
+              _SectionHeader(
+                title: S.of(context).gitChangesUnstagedCount(repo.unstaged.length),
+                color: colors.warning,
+                actionLabel: S.of(context).gitChangesStageAll,
+                onAction: () {
+                  final git = context.read<GitStateProvider>();
+                  git.stageAll(repo: repo.path);
+                },
+              ),
+              ...repo.unstaged.map((f) => _FileItem(
+                    file: f,
+                    staged: false,
+                    repoPath: repo.path,
+                    onTap: () => widget.onShowDiff(f['path'] as String? ?? '', repo: repo.path, staged: false),
+                    onDiscard: () => widget.onConfirmDiscard(f['path'] as String? ?? ''),
+                  )),
+            ],
+            if (repo.untracked.isNotEmpty) ...[
+              _SectionHeader(
+                title: S.of(context).gitChangesUntrackedCount(repo.untracked.length),
+                color: colors.onSurfaceVariant,
+                actionLabel: S.of(context).gitChangesAddAll,
+                onAction: () {
+                  final git = context.read<GitStateProvider>();
+                  final paths = repo.untracked.map((f) => f['path'] as String).toList();
+                  git.stage(paths, repo: repo.path);
+                },
+              ),
+              ...repo.untracked.map((f) => _FileItem(
+                    file: f,
+                    staged: false,
+                    untracked: true,
+                    repoPath: repo.path,
+                    onTap: () => widget.onShowDiff(f['path'] as String? ?? '', repo: repo.path, staged: false),
+                    onDiscard: null,
+                  )),
+            ],
+          ],
         ],
       ],
     );
@@ -143,16 +307,14 @@ class _SectionHeader extends StatelessWidget {
       child: Row(
         children: [
           Text(title,
-              style: TextStyle(
-                  fontSize: 13, fontWeight: FontWeight.w600, color: color)),
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: color)),
           const Spacer(),
           InkWell(
             onTap: onAction,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               child: Text(actionLabel,
-                  style: TextStyle(
-                      fontSize: 11, color: colors.onSurfaceVariant)),
+                  style: TextStyle(fontSize: 11, color: colors.onSurfaceVariant)),
             ),
           ),
         ],
@@ -166,7 +328,7 @@ class _FileItem extends StatelessWidget {
   final Map<String, dynamic> file;
   final bool staged;
   final bool untracked;
-  final WebSocketService ws;
+  final String repoPath;
   final VoidCallback onTap;
   final VoidCallback? onDiscard;
 
@@ -174,7 +336,7 @@ class _FileItem extends StatelessWidget {
     required this.file,
     required this.staged,
     this.untracked = false,
-    required this.ws,
+    required this.repoPath,
     required this.onTap,
     this.onDiscard,
   });
@@ -186,8 +348,7 @@ class _FileItem extends StatelessWidget {
     final status = file['status'] as String? ?? '';
     final statusColor = _getStatusColor(status, colors);
     final fileName = path.split('/').last;
-    final dirPath =
-        path.contains('/') ? path.substring(0, path.lastIndexOf('/')) : '';
+    final dirPath = path.contains('/') ? path.substring(0, path.lastIndexOf('/')) : '';
 
     return InkWell(
       onTap: onTap,
@@ -202,9 +363,7 @@ class _FileItem extends StatelessWidget {
               alignment: Alignment.center,
               child: Text(status.toUpperCase(),
                   style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: statusColor)),
+                      fontSize: 12, fontWeight: FontWeight.bold, color: statusColor)),
             ),
             const SizedBox(width: 8),
             // Filename + directory path
@@ -215,37 +374,45 @@ class _FileItem extends StatelessWidget {
                   Text(fileName, style: const TextStyle(fontSize: 13)),
                   if (dirPath.isNotEmpty)
                     Text(dirPath,
-                        style: TextStyle(
-                            fontSize: 10, color: colors.onSurfaceMuted)),
+                        style: TextStyle(fontSize: 10, color: colors.onSurfaceMuted)),
                 ],
               ),
             ),
             // Action buttons
             if (!untracked) ...[
               if (staged)
-                _actionIcon(Icons.remove_circle_outline, colors.warning,
-                    () => ws.gitOps.gitUnstage([path]))
+                _actionIcon(context, Icons.remove_circle_outline, colors.warning,
+                    () {
+                  final git = context.read<GitStateProvider>();
+                  git.unstageFiles([path], repo: repoPath);
+                })
               else ...[
-                _actionIcon(Icons.add_circle_outline, colors.secondary,
-                    () => ws.gitOps.gitStage([path])),
+                _actionIcon(context, Icons.add_circle_outline, colors.secondary,
+                    () {
+                  final git = context.read<GitStateProvider>();
+                  git.stage([path], repo: repoPath);
+                }),
                 if (onDiscard != null)
-                  _actionIcon(Icons.undo, colors.error, onDiscard!),
+                  _actionIcon(context, Icons.undo, colors.error, onDiscard!),
               ],
             ] else
-              _actionIcon(Icons.add_circle_outline, colors.secondary,
-                  () => ws.gitOps.gitStage([path])),
+              _actionIcon(context, Icons.add_circle_outline, colors.secondary,
+                  () {
+                final git = context.read<GitStateProvider>();
+                git.stage([path], repo: repoPath);
+              }),
           ],
         ),
       ),
     );
   }
 
-  Widget _actionIcon(IconData icon, Color color, VoidCallback onTap) {
+  Widget _actionIcon(BuildContext context, IconData icon, Color color, VoidCallback onTap) {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.all(4),
-        child: Icon(icon, size: 18, color: color),
+        padding: const EdgeInsets.all(14),
+        child: Icon(icon, size: 20, color: color),
       ),
     );
   }

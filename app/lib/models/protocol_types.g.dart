@@ -72,6 +72,8 @@ class MessageType {
   // ── Git Operations ──
   static const gitStatus = 'git.status'; // App -> Agent: request repo status [request]
   static const gitStatusResult = 'git.status.result'; // Agent -> App: repo status [request]
+  static const gitStatusAll = 'git.status.all'; // App -> Agent: request all repos status
+  static const gitStatusAllResult = 'git.status.all.result'; // Agent -> App: all repos status
   static const gitDiff = 'git.diff'; // App -> Agent: request file diff [request]
   static const gitDiffResult = 'git.diff.result'; // Agent -> App: diff content [request]
   static const gitStage = 'git.stage'; // App -> Agent: stage files [request]
@@ -102,7 +104,6 @@ class MessageType {
   static const gitDiscardResult = 'git.discard.result'; // Agent -> App: discard result [request]
   static const gitRepos = 'git.repos'; // App -> Agent: discover git repositories [request]
   static const gitReposResult = 'git.repos.result'; // Agent -> App: repository list [request]
-  static const gitSwitchRepo = 'git.switch_repo'; // App -> Agent: switch active repository [request]
   static const gitExec = 'git.exec'; // App -> Agent: execute arbitrary git command [request]
   static const gitExecResult = 'git.exec.result'; // Agent -> App: execution result [request]
 

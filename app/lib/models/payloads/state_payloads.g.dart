@@ -34,22 +34,26 @@ class StatusPongPayload {
 class StatePushPayload {
   final String key;
   final dynamic data;
+  final String repoPath;
 
   const StatePushPayload({
     required this.key,
     required this.data,
+    this.repoPath = '',
   });
 
   factory StatePushPayload.fromJson(Map<String, dynamic> json) {
     return StatePushPayload(
       key: json['key'] as String? ?? '',
       data: json['data'],
+      repoPath: json['repo_path'] as String? ?? '',
     );
   }
 
   Map<String, dynamic> toJson() => {
         'key': key,
         'data': data,
+        'repo_path': repoPath,
       };
 }
 

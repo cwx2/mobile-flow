@@ -119,6 +119,18 @@ class ServerConnectionManager:
         self._client_crypto[client_id] = crypto
         logger.info(f"客户端加密已激活: client_id={client_id[:16]}")
 
+    def deactivate_encryption(self, client_id: str) -> None:
+        """Remove encryption state for a client after key mismatch.
+
+        Called when decryption fails (stale key). Clears the crypto
+        module so subsequent messages are not double-processed.
+
+        Args:
+            client_id: The client identifier to deactivate encryption for.
+        """
+        self._client_crypto.pop(client_id, None)
+        logger.info(f"客户端加密已停用: client_id={client_id[:16]}")
+
     def decrypt_if_needed(self, client_id: str, raw: str) -> str:
         """Decrypt an incoming message if encryption is active for this client.
 

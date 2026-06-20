@@ -30,6 +30,8 @@ void main() {
   late _MockSender sender;
   late GitOperations git;
 
+  const testRepo = '/path/to/repo';
+
   setUp(() {
     sender = _MockSender();
     git = GitOperations(sender);
@@ -47,34 +49,34 @@ void main() {
     });
 
     test('gitStage 发送 git.stage', () {
-      git.gitStage(['a.py']);
+      git.gitStage(['a.py'], repo: testRepo);
       expect(sender.last?.type, MessageType.gitStage);
     });
 
     test('gitStageAll 发送 git.stage with all=true', () {
-      git.gitStageAll();
+      git.gitStageAll(repo: testRepo);
       expect(sender.last?.type, MessageType.gitStage);
       expect(sender.last?.payload['all'], true);
     });
 
     test('gitUnstage 发送 git.unstage', () {
-      git.gitUnstage(['b.py']);
+      git.gitUnstage(['b.py'], repo: testRepo);
       expect(sender.last?.type, MessageType.gitUnstage);
     });
 
     test('gitCommit 发送 git.commit', () {
-      git.gitCommit('fix: typo');
+      git.gitCommit('fix: typo', repo: testRepo);
       expect(sender.last?.type, MessageType.gitCommit);
       expect(sender.last?.payload['message'], 'fix: typo');
     });
 
     test('gitPush 发送 git.push', () {
-      git.gitPush();
+      git.gitPush(repo: testRepo);
       expect(sender.last?.type, MessageType.gitPush);
     });
 
     test('gitPull 发送 git.pull', () {
-      git.gitPull();
+      git.gitPull(repo: testRepo);
       expect(sender.last?.type, MessageType.gitPull);
     });
 
@@ -84,7 +86,7 @@ void main() {
     });
 
     test('gitCheckout 发送 git.checkout', () {
-      git.gitCheckout('main');
+      git.gitCheckout('main', repo: testRepo);
       expect(sender.last?.type, MessageType.gitCheckout);
       expect(sender.last?.payload['branch'], 'main');
     });
@@ -102,29 +104,19 @@ void main() {
     });
   });
 
-  group('GitOperations — git status 节流', () {
-    test('2 秒内第二次调用被跳过', () {
+  group('GitOperations — git status 请求', () {
+    test('多次调用都正常发送（节流已移至 GitStateProvider）', () {
       git.requestGitStatus();
       git.requestGitStatus();
-      expect(sender.ofType(MessageType.gitStatus).length, 1);
-    });
-
-    test('超过 2 秒后调用正常发送', () async {
-      git.requestGitStatus();
-      expect(sender.ofType(MessageType.gitStatus).length, 1);
-
-      // Wait for the throttle window to expire.
-      // GitOperations uses DateTime.now() internally, so we need a real delay.
-      await Future.delayed(const Duration(milliseconds: 2100));
-
-      git.requestGitStatus();
+      // Throttle logic now lives in GitStateProvider.requestInitialData(),
+      // not in GitOperations. GitOperations is a pure message sender.
       expect(sender.ofType(MessageType.gitStatus).length, 2);
     });
   });
 
   group('GitOperations — payload 参数', () {
     test('gitStage 发送正确的 paths', () {
-      git.gitStage(['src/main.py', 'README.md']);
+      git.gitStage(['src/main.py', 'README.md'], repo: testRepo);
       final payload = sender.last!.payload;
       expect(payload['paths'], ['src/main.py', 'README.md']);
     });
@@ -151,7 +143,7 @@ void main() {
     });
 
     test('gitDiffFile 发送 staged=false (默认)', () {
-      git.gitDiffFile('src/app.py');
+      git.gitDiffFile('src/app.py', repo: testRepo);
       final payload = sender.last!.payload;
       expect(sender.last!.type, MessageType.gitDiff);
       expect(payload['path'], 'src/app.py');
@@ -159,7 +151,7 @@ void main() {
     });
 
     test('gitDiffFile 发送 staged=true', () {
-      git.gitDiffFile('src/app.py', staged: true);
+      git.gitDiffFile('src/app.py', repo: testRepo, staged: true);
       final payload = sender.last!.payload;
       expect(payload['path'], 'src/app.py');
       expect(payload['staged'], true);

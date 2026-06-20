@@ -1,24 +1,23 @@
-/// git_state.dart — Unified git state provider for the App.
+/// git_state.dart — Multi-repo git state provider.
 ///
 /// Module: services/
 /// Responsibility:
-///   Single source of truth for all git data in the App. Subscribes to
-///   Agent's state.push events via AppEventBus and exposes cached state
-///   to all screens via Provider. Screens read from this provider instead
-///   of sending their own WebSocket requests.
+///   Single source of truth for all git data. Each repository is an
+///   independent RepoState instance — no global mutable fields, no
+///   "active repo" concept on the data layer.
 ///
-///   Mirrors the Agent's GitStateManager: Agent caches git state in
-///   memory and pushes updates; this provider caches the pushed state
-///   and notifies UI via ChangeNotifier.
+///   UI selection ("which repo am I looking at") is purely a frontend
+///   concern and does not affect data storage or event routing.
 ///
 /// Data flow:
-///   Agent state.push → WebSocketService._handleStatePush()
-///   → AppEventBus.emit(gitStatusPush) → GitStateProvider._onStatusPush()
-///   → notifyListeners() → UI rebuilds
+///   Agent state.push (with repo_path) → GitStateProvider._onStatusPush()
+///   → _repos[repo_path] updated → notifyListeners() → UI rebuilds
 ///
-/// Used by:
-///   - screens/git_screen.dart (reads all git state)
-///   - widgets/git_changes_tab.dart, git_commit_tab.dart, etc.
+/// Architecture:
+///   - _repos: Map<path, RepoState> — per-repo isolated state
+///   - No global branch/staged/unstaged fields
+///   - Write operations require explicit repo path
+///   - state.push routed by repo_path — only that repo updated
 library;
 
 import 'dart:async';
@@ -28,42 +27,79 @@ import 'package:flutter/foundation.dart';
 import '../core/event_bus.dart';
 import '../models/payloads/git_payloads.g.dart';
 import '../models/protocol.dart';
+import '../models/repo_state.dart';
 import '../utils/logger.dart';
 import 'websocket_service.dart';
 import 'ws_operations/git_operations.dart';
 
 final _log = getLogger('GitState');
 
-/// Unified git state provider — single source of truth for all git data.
+/// Multi-repo git state provider — all repos tracked independently.
 ///
-/// Subscribes to Agent's state.push events and WebSocket result messages.
-/// All git screens read from this provider instead of managing their own
-/// state or sending duplicate requests.
+/// Each repository is an independent [RepoState] instance stored in [_repos].
+/// All git screens read from this provider. No global mutable state.
 class GitStateProvider extends ChangeNotifier {
-  // ── Cached state (populated by state.push from Agent) ──
+  // ── Per-repository state (the single source of truth) ──
 
-  String branch = '';
-  int ahead = 0;
-  int behind = 0;
-  List<Map<String, dynamic>> staged = [];
-  List<Map<String, dynamic>> unstaged = [];
-  List<Map<String, dynamic>> untracked = [];
-  List<Map<String, dynamic>> logEntries = [];
-  List<Map<String, dynamic>> branches = [];
-  List<Map<String, dynamic>> repos = [];
-  String error = '';
+  final Map<String, RepoState> _repos = {};
 
-  // ── Operation state ──
+  /// All repositories sorted: repos with changes first, then alphabetical.
+  List<RepoState> get allRepos {
+    final list = _repos.values.toList();
+    list.sort((a, b) {
+      if (a.hasChanges && !b.hasChanges) return -1;
+      if (!a.hasChanges && b.hasChanges) return 1;
+      return a.name.compareTo(b.name);
+    });
+    return list;
+  }
 
-  bool committing = false;
-  bool pushing = false;
-  bool pulling = false;
+  /// Number of tracked repositories.
+  int get repoCount => _repos.length;
+
+  /// Whether multiple repositories are tracked.
+  bool get isMultiRepo => _repos.length > 1;
+
+  /// Aggregated totals across all repos.
+  int get totalChanges =>
+      _repos.values.fold(0, (s, r) => s + r.totalChanges);
+  int get totalAhead =>
+      _repos.values.fold(0, (s, r) => s + r.ahead);
+  int get totalBehind =>
+      _repos.values.fold(0, (s, r) => s + r.behind);
+
+  /// Get a specific repo's state by path.
+  RepoState? getRepo(String path) => _repos[path];
+
+  // ── Per-repo operation state ──
+
+  final Map<String, _RepoOpState> _opStates = {};
+
+  bool isCommitting(String repo) => _opStates[repo]?.committing ?? false;
+  bool isPushing(String repo) => _opStates[repo]?.pushing ?? false;
+  bool isPulling(String repo) => _opStates[repo]?.pulling ?? false;
+
+  // ── Agent busy state (global, for progress indicator) ──
+
   bool agentBusy = false;
   String agentOperation = '';
 
-  // ── Shell history (local to App, not pushed by Agent) ──
+  // ── Per-repo shell history ──
 
-  final List<Map<String, dynamic>> shellHistory = [];
+  final Map<String, List<Map<String, dynamic>>> _shellHistory = {};
+
+  List<Map<String, dynamic>> shellHistoryFor(String repo) =>
+      _shellHistory[repo] ?? [];
+
+  // ── Per-repo branches/log (loaded on demand) ──
+
+  final Map<String, List<Map<String, dynamic>>> _branches = {};
+  final Map<String, List<Map<String, dynamic>>> _logEntries = {};
+
+  List<Map<String, dynamic>> branchesFor(String repo) =>
+      _branches[repo] ?? [];
+  List<Map<String, dynamic>> logEntriesFor(String repo) =>
+      _logEntries[repo] ?? [];
 
   // ── Loading state ──
 
@@ -81,52 +117,29 @@ class GitStateProvider extends ChangeNotifier {
 
   DateTime? _lastRequestTime;
 
-  /// Total change count for tab badge.
-  int get totalChanges => staged.length + unstaged.length + untracked.length;
 
-  /// Active repository name from repos list.
-  String get activeRepoName {
-    for (final repo in repos) {
-      if (repo['is_current'] == true) {
-        return repo['name'] as String? ?? '';
-      }
-    }
-    return '';
-  }
+  // ── Lifecycle ──
 
   /// Bind to WebSocketService and EventBus.
-  ///
-  /// Called by ProxyProvider in main.dart whenever dependencies change.
-  /// Subscribes to EventBus for state.push events and to messageStream
-  /// for operation result messages (commit/push/pull results).
   void bind(WebSocketService ws, AppEventBus eventBus) {
     if (_ws == ws && _eventBus == eventBus) return;
-
-    // Unsubscribe old listeners
     _dispose();
 
     _ws = ws;
     _gitOps = ws.gitOps;
     _eventBus = eventBus;
 
-    // Subscribe to state.push events from Agent
     eventBus.on(AppEvents.gitStatusPush, _onStatusPush);
     eventBus.on(AppEvents.gitBranchesPush, _onBranchesPush);
     eventBus.on(AppEvents.gitLogPush, _onLogPush);
     eventBus.on(AppEvents.gitProgressPush, _onProgressPush);
     eventBus.on(AppEvents.projectSwitched, _onProjectSwitched);
 
-    // Subscribe to operation result messages
     _msgSub = ws.messageStream.listen(_onMessage);
-
     _log.info('GitStateProvider 已绑定');
   }
 
-  /// Request initial git data from Agent.
-  ///
-  /// Called once after connection + auth. Deduplicates requests within
-  /// 2 seconds to prevent multiple screens from triggering redundant
-  /// requests on the same connection event.
+  /// Request initial git data from Agent (all repos status).
   void requestInitialData() {
     final now = DateTime.now();
     if (_lastRequestTime != null &&
@@ -136,124 +149,128 @@ class GitStateProvider extends ChangeNotifier {
     }
     _lastRequestTime = now;
     _log.info('请求初始 Git 数据');
-    _gitOps?.requestGitStatus();
-    _gitOps?.gitLog();
-    _gitOps?.gitBranches();
-    _gitOps?.requestGitRepos();
+    _gitOps?.requestGitStatusAll();
   }
 
-  /// Force refresh all git data (user-triggered pull-to-refresh).
+  /// Force refresh all repos (user-triggered).
   void refresh() {
     _log.fine('手动刷新 Git 状态');
     _initialized = false;
-    error = '';
     notifyListeners();
-    _gitOps?.requestGitStatus();
-    _gitOps?.gitLog();
-    _gitOps?.gitBranches();
-    _gitOps?.requestGitRepos();
+    _gitOps?.requestGitStatusAll();
   }
 
   /// Clear all state on project switch or disconnect.
   void clear() {
     _log.fine('清除 Git 状态缓存');
-    branch = '';
-    ahead = 0;
-    behind = 0;
-    staged = [];
-    unstaged = [];
-    untracked = [];
-    logEntries = [];
-    branches = [];
-    repos = [];
-    error = '';
-    committing = false;
-    pushing = false;
-    pulling = false;
+    _repos.clear();
+    _opStates.clear();
+    _shellHistory.clear();
+    _branches.clear();
+    _logEntries.clear();
     agentBusy = false;
     agentOperation = '';
-    shellHistory.clear();
     _initialized = false;
     _lastRequestTime = null;
     notifyListeners();
   }
 
-  // ── Write operations (delegate to WebSocketService) ──
+  // ── Write operations (all require repo path) ──
 
-  /// Stage specific files.
-  void stage(List<String> paths) => _gitOps?.gitStage(paths);
+  /// Stage specific files in a repository.
+  void stage(List<String> paths, {required String repo}) =>
+      _gitOps?.gitStage(paths, repo: repo);
 
-  /// Stage all changed files.
-  void stageAll() => _gitOps?.gitStageAll();
+  /// Stage all changed files in a repository.
+  void stageAll({required String repo}) =>
+      _gitOps?.gitStageAll(repo: repo);
 
-  /// Unstage specific files.
-  void unstageFiles(List<String> paths) => _gitOps?.gitUnstage(paths);
+  /// Unstage specific files in a repository.
+  void unstageFiles(List<String> paths, {required String repo}) =>
+      _gitOps?.gitUnstage(paths, repo: repo);
 
-  /// Unstage all staged files.
-  void unstageAll() => _gitOps?.gitUnstageAll();
+  /// Unstage all staged files in a repository.
+  void unstageAll({required String repo}) =>
+      _gitOps?.gitUnstageAll(repo: repo);
 
-  /// Commit staged changes.
-  void commit(String message) {
-    committing = true;
+  /// Commit staged changes in a repository.
+  void commit(String message, {required String repo}) {
+    _getOpState(repo).committing = true;
     notifyListeners();
-    _gitOps?.gitCommit(message);
+    _gitOps?.gitCommit(message, repo: repo);
   }
 
-  /// Push to remote.
-  void push() {
-    pushing = true;
+  /// Push to remote for a repository.
+  void push({required String repo}) {
+    _getOpState(repo).pushing = true;
     notifyListeners();
-    _gitOps?.gitPush();
+    _gitOps?.gitPush(repo: repo);
   }
 
-  /// Pull from remote.
-  void pull() {
-    pulling = true;
+  /// Pull from remote for a repository.
+  void pull({required String repo}) {
+    _getOpState(repo).pulling = true;
     notifyListeners();
-    _gitOps?.gitPull();
+    _gitOps?.gitPull(repo: repo);
   }
 
-  /// Checkout a branch.
-  void checkout(String branchName) => _gitOps?.gitCheckout(branchName);
+  /// Checkout a branch in a repository.
+  void checkout(String branchName, {required String repo}) =>
+      _gitOps?.gitCheckout(branchName, repo: repo);
 
-  /// Discard changes for a file.
-  void discard(String path) => _gitOps?.gitDiscard(path);
+  /// Discard changes for a file in a repository.
+  void discard(String path, {required String repo}) =>
+      _gitOps?.gitDiscard(path, repo: repo);
 
-  /// Switch active git repository.
-  void switchRepo(String path) {
-    _gitOps?.switchGitRepo(path);
-    refresh();
-  }
-
-  /// Execute a git shell command.
-  void execCommand(String cmd, {bool confirmed = false}) =>
-      _gitOps?.execGitCommand(cmd, confirmed: confirmed);
+  /// Execute a git shell command in a repository.
+  void execCommand(String cmd, {required String repo, bool confirmed = false}) =>
+      _gitOps?.execGitCommand(cmd, repo: repo, confirmed: confirmed);
 
   /// Request diff for a specific file.
-  void requestDiff(String path, {bool isStaged = false}) =>
-      _gitOps?.gitDiffFile(path, staged: isStaged);
+  void requestDiff(String path, {required String repo, bool isStaged = false}) =>
+      _gitOps?.gitDiffFile(path, repo: repo, staged: isStaged);
+
+  /// Request branches for a specific repo.
+  void requestBranches({required String repo}) =>
+      _gitOps?.gitBranches(repo: repo);
+
+  /// Request log for a specific repo.
+  void requestLog({required String repo}) =>
+      _gitOps?.gitLog(repo: repo);
 
   // ── EventBus handlers (state.push from Agent) ──
 
   void _onStatusPush(Map<String, dynamic> data) {
     final payload = data['data'];
     if (payload is! Map<String, dynamic>) return;
-    _updateStatus(payload);
+    final repoPath = data['repo_path'] as String? ?? '';
+
+    if (repoPath.isNotEmpty) {
+      _updateRepoState(repoPath, payload);
+    }
   }
 
   void _onBranchesPush(Map<String, dynamic> data) {
     final payload = data['data'];
     if (payload is! Map<String, dynamic>) return;
-    branches = (payload['branches'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-    _log.fine('state.push → branches: ${branches.length} 个');
+    final repoPath = data['repo_path'] as String? ?? '';
+    final list = (payload['branches'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+    if (repoPath.isNotEmpty) {
+      _branches[repoPath] = list;
+    }
+    _log.fine('state.push → branches: ${list.length} 个 (repo=$repoPath)');
     notifyListeners();
   }
 
   void _onLogPush(Map<String, dynamic> data) {
     final payload = data['data'];
     if (payload is! Map<String, dynamic>) return;
-    logEntries = (payload['entries'] as List?)?.cast<Map<String, dynamic>>() ?? [];
-    _log.fine('state.push → log: ${logEntries.length} 条');
+    final repoPath = data['repo_path'] as String? ?? '';
+    final list = (payload['entries'] as List?)?.cast<Map<String, dynamic>>() ?? [];
+    if (repoPath.isNotEmpty) {
+      _logEntries[repoPath] = list;
+    }
+    _log.fine('state.push → log: ${list.length} 条 (repo=$repoPath)');
     notifyListeners();
   }
 
@@ -271,52 +288,66 @@ class GitStateProvider extends ChangeNotifier {
     }
   }
 
-  // ── WebSocket message handler (operation results) ──
+  // ── WebSocket message handler ──
 
   void _onMessage(WsMessage msg) {
     switch (msg.type) {
-      // Read results (from direct requests, not state.push)
+      // Multi-repo status (primary data source)
+      case MessageType.gitStatusAllResult:
+        final repoList = (msg.payload['repos'] as List?) ?? [];
+        _repos.clear();
+        for (final repoData in repoList) {
+          if (repoData is Map<String, dynamic>) {
+            final state = RepoState.fromJson(repoData);
+            if (state.path.isNotEmpty) {
+              _repos[state.path] = state;
+            }
+          }
+        }
+        _initialized = true;
+        _log.info('git.status.all: ${_repos.length} 个仓库');
+        notifyListeners();
+
+      // Single-repo status (backward compat / state.push result)
       case MessageType.gitStatusResult:
-        _updateStatus(msg.payload);
+        final repoPath = msg.payload['repo_path'] as String? ?? '';
+        if (repoPath.isNotEmpty) {
+          _updateRepoState(repoPath, msg.payload);
+        }
 
       case MessageType.gitLogResult:
+        final repoPath = msg.payload['repo_path'] as String? ?? '';
         final p = GitLogResultPayload.fromJson(msg.payload);
-        logEntries = p.entries;
+        if (repoPath.isNotEmpty) {
+          _logEntries[repoPath] = p.entries;
+        }
         notifyListeners();
 
       case MessageType.gitBranchesResult:
+        final repoPath = msg.payload['repo_path'] as String? ?? '';
         final p = GitBranchesResultPayload.fromJson(msg.payload);
-        branches = p.branches;
-        notifyListeners();
-
-      case MessageType.gitReposResult:
-        final p = GitReposResultPayload.fromJson(msg.payload);
-        repos = p.repos;
-        if (repos.isNotEmpty) {
-          _initialized = true;
-          // Sub-repos found — clear "not a git repo" error
-          if (error.isNotEmpty) error = '';
+        if (repoPath.isNotEmpty) {
+          _branches[repoPath] = p.branches;
         }
-        _log.fine('repos: ${repos.length} 个仓库');
         notifyListeners();
 
       // Write operation results
       case MessageType.gitCommitResult:
-        committing = false;
-        final p = GitCommitResultPayload.fromJson(msg.payload);
-        _log.info('commit 完成: error=${p.error ?? '无'}');
+        final repo = msg.payload['repo'] as String? ?? '';
+        if (repo.isNotEmpty) _getOpState(repo).committing = false;
+        _log.info('commit 完成: repo=$repo');
         notifyListeners();
 
       case MessageType.gitPushResult:
-        pushing = false;
-        final p = GitPushResultPayload.fromJson(msg.payload);
-        _log.info('push 完成: error=${p.error ?? '无'}');
+        final repo = msg.payload['repo'] as String? ?? '';
+        if (repo.isNotEmpty) _getOpState(repo).pushing = false;
+        _log.info('push 完成: repo=$repo');
         notifyListeners();
 
       case MessageType.gitPullResult:
-        pulling = false;
-        final p = GitPullResultPayload.fromJson(msg.payload);
-        _log.info('pull 完成: error=${p.error ?? '无'}');
+        final repo = msg.payload['repo'] as String? ?? '';
+        if (repo.isNotEmpty) _getOpState(repo).pulling = false;
+        _log.info('pull 完成: repo=$repo');
         notifyListeners();
 
       case MessageType.gitStageResult:
@@ -324,13 +355,13 @@ class GitStateProvider extends ChangeNotifier {
       case MessageType.gitDiscardResult:
       case MessageType.gitCheckoutResult:
         _log.fine('操作完成: ${msg.type}');
-        // State will be updated by state.push, no action needed here
 
       case MessageType.gitExecResult:
-        // Keep raw Map for shell history display
-        shellHistory.add(msg.payload);
-        final p = GitExecResultPayload.fromJson(msg.payload);
-        _log.fine('shell 命令完成: success=${p.success}');
+        final repo = msg.payload['repo'] as String? ?? '';
+        if (repo.isNotEmpty) {
+          _shellHistory.putIfAbsent(repo, () => []).add(msg.payload);
+        }
+        _log.fine('shell 命令完成');
         notifyListeners();
 
       default:
@@ -338,27 +369,35 @@ class GitStateProvider extends ChangeNotifier {
     }
   }
 
-  /// Update status fields from a status payload (shared by state.push and direct result).
-  void _updateStatus(Map<String, dynamic> payload) {
-    branch = payload['branch'] as String? ?? '';
-    ahead = payload['ahead'] as int? ?? 0;
-    behind = payload['behind'] as int? ?? 0;
-    staged = _parseFileList(payload['staged']);
-    unstaged = _parseFileList(payload['unstaged']);
-    untracked = _parseFileList(payload['untracked']);
-    final err = payload['error'] as String? ?? '';
-    // If sub-repos were found, suppress "not a git repo" error
-    error = (repos.isNotEmpty && err.isNotEmpty) ? '' : err;
+  // ── Internal helpers ──
+
+  void _updateRepoState(String repoPath, Map<String, dynamic> payload) {
+    final name = payload['name'] as String? ??
+        repoPath.split('/').last.split('\\').last;
+    _repos[repoPath] = RepoState(
+      path: repoPath,
+      name: name,
+      branch: payload['branch'] as String? ?? '',
+      ahead: payload['ahead'] as int? ?? 0,
+      behind: payload['behind'] as int? ?? 0,
+      staged: _parseFileList(payload['staged']),
+      unstaged: _parseFileList(payload['unstaged']),
+      untracked: _parseFileList(payload['untracked']),
+      error: payload['error'] as String? ?? '',
+    );
     _initialized = true;
-    _log.fine(
-        'status 更新: branch=$branch, staged=${staged.length}, '
-        'unstaged=${unstaged.length}, untracked=${untracked.length}');
     notifyListeners();
   }
 
-  List<Map<String, dynamic>> _parseFileList(dynamic data) {
-    if (data is List) return data.cast<Map<String, dynamic>>();
-    return [];
+  _RepoOpState _getOpState(String repo) =>
+      _opStates.putIfAbsent(repo, () => _RepoOpState());
+
+  static List<Map<String, dynamic>> _parseFileList(dynamic data) {
+    if (data is! List) return [];
+    return [
+      for (final item in data)
+        if (item is Map<String, dynamic>) item,
+    ];
   }
 
   void _dispose() {
@@ -376,4 +415,11 @@ class GitStateProvider extends ChangeNotifier {
     _dispose();
     super.dispose();
   }
+}
+
+/// Per-repo mutable operation flags.
+class _RepoOpState {
+  bool committing = false;
+  bool pushing = false;
+  bool pulling = false;
 }

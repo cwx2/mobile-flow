@@ -439,16 +439,19 @@ class GitStateManager:
         """Push a state change event to the App via EventBus.
 
         The WebSocket server subscribes to "state.changed" events and
-        forwards them to all connected App clients.
+        forwards them to all connected App clients. Includes repo_path
+        so the App can route the update to the correct repository.
 
         Args:
             key: State key (e.g. "git.status", "git.branches").
             data: The state data to push.
         """
         if data is not None:
-            await self._event_bus.emit(
-                "state.changed", {"key": key, "data": data}
-            )
+            push_data: dict[str, Any] = {"key": key, "data": data}
+            # Include repo_path for multi-repo routing on the App side
+            if self._git._cwd:
+                push_data["repo_path"] = self._git._cwd.replace("\\", "/")
+            await self._event_bus.emit("state.changed", push_data)
 
     # ── Lifecycle ──
 

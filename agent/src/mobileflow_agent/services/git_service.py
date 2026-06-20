@@ -546,6 +546,12 @@ class GitService:
         ``old_content`` is the HEAD version; ``new_content`` is either the
         staged version or the current on-disk content.
 
+        For binary files (images, fonts, etc.), returns an error hint
+        instead of empty strings so the App can show a meaningful message.
+
+        Binary detection uses the same heuristic as Git: check the first
+        8000 bytes for a NUL byte (\\x00). No hardcoded extension list.
+
         Args:
             path: Relative file path.
             staged: If True, ``new_content`` comes from the index.
@@ -553,6 +559,8 @@ class GitService:
         Returns:
             Dict with ``old_content``, ``new_content``, and ``error`` keys.
         """
+        import os
+
         # old: HEAD version
         old_out, old_err, old_code = await self._run("show", f"HEAD:{path}")
         old_content = old_out if old_code == 0 else ""
@@ -563,13 +571,40 @@ class GitService:
             new_content = new_out if new_code == 0 else ""
         else:
             # Unstaged: current on-disk content
-            import os
             full_path = os.path.join(self._cwd, path)
             try:
+                # Git's binary detection: NUL byte in the first 8000 bytes
+                with open(full_path, "rb") as f:
+                    head = f.read(8000)
+                if b"\x00" in head:
+                    return {
+                        "old_content": "",
+                        "new_content": "",
+                        "error": "binary",
+                    }
+                # Text file — read full content as UTF-8
                 with open(full_path, "r", encoding="utf-8") as f:
                     new_content = f.read()
+            except UnicodeDecodeError:
+                return {
+                    "old_content": "",
+                    "new_content": "",
+                    "error": "binary",
+                }
+            except FileNotFoundError:
+                new_content = ""
             except Exception:
                 new_content = ""
+
+        # Final binary check: if content contains NUL chars (\x00), it's binary.
+        # git show outputs raw binary data which passes through decode_process_output
+        # as NUL chars (valid in UTF-8). Same heuristic as Git itself.
+        if "\x00" in old_content[:8000] or "\x00" in new_content[:8000]:
+            return {
+                "old_content": "",
+                "new_content": "",
+                "error": "binary",
+            }
 
         return {
             "old_content": old_content,

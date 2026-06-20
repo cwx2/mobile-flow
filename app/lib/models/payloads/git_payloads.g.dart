@@ -1,4 +1,4 @@
-// GENERATED CODE — DO NOT EDIT BY HAND
+// GENERATED CODE �?DO NOT EDIT BY HAND
 // Generated from mobileflow_protocol v1
 //
 // To regenerate, run from pocket-coder/protocol/:
@@ -6,19 +6,19 @@
 //
 // Source: protocol/src/mobileflow_protocol/payloads/git.py
 
-/// Payload for ``git.status`` — request repo status.
+/// Payload for ``git.status`` �?request repo status.
 class GitStatusPayload {
-  const GitStatusPayload();
+  final String repo;
+  const GitStatusPayload({this.repo = ''});
 
   factory GitStatusPayload.fromJson(Map<String, dynamic> json) {
-    return const GitStatusPayload();
+    return GitStatusPayload(repo: json['repo'] as String? ?? '');
   }
 
-  Map<String, dynamic> toJson() => {
-      };
+  Map<String, dynamic> toJson() => {'repo': repo};
 }
 
-/// Payload for ``git.status.result`` — repository status.
+/// Payload for ``git.status.result`` �?repository status.
 class GitStatusResultPayload {
   final String branch;
   final List<Map<String, dynamic>> staged;
@@ -61,30 +61,34 @@ class GitStatusResultPayload {
       };
 }
 
-/// Payload for ``git.diff`` — request file diff.
+/// Payload for ``git.diff`` �?request file diff.
 class GitDiffPayload {
   final String path;
   final bool staged;
+  final String repo;
 
   const GitDiffPayload({
     this.path = '',
     this.staged = false,
+    this.repo = '',
   });
 
   factory GitDiffPayload.fromJson(Map<String, dynamic> json) {
     return GitDiffPayload(
       path: json['path'] as String? ?? '',
       staged: json['staged'] as bool? ?? false,
+      repo: json['repo'] as String? ?? '',
     );
   }
 
   Map<String, dynamic> toJson() => {
         'path': path,
         'staged': staged,
+        'repo': repo,
       };
 }
 
-/// Payload for ``git.diff.result`` — diff content.
+/// Payload for ``git.diff.result`` �?diff content.
 class GitDiffResultPayload {
   final String diff;
   final String staged;
@@ -123,30 +127,34 @@ class GitDiffResultPayload {
       };
 }
 
-/// Payload for ``git.stage`` — stage files for commit.
+/// Payload for ``git.stage`` �?stage files for commit.
 class GitStagePayload {
   final List<String> paths;
   final bool all;
+  final String repo;
 
   const GitStagePayload({
     this.paths = const [],
     this.all = false,
+    this.repo = '',
   });
 
   factory GitStagePayload.fromJson(Map<String, dynamic> json) {
     return GitStagePayload(
       paths: (json['paths'] as List? ?? []).map((e) => e as String).toList(),
       all: json['all'] as bool? ?? false,
+      repo: json['repo'] as String? ?? '',
     );
   }
 
   Map<String, dynamic> toJson() => {
         'paths': paths,
         'all': all,
+        'repo': repo,
       };
 }
 
-/// Payload for ``git.stage.result`` — stage operation result.
+/// Payload for ``git.stage.result`` �?stage operation result.
 class GitStageResultPayload {
   final bool success;
   final String? error;
@@ -169,30 +177,34 @@ class GitStageResultPayload {
       };
 }
 
-/// Payload for ``git.unstage`` — unstage files.
+/// Payload for ``git.unstage`` �?unstage files.
 class GitUnstagePayload {
   final List<String> paths;
   final bool all;
+  final String repo;
 
   const GitUnstagePayload({
     this.paths = const [],
     this.all = false,
+    this.repo = '',
   });
 
   factory GitUnstagePayload.fromJson(Map<String, dynamic> json) {
     return GitUnstagePayload(
       paths: (json['paths'] as List? ?? []).map((e) => e as String).toList(),
       all: json['all'] as bool? ?? false,
+      repo: json['repo'] as String? ?? '',
     );
   }
 
   Map<String, dynamic> toJson() => {
         'paths': paths,
         'all': all,
+        'repo': repo,
       };
 }
 
-/// Payload for ``git.unstage.result`` — unstage operation result.
+/// Payload for ``git.unstage.result`` �?unstage operation result.
 class GitUnstageResultPayload {
   final bool success;
   final String? error;
@@ -215,26 +227,30 @@ class GitUnstageResultPayload {
       };
 }
 
-/// Payload for ``git.commit`` — create a commit.
+/// Payload for ``git.commit`` �?create a commit.
 class GitCommitPayload {
   final String message;
+  final String repo;
 
   const GitCommitPayload({
     this.message = '',
+    this.repo = '',
   });
 
   factory GitCommitPayload.fromJson(Map<String, dynamic> json) {
     return GitCommitPayload(
       message: json['message'] as String? ?? '',
+      repo: json['repo'] as String? ?? '',
     );
   }
 
   Map<String, dynamic> toJson() => {
         'message': message,
+        'repo': repo,
       };
 }
 
-/// Payload for ``git.commit.result`` — commit operation result.
+/// Payload for ``git.commit.result`` �?commit operation result.
 class GitCommitResultPayload {
   final bool success;
   final String? hash;
@@ -261,19 +277,19 @@ class GitCommitResultPayload {
       };
 }
 
-/// Payload for ``git.push`` — push commits to remote.
+/// Payload for ``git.push`` �?push commits to remote.
 class GitPushPayload {
-  const GitPushPayload();
+  final String repo;
+  const GitPushPayload({this.repo = ''});
 
   factory GitPushPayload.fromJson(Map<String, dynamic> json) {
-    return const GitPushPayload();
+    return GitPushPayload(repo: json['repo'] as String? ?? '');
   }
 
-  Map<String, dynamic> toJson() => {
-      };
+  Map<String, dynamic> toJson() => {'repo': repo};
 }
 
-/// Payload for ``git.push.result`` — push operation result.
+/// Payload for ``git.push.result`` �?push operation result.
 class GitPushResultPayload {
   final bool success;
   final String output;
@@ -304,19 +320,19 @@ class GitPushResultPayload {
       };
 }
 
-/// Payload for ``git.pull`` — pull changes from remote.
+/// Payload for ``git.pull`` �?pull changes from remote.
 class GitPullPayload {
-  const GitPullPayload();
+  final String repo;
+  const GitPullPayload({this.repo = ''});
 
   factory GitPullPayload.fromJson(Map<String, dynamic> json) {
-    return const GitPullPayload();
+    return GitPullPayload(repo: json['repo'] as String? ?? '');
   }
 
-  Map<String, dynamic> toJson() => {
-      };
+  Map<String, dynamic> toJson() => {'repo': repo};
 }
 
-/// Payload for ``git.pull.result`` — pull operation result.
+/// Payload for ``git.pull.result`` �?pull operation result.
 class GitPullResultPayload {
   final bool success;
   final String output;
@@ -347,19 +363,19 @@ class GitPullResultPayload {
       };
 }
 
-/// Payload for ``git.branches`` — list all branches.
+/// Payload for ``git.branches`` �?list all branches.
 class GitBranchesPayload {
-  const GitBranchesPayload();
+  final String repo;
+  const GitBranchesPayload({this.repo = ''});
 
   factory GitBranchesPayload.fromJson(Map<String, dynamic> json) {
-    return const GitBranchesPayload();
+    return GitBranchesPayload(repo: json['repo'] as String? ?? '');
   }
 
-  Map<String, dynamic> toJson() => {
-      };
+  Map<String, dynamic> toJson() => {'repo': repo};
 }
 
-/// Payload for ``git.branches.result`` — branch list.
+/// Payload for ``git.branches.result`` �?branch list.
 class GitBranchesResultPayload {
   final List<Map<String, dynamic>> branches;
   final String current;
@@ -386,26 +402,30 @@ class GitBranchesResultPayload {
       };
 }
 
-/// Payload for ``git.checkout`` — switch to a branch.
+/// Payload for ``git.checkout`` �?switch to a branch.
 class GitCheckoutPayload {
   final String branch;
+  final String repo;
 
   const GitCheckoutPayload({
     this.branch = '',
+    this.repo = '',
   });
 
   factory GitCheckoutPayload.fromJson(Map<String, dynamic> json) {
     return GitCheckoutPayload(
       branch: json['branch'] as String? ?? '',
+      repo: json['repo'] as String? ?? '',
     );
   }
 
   Map<String, dynamic> toJson() => {
         'branch': branch,
+        'repo': repo,
       };
 }
 
-/// Payload for ``git.checkout.result`` — checkout operation result.
+/// Payload for ``git.checkout.result`` �?checkout operation result.
 class GitCheckoutResultPayload {
   final bool success;
   final String? error;
@@ -428,26 +448,30 @@ class GitCheckoutResultPayload {
       };
 }
 
-/// Payload for ``git.log`` — request commit log.
+/// Payload for ``git.log`` �?request commit log.
 class GitLogPayload {
   final int count;
+  final String repo;
 
   const GitLogPayload({
     this.count = 50,
+    this.repo = '',
   });
 
   factory GitLogPayload.fromJson(Map<String, dynamic> json) {
     return GitLogPayload(
       count: json['count'] as int? ?? 0,
+      repo: json['repo'] as String? ?? '',
     );
   }
 
   Map<String, dynamic> toJson() => {
         'count': count,
+        'repo': repo,
       };
 }
 
-/// Payload for ``git.log.result`` — commit log.
+/// Payload for ``git.log.result`` �?commit log.
 class GitLogResultPayload {
   final List<Map<String, dynamic>> entries;
   final bool hasMore;
@@ -474,7 +498,7 @@ class GitLogResultPayload {
       };
 }
 
-/// Payload for ``git.log.search`` — unified log query with filters.
+/// Payload for ``git.log.search`` �?unified log query with filters.
 class GitLogSearchPayload {
   final String query;
   final String branch;
@@ -483,6 +507,7 @@ class GitLogSearchPayload {
   final String until;
   final int skip;
   final int count;
+  final String repo;
 
   const GitLogSearchPayload({
     this.query = '',
@@ -492,6 +517,7 @@ class GitLogSearchPayload {
     this.until = '',
     this.skip = 0,
     this.count = 50,
+    this.repo = '',
   });
 
   factory GitLogSearchPayload.fromJson(Map<String, dynamic> json) {
@@ -503,6 +529,7 @@ class GitLogSearchPayload {
       until: json['until'] as String? ?? '',
       skip: json['skip'] as int? ?? 0,
       count: json['count'] as int? ?? 0,
+      repo: json['repo'] as String? ?? '',
     );
   }
 
@@ -514,10 +541,11 @@ class GitLogSearchPayload {
         'until': until,
         'skip': skip,
         'count': count,
+        'repo': repo,
       };
 }
 
-/// Payload for ``git.log.search.result`` — log search results.
+/// Payload for ``git.log.search.result`` �?log search results.
 class GitLogSearchResultPayload {
   final List<Map<String, dynamic>> entries;
   final bool hasMore;
@@ -548,19 +576,19 @@ class GitLogSearchResultPayload {
       };
 }
 
-/// Payload for ``git.log.authors`` — list unique commit authors.
+/// Payload for ``git.log.authors`` �?list unique commit authors.
 class GitLogAuthorsPayload {
-  const GitLogAuthorsPayload();
+  final String repo;
+  const GitLogAuthorsPayload({this.repo = ''});
 
   factory GitLogAuthorsPayload.fromJson(Map<String, dynamic> json) {
-    return const GitLogAuthorsPayload();
+    return GitLogAuthorsPayload(repo: json['repo'] as String? ?? '');
   }
 
-  Map<String, dynamic> toJson() => {
-      };
+  Map<String, dynamic> toJson() => {'repo': repo};
 }
 
-/// Payload for ``git.log.authors.result`` — unique author list.
+/// Payload for ``git.log.authors.result`` �?unique author list.
 class GitLogAuthorsResultPayload {
   final List<String> authors;
 
@@ -579,26 +607,30 @@ class GitLogAuthorsResultPayload {
       };
 }
 
-/// Payload for ``git.show`` — show commit details.
+/// Payload for ``git.show`` �?show commit details.
 class GitShowPayload {
   final String hash;
+  final String repo;
 
   const GitShowPayload({
     this.hash = '',
+    this.repo = '',
   });
 
   factory GitShowPayload.fromJson(Map<String, dynamic> json) {
     return GitShowPayload(
       hash: json['hash'] as String? ?? '',
+      repo: json['repo'] as String? ?? '',
     );
   }
 
   Map<String, dynamic> toJson() => {
         'hash': hash,
+        'repo': repo,
       };
 }
 
-/// Payload for ``git.show.result`` — commit details.
+/// Payload for ``git.show.result`` �?commit details.
 class GitShowResultPayload {
   final String hash;
   final String shortHash;
@@ -645,30 +677,34 @@ class GitShowResultPayload {
       };
 }
 
-/// Payload for ``git.diff.commit`` — diff a specific commit file.
+/// Payload for ``git.diff.commit`` �?diff a specific commit file.
 class GitDiffCommitPayload {
   final String hash;
   final String path;
+  final String repo;
 
   const GitDiffCommitPayload({
     this.hash = '',
     this.path = '',
+    this.repo = '',
   });
 
   factory GitDiffCommitPayload.fromJson(Map<String, dynamic> json) {
     return GitDiffCommitPayload(
       hash: json['hash'] as String? ?? '',
       path: json['path'] as String? ?? '',
+      repo: json['repo'] as String? ?? '',
     );
   }
 
   Map<String, dynamic> toJson() => {
         'hash': hash,
         'path': path,
+        'repo': repo,
       };
 }
 
-/// Payload for ``git.diff.commit.result`` — commit file diff.
+/// Payload for ``git.diff.commit.result`` �?commit file diff.
 class GitDiffCommitResultPayload {
   final String oldContent;
   final String newContent;
@@ -699,26 +735,30 @@ class GitDiffCommitResultPayload {
       };
 }
 
-/// Payload for ``git.discard`` — discard changes to a file.
+/// Payload for ``git.discard`` �?discard changes to a file.
 class GitDiscardPayload {
   final String path;
+  final String repo;
 
   const GitDiscardPayload({
     this.path = '',
+    this.repo = '',
   });
 
   factory GitDiscardPayload.fromJson(Map<String, dynamic> json) {
     return GitDiscardPayload(
       path: json['path'] as String? ?? '',
+      repo: json['repo'] as String? ?? '',
     );
   }
 
   Map<String, dynamic> toJson() => {
         'path': path,
+        'repo': repo,
       };
 }
 
-/// Payload for ``git.discard.result`` — discard operation result.
+/// Payload for ``git.discard.result`` �?discard operation result.
 class GitDiscardResultPayload {
   final bool success;
   final String? error;
@@ -741,7 +781,7 @@ class GitDiscardResultPayload {
       };
 }
 
-/// Payload for ``git.repos`` — discover git repositories.
+/// Payload for ``git.repos`` �?discover git repositories.
 class GitReposPayload {
   final int maxDepth;
 
@@ -760,7 +800,7 @@ class GitReposPayload {
       };
 }
 
-/// Payload for ``git.repos.result`` — discovered repository list.
+/// Payload for ``git.repos.result`` �?discovered repository list.
 class GitReposResultPayload {
   final List<Map<String, dynamic>> repos;
 
@@ -779,49 +819,34 @@ class GitReposResultPayload {
       };
 }
 
-/// Payload for ``git.switch_repo`` — switch active repository.
-class GitSwitchRepoPayload {
-  final String path;
-
-  const GitSwitchRepoPayload({
-    this.path = '',
-  });
-
-  factory GitSwitchRepoPayload.fromJson(Map<String, dynamic> json) {
-    return GitSwitchRepoPayload(
-      path: json['path'] as String? ?? '',
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'path': path,
-      };
-}
-
-/// Payload for ``git.exec`` — execute arbitrary git command.
+/// Payload for ``git.exec`` �?execute arbitrary git command.
 class GitExecPayload {
   final String command;
   final bool confirmed;
+  final String repo;
 
   const GitExecPayload({
     this.command = '',
     this.confirmed = false,
+    this.repo = '',
   });
 
   factory GitExecPayload.fromJson(Map<String, dynamic> json) {
     return GitExecPayload(
       command: json['command'] as String? ?? '',
       confirmed: json['confirmed'] as bool? ?? false,
+      repo: json['repo'] as String? ?? '',
     );
   }
 
   Map<String, dynamic> toJson() => {
         'command': command,
         'confirmed': confirmed,
+        'repo': repo,
       };
 }
 
-/// Payload for ``git.exec.result`` — git command execution result.
+/// Payload for ``git.exec.result`` �?git command execution result.
 class GitExecResultPayload {
   final bool success;
   final String output;

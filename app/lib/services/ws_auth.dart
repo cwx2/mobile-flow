@@ -183,6 +183,9 @@ class WsAuth {
           _ws.isConnectingFlag = false;
           return false;
         }
+        // Set connection info after successful auth so UI displays
+        // the correct host/port (previously skipped for auth modes).
+        setConnectionInfo();
       } else {
         // No auth needed — directly mark connected
         setConnectionInfo();
@@ -207,6 +210,7 @@ class WsAuth {
   /// Also resets the [ReconnectGuard] to idle since we're now connected.
   void _postConnect() {
     _ws.cliOps.requestCLIList();
+    _ws.projectOps.requestProjectList();
     _ws.projectOps.requestCurrentProject();
     _ws.resetReconnectGuard();
     _heartbeat.start();
@@ -421,6 +425,7 @@ class WsAuth {
         }
         await _handleAuthSuccess(result,
             isReconnect: true, fallbackSessionToken: sessionToken);
+        _postConnect();
         return true;
 
       case ConnectionMode.tunnel:

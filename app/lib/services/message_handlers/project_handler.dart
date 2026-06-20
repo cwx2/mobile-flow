@@ -39,9 +39,7 @@ class ProjectHandler extends MessageHandler {
     }
     if (newPath != oldPath && newPath.isNotEmpty) {
       ws.fileOps.requestFileTree(depth: 1);
-      ws.gitOps.requestGitStatus();
-      ws.gitOps.gitLog();
-      ws.gitOps.gitBranches();
+      ws.gitOps.requestGitStatusAll();
       ws.gitOps.requestGitRepos();
     }
     ws.notifyUI();

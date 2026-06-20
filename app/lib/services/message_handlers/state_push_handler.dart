@@ -28,29 +28,50 @@ class StatePushHandler extends MessageHandler {
 
     switch (key) {
       case 'git.status':
-        // Inject as git.status.result so GitScreen's existing listener picks it up
+        // Pass repo_path through for multi-repo routing
+        final payload = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        if (p.repoPath.isNotEmpty) {
+          payload['repo_path'] = p.repoPath;
+        }
         ws.messageController.add(WsMessage(
           type: MessageType.gitStatusResult,
-          payload: data is Map<String, dynamic> ? data : {},
+          payload: payload,
         ));
-        ws.eventBus?.emit(AppEvents.gitStatusPush, p.toJson());
-        _log.fine('[StatePush] git.status 已更新');
+        ws.eventBus?.emit(AppEvents.gitStatusPush, {
+          'data': data,
+          'repo_path': p.repoPath,
+        });
+        _log.fine('[StatePush] git.status 已更新: repo=${p.repoPath}');
 
       case 'git.branches':
+        final payload = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        if (p.repoPath.isNotEmpty) {
+          payload['repo_path'] = p.repoPath;
+        }
         ws.messageController.add(WsMessage(
           type: MessageType.gitBranchesResult,
-          payload: data is Map<String, dynamic> ? data : {},
+          payload: payload,
         ));
-        ws.eventBus?.emit(AppEvents.gitBranchesPush, p.toJson());
-        _log.fine('[StatePush] git.branches 已更新');
+        ws.eventBus?.emit(AppEvents.gitBranchesPush, {
+          'data': data,
+          'repo_path': p.repoPath,
+        });
+        _log.fine('[StatePush] git.branches 已更新: repo=${p.repoPath}');
 
       case 'git.log':
+        final payload = data is Map<String, dynamic> ? data : <String, dynamic>{};
+        if (p.repoPath.isNotEmpty) {
+          payload['repo_path'] = p.repoPath;
+        }
         ws.messageController.add(WsMessage(
           type: MessageType.gitLogResult,
-          payload: data is Map<String, dynamic> ? data : {},
+          payload: payload,
         ));
-        ws.eventBus?.emit(AppEvents.gitLogPush, p.toJson());
-        _log.fine('[StatePush] git.log 已更新');
+        ws.eventBus?.emit(AppEvents.gitLogPush, {
+          'data': data,
+          'repo_path': p.repoPath,
+        });
+        _log.fine('[StatePush] git.log 已更新: repo=${p.repoPath}');
 
       case 'git.progress':
         ws.eventBus?.emit(AppEvents.gitProgressPush,

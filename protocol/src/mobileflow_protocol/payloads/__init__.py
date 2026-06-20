@@ -227,9 +227,10 @@ from .git import (
     GitShowResultPayload,
     GitStagePayload,
     GitStageResultPayload,
+    GitStatusAllPayload,
+    GitStatusAllResultPayload,
     GitStatusPayload,
     GitStatusResultPayload,
-    GitSwitchRepoPayload,
     GitUnstagePayload,
     GitUnstageResultPayload,
 )
@@ -329,9 +330,10 @@ __all__ = [
     "GitShowResultPayload",
     "GitStagePayload",
     "GitStageResultPayload",
+    "GitStatusAllPayload",
+    "GitStatusAllResultPayload",
     "GitStatusPayload",
     "GitStatusResultPayload",
-    "GitSwitchRepoPayload",
     "GitUnstagePayload",
     "GitUnstageResultPayload",
     # Terminal (P4)
