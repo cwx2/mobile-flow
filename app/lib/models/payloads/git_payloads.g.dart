@@ -1,4 +1,4 @@
-// GENERATED CODE �?DO NOT EDIT BY HAND
+// GENERATED CODE - DO NOT EDIT BY HAND
 // Generated from mobileflow_protocol v1
 //
 // To regenerate, run from pocket-coder/protocol/:
@@ -6,7 +6,7 @@
 //
 // Source: protocol/src/mobileflow_protocol/payloads/git.py
 
-/// Payload for ``git.status`` �?request repo status.
+/// Payload for ``git.status``  - request repo status.
 class GitStatusPayload {
   final String repo;
   const GitStatusPayload({this.repo = ''});
@@ -18,7 +18,7 @@ class GitStatusPayload {
   Map<String, dynamic> toJson() => {'repo': repo};
 }
 
-/// Payload for ``git.status.result`` �?repository status.
+/// Payload for ``git.status.result``  - repository status.
 class GitStatusResultPayload {
   final String branch;
   final List<Map<String, dynamic>> staged;
@@ -61,7 +61,7 @@ class GitStatusResultPayload {
       };
 }
 
-/// Payload for ``git.diff`` �?request file diff.
+/// Payload for ``git.diff``  - request file diff.
 class GitDiffPayload {
   final String path;
   final bool staged;
@@ -88,7 +88,7 @@ class GitDiffPayload {
       };
 }
 
-/// Payload for ``git.diff.result`` �?diff content.
+/// Payload for ``git.diff.result``  - diff content.
 class GitDiffResultPayload {
   final String diff;
   final String staged;
@@ -127,7 +127,7 @@ class GitDiffResultPayload {
       };
 }
 
-/// Payload for ``git.stage`` �?stage files for commit.
+/// Payload for ``git.stage``  - stage files for commit.
 class GitStagePayload {
   final List<String> paths;
   final bool all;
@@ -154,7 +154,7 @@ class GitStagePayload {
       };
 }
 
-/// Payload for ``git.stage.result`` �?stage operation result.
+/// Payload for ``git.stage.result``  - stage operation result.
 class GitStageResultPayload {
   final bool success;
   final String? error;
@@ -177,7 +177,7 @@ class GitStageResultPayload {
       };
 }
 
-/// Payload for ``git.unstage`` �?unstage files.
+/// Payload for ``git.unstage``  - unstage files.
 class GitUnstagePayload {
   final List<String> paths;
   final bool all;
@@ -204,7 +204,7 @@ class GitUnstagePayload {
       };
 }
 
-/// Payload for ``git.unstage.result`` �?unstage operation result.
+/// Payload for ``git.unstage.result``  - unstage operation result.
 class GitUnstageResultPayload {
   final bool success;
   final String? error;
@@ -227,30 +227,34 @@ class GitUnstageResultPayload {
       };
 }
 
-/// Payload for ``git.commit`` �?create a commit.
+/// Payload for ``git.commit``  - create a commit.
 class GitCommitPayload {
   final String message;
   final String repo;
+  final bool noVerify;
 
   const GitCommitPayload({
     this.message = '',
     this.repo = '',
+    this.noVerify = false,
   });
 
   factory GitCommitPayload.fromJson(Map<String, dynamic> json) {
     return GitCommitPayload(
       message: json['message'] as String? ?? '',
       repo: json['repo'] as String? ?? '',
+      noVerify: json['no_verify'] as bool? ?? false,
     );
   }
 
   Map<String, dynamic> toJson() => {
         'message': message,
         'repo': repo,
+        'no_verify': noVerify,
       };
 }
 
-/// Payload for ``git.commit.result`` �?commit operation result.
+/// Payload for ``git.commit.result``  - commit operation result.
 class GitCommitResultPayload {
   final bool success;
   final String? hash;
@@ -277,7 +281,7 @@ class GitCommitResultPayload {
       };
 }
 
-/// Payload for ``git.push`` �?push commits to remote.
+/// Payload for ``git.push``  - push commits to remote.
 class GitPushPayload {
   final String repo;
   const GitPushPayload({this.repo = ''});
@@ -289,7 +293,7 @@ class GitPushPayload {
   Map<String, dynamic> toJson() => {'repo': repo};
 }
 
-/// Payload for ``git.push.result`` �?push operation result.
+/// Payload for ``git.push.result``  - push operation result.
 class GitPushResultPayload {
   final bool success;
   final String output;
@@ -320,7 +324,7 @@ class GitPushResultPayload {
       };
 }
 
-/// Payload for ``git.pull`` �?pull changes from remote.
+/// Payload for ``git.pull``  - pull changes from remote.
 class GitPullPayload {
   final String repo;
   const GitPullPayload({this.repo = ''});
@@ -332,7 +336,7 @@ class GitPullPayload {
   Map<String, dynamic> toJson() => {'repo': repo};
 }
 
-/// Payload for ``git.pull.result`` �?pull operation result.
+/// Payload for ``git.pull.result``  - pull operation result.
 class GitPullResultPayload {
   final bool success;
   final String output;
@@ -363,7 +367,7 @@ class GitPullResultPayload {
       };
 }
 
-/// Payload for ``git.branches`` �?list all branches.
+/// Payload for ``git.branches``  - list all branches.
 class GitBranchesPayload {
   final String repo;
   const GitBranchesPayload({this.repo = ''});
@@ -375,7 +379,7 @@ class GitBranchesPayload {
   Map<String, dynamic> toJson() => {'repo': repo};
 }
 
-/// Payload for ``git.branches.result`` �?branch list.
+/// Payload for ``git.branches.result``  - branch list.
 class GitBranchesResultPayload {
   final List<Map<String, dynamic>> branches;
   final String current;
@@ -402,7 +406,7 @@ class GitBranchesResultPayload {
       };
 }
 
-/// Payload for ``git.checkout`` �?switch to a branch.
+/// Payload for ``git.checkout``  - switch to a branch.
 class GitCheckoutPayload {
   final String branch;
   final String repo;
@@ -425,7 +429,7 @@ class GitCheckoutPayload {
       };
 }
 
-/// Payload for ``git.checkout.result`` �?checkout operation result.
+/// Payload for ``git.checkout.result``  - checkout operation result.
 class GitCheckoutResultPayload {
   final bool success;
   final String? error;
@@ -448,7 +452,7 @@ class GitCheckoutResultPayload {
       };
 }
 
-/// Payload for ``git.log`` �?request commit log.
+/// Payload for ``git.log``  - request commit log.
 class GitLogPayload {
   final int count;
   final String repo;
@@ -471,7 +475,7 @@ class GitLogPayload {
       };
 }
 
-/// Payload for ``git.log.result`` �?commit log.
+/// Payload for ``git.log.result``  - commit log.
 class GitLogResultPayload {
   final List<Map<String, dynamic>> entries;
   final bool hasMore;
@@ -498,7 +502,7 @@ class GitLogResultPayload {
       };
 }
 
-/// Payload for ``git.log.search`` �?unified log query with filters.
+/// Payload for ``git.log.search``  - unified log query with filters.
 class GitLogSearchPayload {
   final String query;
   final String branch;
@@ -545,7 +549,7 @@ class GitLogSearchPayload {
       };
 }
 
-/// Payload for ``git.log.search.result`` �?log search results.
+/// Payload for ``git.log.search.result``  - log search results.
 class GitLogSearchResultPayload {
   final List<Map<String, dynamic>> entries;
   final bool hasMore;
@@ -576,7 +580,7 @@ class GitLogSearchResultPayload {
       };
 }
 
-/// Payload for ``git.log.authors`` �?list unique commit authors.
+/// Payload for ``git.log.authors``  - list unique commit authors.
 class GitLogAuthorsPayload {
   final String repo;
   const GitLogAuthorsPayload({this.repo = ''});
@@ -588,7 +592,7 @@ class GitLogAuthorsPayload {
   Map<String, dynamic> toJson() => {'repo': repo};
 }
 
-/// Payload for ``git.log.authors.result`` �?unique author list.
+/// Payload for ``git.log.authors.result``  - unique author list.
 class GitLogAuthorsResultPayload {
   final List<String> authors;
 
@@ -607,7 +611,7 @@ class GitLogAuthorsResultPayload {
       };
 }
 
-/// Payload for ``git.show`` �?show commit details.
+/// Payload for ``git.show``  - show commit details.
 class GitShowPayload {
   final String hash;
   final String repo;
@@ -630,7 +634,7 @@ class GitShowPayload {
       };
 }
 
-/// Payload for ``git.show.result`` �?commit details.
+/// Payload for ``git.show.result``  - commit details.
 class GitShowResultPayload {
   final String hash;
   final String shortHash;
@@ -677,7 +681,7 @@ class GitShowResultPayload {
       };
 }
 
-/// Payload for ``git.diff.commit`` �?diff a specific commit file.
+/// Payload for ``git.diff.commit``  - diff a specific commit file.
 class GitDiffCommitPayload {
   final String hash;
   final String path;
@@ -704,7 +708,7 @@ class GitDiffCommitPayload {
       };
 }
 
-/// Payload for ``git.diff.commit.result`` �?commit file diff.
+/// Payload for ``git.diff.commit.result``  - commit file diff.
 class GitDiffCommitResultPayload {
   final String oldContent;
   final String newContent;
@@ -735,7 +739,7 @@ class GitDiffCommitResultPayload {
       };
 }
 
-/// Payload for ``git.discard`` �?discard changes to a file.
+/// Payload for ``git.discard``  - discard changes to a file.
 class GitDiscardPayload {
   final String path;
   final String repo;
@@ -758,7 +762,7 @@ class GitDiscardPayload {
       };
 }
 
-/// Payload for ``git.discard.result`` �?discard operation result.
+/// Payload for ``git.discard.result``  - discard operation result.
 class GitDiscardResultPayload {
   final bool success;
   final String? error;
@@ -781,7 +785,7 @@ class GitDiscardResultPayload {
       };
 }
 
-/// Payload for ``git.repos`` �?discover git repositories.
+/// Payload for ``git.repos``  - discover git repositories.
 class GitReposPayload {
   final int maxDepth;
 
@@ -800,7 +804,7 @@ class GitReposPayload {
       };
 }
 
-/// Payload for ``git.repos.result`` �?discovered repository list.
+/// Payload for ``git.repos.result``  - discovered repository list.
 class GitReposResultPayload {
   final List<Map<String, dynamic>> repos;
 
@@ -819,7 +823,7 @@ class GitReposResultPayload {
       };
 }
 
-/// Payload for ``git.exec`` �?execute arbitrary git command.
+/// Payload for ``git.exec``  - execute arbitrary git command.
 class GitExecPayload {
   final String command;
   final bool confirmed;
@@ -846,7 +850,7 @@ class GitExecPayload {
       };
 }
 
-/// Payload for ``git.exec.result`` �?git command execution result.
+/// Payload for ``git.exec.result``  - git command execution result.
 class GitExecResultPayload {
   final bool success;
   final String output;

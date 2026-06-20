@@ -333,21 +333,41 @@ class GitStateProvider extends ChangeNotifier {
 
       // Write operation results
       case MessageType.gitCommitResult:
-        final repo = msg.payload['repo'] as String? ?? '';
-        if (repo.isNotEmpty) _getOpState(repo).committing = false;
-        _log.info('commit 完成: repo=$repo');
+        final commitRepo = msg.payload['repo'] as String? ?? '';
+        // Always reset committing — result means operation is done
+        if (commitRepo.isNotEmpty) {
+          _getOpState(commitRepo).committing = false;
+        } else {
+          // Fallback: reset all repos' committing flag
+          for (final op in _opStates.values) {
+            op.committing = false;
+          }
+        }
+        _log.info('commit 完成: repo=$commitRepo');
         notifyListeners();
 
       case MessageType.gitPushResult:
-        final repo = msg.payload['repo'] as String? ?? '';
-        if (repo.isNotEmpty) _getOpState(repo).pushing = false;
-        _log.info('push 完成: repo=$repo');
+        final pushRepo = msg.payload['repo'] as String? ?? '';
+        if (pushRepo.isNotEmpty) {
+          _getOpState(pushRepo).pushing = false;
+        } else {
+          for (final op in _opStates.values) {
+            op.pushing = false;
+          }
+        }
+        _log.info('push 完成: repo=$pushRepo');
         notifyListeners();
 
       case MessageType.gitPullResult:
-        final repo = msg.payload['repo'] as String? ?? '';
-        if (repo.isNotEmpty) _getOpState(repo).pulling = false;
-        _log.info('pull 完成: repo=$repo');
+        final pullRepo = msg.payload['repo'] as String? ?? '';
+        if (pullRepo.isNotEmpty) {
+          _getOpState(pullRepo).pulling = false;
+        } else {
+          for (final op in _opStates.values) {
+            op.pulling = false;
+          }
+        }
+        _log.info('pull 完成: repo=$pullRepo');
         notifyListeners();
 
       case MessageType.gitStageResult:

@@ -69,10 +69,10 @@ class GitOperations {
   // ── Commit / Push / Pull ──
 
   /// Commit staged changes with [message] in a specific [repo].
-  void gitCommit(String message, {required String repo}) =>
+  void gitCommit(String message, {required String repo, bool noVerify = false}) =>
       _sender.send(WsMessage(
           type: MessageType.gitCommit,
-          payload: GitCommitPayload(message: message, repo: repo).toJson()));
+          payload: GitCommitPayload(message: message, repo: repo, noVerify: noVerify).toJson()));
 
   /// Push to remote for a specific [repo].
   void gitPush({required String repo}) => _sender.send(WsMessage(

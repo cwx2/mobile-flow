@@ -713,23 +713,43 @@ class GitService:
 
     # ── Commit ──
 
-    async def commit(self, message: str) -> dict:
+    async def commit(self, message: str, no_verify: bool = False) -> dict:
         """Create a commit with the given message.
 
         Args:
             message: Commit message text.
+            no_verify: If True, skip pre-commit and commit-msg hooks.
+                Only used when user explicitly chooses to force commit
+                after a hook failure.
 
         Returns:
-            Dict with ``success``, ``output``, and ``error`` keys.
+            Dict with ``success``, ``output``, ``error``, and
+            ``hook_failed`` keys. When hook_failed is True, the UI
+            should offer a "force commit" option.
         """
         if not message.strip():
-            return {"success": False, "error": t("backend.gitCommitEmpty")}
-        logger.info(f"git commit: message={message[:50]}")
-        out, err, code = await self._run("commit", "-m", message)
+            return {"success": False, "error": t("backend.gitCommitEmpty"),
+                    "hook_failed": False}
+        logger.info(f"git commit: message={message[:50]}, no_verify={no_verify}")
+
+        args = ["commit"]
+        if no_verify:
+            args.append("--no-verify")
+        args.extend(["-m", message])
+
+        out, err, code = await self._run(*args)
         if code != 0:
-            logger.error(f"git commit 失败: {err.split(chr(10))[0] if err else ''}")
-            return {"success": False, "error": err.split("\n")[0] if err else ""}
-        return {"success": True, "output": out.strip(), "error": ""}
+            error_msg = err.strip() if err else ""
+            # Return full error message for hooks (they output detailed info)
+            # but cap at reasonable length to avoid huge payloads
+            display_error = error_msg[:500] if error_msg else ""
+            logger.error(f"git commit 失败: {error_msg.split(chr(10))[0] if error_msg else ''}")
+            # Always offer force-commit option on failure (VS Code pattern:
+            # don't guess the cause, let user decide if they want --no-verify)
+            return {"success": False, "error": display_error,
+                    "hook_failed": not no_verify}
+        return {"success": True, "output": out.strip(), "error": "",
+                "hook_failed": False}
 
     # ── Push / Pull ──
 

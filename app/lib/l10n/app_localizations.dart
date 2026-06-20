@@ -1543,6 +1543,24 @@ abstract class S {
   /// **'Discard'**
   String get gitDiscard;
 
+  /// No description provided for @gitHookFailedTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Pre-commit check failed'**
+  String get gitHookFailedTitle;
+
+  /// No description provided for @gitHookFailedMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'A Git hook rejected the commit. You can force commit to skip the check, but this may bypass quality gates.'**
+  String get gitHookFailedMessage;
+
+  /// No description provided for @gitForceCommit.
+  ///
+  /// In en, this message translates to:
+  /// **'Force Commit'**
+  String get gitForceCommit;
+
   /// No description provided for @gitSwitchRepo.
   ///
   /// In en, this message translates to:

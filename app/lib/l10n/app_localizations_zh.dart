@@ -749,6 +749,15 @@ class SZh extends S {
   String get gitDiscard => '丢弃';
 
   @override
+  String get gitHookFailedTitle => '提交前检查失败';
+
+  @override
+  String get gitHookFailedMessage => 'Git hook 拒绝了提交。你可以强制提交跳过检查，但这可能绕过代码质量门禁。';
+
+  @override
+  String get gitForceCommit => '强制提交';
+
+  @override
   String gitSwitchRepo(int count) {
     return '切换仓库 ($count)';
   }

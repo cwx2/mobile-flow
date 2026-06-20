@@ -15,6 +15,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../components/app_dialog.dart';
 import '../components/app_toast.dart';
 import '../l10n/app_localizations.dart';
 import '../models/protocol.dart';
@@ -65,10 +66,16 @@ class _RepoDetailScreenState extends State<RepoDetailScreen>
       case MessageType.gitCommitResult:
         // Filter: only handle results for THIS repo
         final commitRepo = msg.payload['repo'] as String? ?? '';
-        if (commitRepo.isNotEmpty && commitRepo != widget.repoPath) break;
+        if (commitRepo.isNotEmpty &&
+            commitRepo.replaceAll('\\', '/') != widget.repoPath.replaceAll('\\', '/')) break;
         final p = GitCommitResultPayload.fromJson(msg.payload);
         if ((p.error ?? '').isNotEmpty) {
-          AppToast.show(context, p.error!, type: AppToastType.error);
+          final hookFailed = msg.payload['hook_failed'] as bool? ?? false;
+          if (hookFailed) {
+            _showForceCommitDialog(p.error!);
+          } else {
+            AppToast.show(context, p.error!, type: AppToastType.error);
+          }
         } else {
           _commitController.clear();
           AppToast.show(context, 'Committed', type: AppToastType.success);
@@ -236,6 +243,25 @@ class _RepoDetailScreenState extends State<RepoDetailScreen>
         ],
       ),
     );
+  }
+
+  void _showForceCommitDialog(String error) async {
+    final confirmed = await showAppErrorActionDialog(
+      context,
+      title: S.of(context).gitHookFailedTitle,
+      error: error,
+      description: S.of(context).gitHookFailedMessage,
+      actionLabel: S.of(context).gitForceCommit,
+      cancelLabel: S.of(context).commonCancel,
+    );
+    if (confirmed == true && mounted) {
+      final ws = context.read<WebSocketService>();
+      ws.gitOps.gitCommit(
+        _commitController.text.trim(),
+        repo: widget.repoPath,
+        noVerify: true,
+      );
+    }
   }
 
   void _showBranchPicker(BuildContext context, GitStateProvider git, String currentBranch) {

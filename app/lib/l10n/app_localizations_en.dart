@@ -774,6 +774,16 @@ class SEn extends S {
   String get gitDiscard => 'Discard';
 
   @override
+  String get gitHookFailedTitle => 'Pre-commit check failed';
+
+  @override
+  String get gitHookFailedMessage =>
+      'A Git hook rejected the commit. You can force commit to skip the check, but this may bypass quality gates.';
+
+  @override
+  String get gitForceCommit => 'Force Commit';
+
+  @override
   String gitSwitchRepo(int count) {
     return 'Switch repository ($count)';
   }

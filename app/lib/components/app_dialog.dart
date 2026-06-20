@@ -149,6 +149,72 @@ Future<String?> showAppSaveDialog(
   );
 }
 
+/// Show an app-styled error dialog with an optional retry action.
+///
+/// Displays an error message with prominent styling and offers the user
+/// a choice: cancel or retry with an alternative action (e.g. force commit).
+/// Used when an operation fails and there's a recoverable alternative.
+Future<bool?> showAppErrorActionDialog(
+  BuildContext context, {
+  required String title,
+  required String error,
+  String? description,
+  String? actionLabel,
+  String? cancelLabel,
+}) {
+  final effectiveActionLabel = actionLabel ?? S.of(context).commonRetry;
+  final effectiveCancelLabel = cancelLabel ?? S.of(context).commonCancel;
+  return showAppDialog<bool>(
+    context,
+    builder: (ctx) => _AppDialogContent(
+      title: title,
+      actions: [
+        _DialogButton(
+          label: effectiveCancelLabel,
+          onTap: () => Navigator.pop(ctx, false),
+        ),
+        _DialogButton(
+          label: effectiveActionLabel,
+          isDanger: true,
+          onTap: () => Navigator.pop(ctx, true),
+        ),
+      ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Error message in highlighted container
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.all(ctx.spacing.md),
+            decoration: BoxDecoration(
+              color: ctx.colors.error.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(ctx.radii.sm),
+              border: Border.all(color: ctx.colors.error.withValues(alpha: 0.2)),
+            ),
+            child: Text(
+              error,
+              style: ctx.typography.codeSmall.copyWith(
+                color: ctx.colors.error,
+              ),
+            ),
+          ),
+          if (description != null) ...[
+            SizedBox(height: ctx.spacing.md),
+            Text(
+              description,
+              style: ctx.typography.bodyMedium.copyWith(
+                color: ctx.colors.onSurfaceVariant,
+              ),
+            ),
+          ],
+          SizedBox(height: ctx.spacing.lg),
+        ],
+      ),
+    ),
+  );
+}
+
 /// Low-level dialog display method (frosted glass background + custom content).
 Future<T?> showAppDialog<T>(
   BuildContext context, {

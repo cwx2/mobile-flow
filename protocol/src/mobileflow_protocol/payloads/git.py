@@ -139,10 +139,12 @@ class GitCommitPayload(PayloadBase):
     Attributes:
         message: Commit message text.
         repo: Target repository path (required).
+        no_verify: Skip pre-commit/commit-msg hooks (user opt-in after failure).
     """
 
     message: str = ""
     repo: str = ""
+    no_verify: bool = False
 
 
 class GitPushPayload(PayloadBase):

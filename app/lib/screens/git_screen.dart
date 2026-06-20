@@ -65,7 +65,8 @@ class _GitScreenState extends State<GitScreen> with LoadingStateMixin {
       case MessageType.gitCommitResult:
         final p = GitCommitResultPayload.fromJson(msg.payload);
         final err = p.error ?? '';
-        if (err.isNotEmpty) {
+        final hookFailed = msg.payload['hook_failed'] as bool? ?? false;
+        if (err.isNotEmpty && !hookFailed) {
           AppToast.show(context, err, type: AppToastType.error);
         }
 
