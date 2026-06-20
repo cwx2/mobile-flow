@@ -103,9 +103,10 @@ class ProjectHandler(BaseHandler):
         Called after add, remove, or switch. Performs the full project
         transition sequence:
         1. Rebuild services (FileService, GitService) via apply_current
-        2. Clean up old CLI sessions (prevents stale session leaks)
-        3. Send updated project list and current project to App
-        4. Load and send chat history for the new project
+        2. Re-initialize multi-repo manager for the new project
+        3. Clean up old CLI sessions (prevents stale session leaks)
+        4. Send updated project list and current project to App
+        5. Load and send chat history for the new project
 
         This ensures all three operations (add/remove/switch) have
         identical post-change behaviour. No handler needs to remember
@@ -117,6 +118,11 @@ class ProjectHandler(BaseHandler):
         """
         current = self.project_manager.apply_current(self.server)
         await self.cli_manager.cleanup_sessions(client_id)
+
+        # Re-initialize multi-repo manager for the new project directory
+        new_path = current.get("path", "")
+        if new_path:
+            await self._reinit_multi_repo(new_path)
 
         projects = self.project_manager.list_projects()
         await self.send(ws, Message.from_typed(
@@ -276,3 +282,37 @@ class ProjectHandler(BaseHandler):
                     error=t("backend.searchFailed", error=str(e)),
                 ),
             ))
+
+    async def _reinit_multi_repo(self, new_path: str) -> None:
+        """Re-create MultiRepoManager and discover repos for a new project.
+
+        Called during project switch to ensure git state tracks
+        the correct repositories. Disposes old manager if still alive,
+        creates a fresh one, then discovers and registers repos.
+
+        Args:
+            new_path: The new project work directory path.
+        """
+        from ...services.multi_repo_manager import MultiRepoManager
+
+        # Ensure old manager is fully disposed
+        if self.server.multi_repo_manager:
+            self.server.multi_repo_manager.dispose()
+
+        # Create fresh multi-repo manager with updated git_service
+        self.server.multi_repo_manager = MultiRepoManager(
+            git_service=self.server.git_service,
+            event_bus=self.server.event_bus,
+        )
+
+        # Discover repos in the new project directory
+        try:
+            repos = await self.server.git_service.discover_repos(
+                root_dir=new_path, max_depth=3)
+            if repos:
+                await self.server.multi_repo_manager.open_discovered_repos(repos)
+                logger.info(
+                    f"项目切换后重新发现仓库: {self.server.multi_repo_manager.repo_count} 个"
+                )
+        except Exception as e:
+            logger.warning(f"项目切换后 Git 发现失败（非致命）: {e}")

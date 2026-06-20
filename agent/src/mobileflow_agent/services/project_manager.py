@@ -136,6 +136,11 @@ class ProjectManager:
 
             server.git_state.update_project(path)
 
+            # Reset multi-repo manager: dispose old repos, re-discover for new project
+            if hasattr(server, 'multi_repo_manager') and server.multi_repo_manager:
+                server.multi_repo_manager.dispose()
+                server.multi_repo_manager = None
+
         return current
 
     def add_project(self, path: str, name: Optional[str] = None) -> bool:

@@ -12,7 +12,7 @@ import '../l10n/app_localizations.dart';
 import '../theme/theme_extensions.dart';
 
 /// Git commit tab: message input + commit/push/pull buttons.
-class GitCommitTab extends StatelessWidget {
+class GitCommitTab extends StatefulWidget {
   final int stagedCount;
   final int ahead;
   final bool committing;
@@ -39,9 +39,46 @@ class GitCommitTab extends StatelessWidget {
   });
 
   @override
+  State<GitCommitTab> createState() => _GitCommitTabState();
+}
+
+class _GitCommitTabState extends State<GitCommitTab> {
+  bool _hasText = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _hasText = widget.commitController.text.trim().isNotEmpty;
+    widget.commitController.addListener(_onTextChanged);
+  }
+
+  @override
+  void didUpdateWidget(GitCommitTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.commitController != widget.commitController) {
+      oldWidget.commitController.removeListener(_onTextChanged);
+      widget.commitController.addListener(_onTextChanged);
+      _hasText = widget.commitController.text.trim().isNotEmpty;
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.commitController.removeListener(_onTextChanged);
+    super.dispose();
+  }
+
+  void _onTextChanged() {
+    final newHasText = widget.commitController.text.trim().isNotEmpty;
+    if (newHasText != _hasText) {
+      setState(() => _hasText = newHasText);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final hasStagedFiles = stagedCount > 0;
+    final hasStagedFiles = widget.stagedCount > 0;
 
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -60,7 +97,7 @@ class GitCommitTab extends StatelessWidget {
             ),
             child: Text(
               hasStagedFiles
-                  ? S.of(context).gitCommitStagedReady(stagedCount)
+                  ? S.of(context).gitCommitStagedReady(widget.stagedCount)
                   : S.of(context).gitCommitNoStaged,
               style: TextStyle(
                 fontSize: 13,
@@ -73,7 +110,7 @@ class GitCommitTab extends StatelessWidget {
 
           // Commit message input
           TextField(
-            controller: commitController,
+            controller: widget.commitController,
             maxLines: 4,
             minLines: 2,
             decoration: InputDecoration(
@@ -92,12 +129,10 @@ class GitCommitTab extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: hasStagedFiles &&
-                      commitController.text.trim().isNotEmpty &&
-                      !committing
-                  ? onCommit
+              onPressed: hasStagedFiles && _hasText && !widget.committing
+                  ? widget.onCommit
                   : null,
-              icon: committing
+              icon: widget.committing
                   ? const SizedBox(
                       width: 18,
                       height: 18,
@@ -119,14 +154,14 @@ class GitCommitTab extends StatelessWidget {
             children: [
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: pulling ? null : onPull,
-                  icon: pulling
+                  onPressed: widget.pulling ? null : widget.onPull,
+                  icon: widget.pulling
                       ? const SizedBox(
                           width: 16,
                           height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2))
                       : const Icon(Icons.download, size: 16),
-                  label: Text(pulling ? S.of(context).gitCommitPulling : 'Pull'),
+                  label: Text(widget.pulling ? S.of(context).gitCommitPulling : 'Pull'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: colors.primary,
                     side: BorderSide(color: colors.border),
@@ -136,14 +171,14 @@ class GitCommitTab extends StatelessWidget {
               const SizedBox(width: 12),
               Expanded(
                 child: OutlinedButton.icon(
-                  onPressed: pushing || ahead == 0 ? null : onPush,
-                  icon: pushing
+                  onPressed: widget.pushing || widget.ahead == 0 ? null : widget.onPush,
+                  icon: widget.pushing
                       ? const SizedBox(
                           width: 16,
                           height: 16,
                           child: CircularProgressIndicator(strokeWidth: 2))
                       : const Icon(Icons.upload, size: 16),
-                  label: Text(pushing ? S.of(context).gitCommitPushing : 'Push'),
+                  label: Text(widget.pushing ? S.of(context).gitCommitPushing : 'Push'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: colors.primary,
                     side: BorderSide(color: colors.border),

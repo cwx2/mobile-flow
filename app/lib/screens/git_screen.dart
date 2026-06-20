@@ -145,7 +145,7 @@ class _GitScreenState extends State<GitScreen> with LoadingStateMixin {
                     key: const ValueKey('content'),
                     child: GitChangesTab(
                       allRepos: git.allRepos,
-                      isMultiRepo: git.isMultiRepo,
+                      isMultiRepo: true,
                       ws: context.read<WebSocketService>(),
                       onShowDiff: _showFileDiff,
                       onConfirmDiscard: _confirmDiscard,

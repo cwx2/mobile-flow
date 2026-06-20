@@ -53,6 +53,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   List<Map<String, dynamic>> _cliList = [];
   List<Map<String, dynamic>> _projects = [];
+  String? _switchingProject;
   StreamSubscription? _sub;
 
   @override
@@ -83,6 +84,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final p = ProjectListResultPayload.fromJson(msg.payload);
         setState(() {
           _projects = p.projects;
+          _switchingProject = null;
         });
       }
       if (msg.type == MessageType.projectCurrent) {
@@ -140,6 +142,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _buildCard([
                 ..._projects.map((p) {
                   final isCurrent = p['is_current'] == true;
+                  final path = p['path'] as String? ?? '';
+                  final isSwitching = _switchingProject == path;
                   return ListTile(
                     leading: Icon(
                       isCurrent ? Icons.folder_open : Icons.folder_outlined,
@@ -156,21 +160,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ),
                     ),
                     subtitle: Text(
-                      p['path'] as String? ?? '',
+                      path,
                       style: typography.codeSmall
                           .copyWith(color: colors.onSurfaceMuted),
                       overflow: TextOverflow.ellipsis,
                     ),
-                    trailing: isCurrent
-                        ? Icon(Icons.check, color: colors.secondary, size: 18)
-                        : null,
-                    onTap: isCurrent
+                    trailing: isSwitching
+                        ? SizedBox(
+                            width: 18, height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2, color: colors.secondary))
+                        : isCurrent
+                            ? Icon(Icons.check, color: colors.secondary, size: 18)
+                            : null,
+                    onTap: isCurrent || _switchingProject != null
                         ? null
                         : () {
                             HapticFeedback.selectionClick();
+                            setState(() => _switchingProject = path);
                             context
                                 .read<ProjectOperations>()
-                                .switchProject(p['path'] as String);
+                                .switchProject(path);
                           },
                     onLongPress: () => _confirmRemoveProject(
                         p['path'] as String, p['name'] as String),
