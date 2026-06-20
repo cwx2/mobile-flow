@@ -502,9 +502,8 @@ class ChatInputBarState extends State<ChatInputBar> {
             child: Container(
               width: 34,
               height: 34,
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 shape: BoxShape.circle,
-                color: colors.surfaceVariant,
               ),
               child: Icon(
                 Icons.camera_alt_outlined,
@@ -533,9 +532,8 @@ class ChatInputBarState extends State<ChatInputBar> {
               child: Container(
                 width: 34,
                 height: 34,
-                decoration: BoxDecoration(
+                decoration: const BoxDecoration(
                   shape: BoxShape.circle,
-                  color: colors.surfaceVariant,
                 ),
                 child: Icon(
                   _voiceMode ? Icons.keyboard_outlined : Icons.mic_none,
@@ -585,13 +583,8 @@ class ChatInputBarState extends State<ChatInputBar> {
               child: Container(
                 constraints: const BoxConstraints(minHeight: 40),
                 decoration: BoxDecoration(
-                  color: colors.surfaceVariant,
+                  color: colors.surfaceVariant.withValues(alpha: 0.5),
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: _focusNode.hasFocus && !showVoiceOverlay
-                        ? colors.primary.withValues(alpha: 0.5)
-                        : colors.borderSubtle,
-                  ),
                 ),
                 child: TextField(
                   controller: _controller,
