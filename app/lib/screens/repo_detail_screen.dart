@@ -95,6 +95,16 @@ class _RepoDetailScreenState extends State<RepoDetailScreen>
         } else {
           AppToast.show(context, S.of(context).gitPullSuccess);
         }
+      case MessageType.gitCheckoutResult:
+        final checkoutRepo = msg.payload['repo'] as String? ?? '';
+        if (checkoutRepo.isNotEmpty && checkoutRepo != widget.repoPath) break;
+        final p = GitCheckoutResultPayload.fromJson(msg.payload);
+        if ((p.error ?? '').isNotEmpty) {
+          AppToast.show(context, p.error!, type: AppToastType.error);
+        } else {
+          AppToast.show(context, S.of(context).gitCheckoutSuccess,
+              type: AppToastType.success);
+        }
       default:
         break;
     }
@@ -130,8 +140,25 @@ class _RepoDetailScreenState extends State<RepoDetailScreen>
             Text(repo.name,
                 style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
             const SizedBox(width: 6),
-            Text(repo.branch,
-                style: TextStyle(fontSize: 12, color: colors.onSurfaceMuted)),
+            GestureDetector(
+              onTap: () => _showBranchPicker(context, git, repo.branch),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: colors.secondary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.alt_route, size: 14, color: colors.secondary),
+                    const SizedBox(width: 4),
+                    Text(repo.branch,
+                        style: TextStyle(fontSize: 12, color: colors.secondary)),
+                  ],
+                ),
+              ),
+            ),
           ],
         ),
         actions: [
@@ -211,6 +238,40 @@ class _RepoDetailScreenState extends State<RepoDetailScreen>
     );
   }
 
+  void _showBranchPicker(BuildContext context, GitStateProvider git, String currentBranch) {
+    final colors = context.colors;
+    final branches = git.branchesFor(widget.repoPath);
+
+    // If branches not loaded yet, request them
+    if (branches.isEmpty) {
+      git.requestBranches(repo: widget.repoPath);
+      AppToast.show(context, S.of(context).gitBranchesLoading);
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: colors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      isScrollControlled: true,
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.6,
+      ),
+      builder: (ctx) => _BranchPickerSheet(
+        branches: branches,
+        currentBranch: currentBranch,
+        onSelect: (branchName) {
+          Navigator.pop(ctx);
+          if (branchName != currentBranch) {
+            git.checkout(branchName, repo: widget.repoPath);
+          }
+        },
+      ),
+    );
+  }
+
   void _showDiff(String path, {required String repo, required bool staged}) {
     final ws = context.read<WebSocketService>();
 
@@ -279,5 +340,221 @@ class _RepoDetailScreenState extends State<RepoDetailScreen>
     _commitController.dispose();
     _shellController.dispose();
     super.dispose();
+  }
+}
+
+/// Bottom sheet for branch selection (VS Code style).
+///
+/// Shows search, local branches (with ahead/behind, commit info),
+/// and remote branches grouped separately.
+class _BranchPickerSheet extends StatefulWidget {
+  final List<Map<String, dynamic>> branches;
+  final String currentBranch;
+  final ValueChanged<String> onSelect;
+
+  const _BranchPickerSheet({
+    required this.branches,
+    required this.currentBranch,
+    required this.onSelect,
+  });
+
+  @override
+  State<_BranchPickerSheet> createState() => _BranchPickerSheetState();
+}
+
+class _BranchPickerSheetState extends State<_BranchPickerSheet> {
+  String _filter = '';
+
+  List<Map<String, dynamic>> get _localBranches => widget.branches
+      .where((b) => (b['type'] as String? ?? 'branch') == 'branch')
+      .where(_matchesFilter)
+      .toList();
+
+  List<Map<String, dynamic>> get _remoteBranches => widget.branches
+      .where((b) => (b['type'] as String? ?? '') == 'remote')
+      .where(_matchesFilter)
+      .toList();
+
+  List<Map<String, dynamic>> get _tags => widget.branches
+      .where((b) => (b['type'] as String? ?? '') == 'tag')
+      .where(_matchesFilter)
+      .toList();
+
+  bool _matchesFilter(Map<String, dynamic> b) {
+    if (_filter.isEmpty) return true;
+    final name = (b['name'] as String? ?? '').toLowerCase();
+    final msg = (b['message'] as String? ?? '').toLowerCase();
+    final q = _filter.toLowerCase();
+    return name.contains(q) || msg.contains(q);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final local = _localBranches;
+    final remote = _remoteBranches;
+    final tags = _tags;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Handle bar
+        const SizedBox(height: 8),
+        Container(
+          width: 36, height: 4,
+          decoration: BoxDecoration(
+            color: colors.onSurfaceMuted.withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        // Search field
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: TextField(
+            autofocus: widget.branches.length > 5,
+            decoration: InputDecoration(
+              hintText: S.of(context).gitBranchSearchHint,
+              prefixIcon: const Icon(Icons.search, size: 20),
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide.none,
+              ),
+              filled: true,
+              fillColor: colors.background,
+            ),
+            onChanged: (v) => setState(() => _filter = v),
+          ),
+        ),
+        // Branch list
+        Flexible(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              // Local branches section
+              if (local.isNotEmpty) ...[
+                _sectionHeader(context, S.of(context).gitBranchLocal),
+                ...local.map((b) => _branchTile(context, b, isRemote: false)),
+              ],
+              // Remote branches section
+              if (remote.isNotEmpty) ...[
+                _sectionHeader(context, S.of(context).gitBranchRemote),
+                ...remote.map((b) => _branchTile(context, b, isRemote: true)),
+              ],
+              // Tags section
+              if (tags.isNotEmpty) ...[
+                _sectionHeader(context, S.of(context).gitBranchTag),
+                ...tags.map((b) => _branchTile(context, b, isRemote: false, isTag: true)),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+
+  Widget _sectionHeader(BuildContext context, String title) {
+    final colors = context.colors;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Text(title,
+          style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: colors.onSurfaceMuted,
+              letterSpacing: 0.5)),
+    );
+  }
+
+  Widget _branchTile(BuildContext context, Map<String, dynamic> branch,
+      {required bool isRemote, bool isTag = false}) {
+    final colors = context.colors;
+    final name = branch['name'] as String? ?? '';
+    final isCurrent = branch['current'] as bool? ?? false;
+    final hash = branch['hash'] as String? ?? '';
+    final message = branch['message'] as String? ?? '';
+    final author = branch['author'] as String? ?? '';
+    final date = branch['date'] as String? ?? '';
+    final ahead = branch['ahead'] as int? ?? 0;
+    final behind = branch['behind'] as int? ?? 0;
+
+    return InkWell(
+      onTap: () => widget.onSelect(name),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        color: isCurrent ? colors.secondary.withValues(alpha: 0.08) : null,
+        child: Row(
+          children: [
+            // Ref icon
+            Icon(
+              isTag ? Icons.sell_outlined
+                  : isRemote ? Icons.cloud_outlined : Icons.alt_route,
+              size: 16,
+              color: isCurrent ? colors.secondary : colors.onSurfaceMuted,
+            ),
+            const SizedBox(width: 10),
+            // Branch info (name + commit details)
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // First line: name + ahead/behind + date
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          name,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: isCurrent ? FontWeight.w600 : FontWeight.normal,
+                            color: isCurrent ? colors.secondary : colors.onSurface,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (ahead > 0 || behind > 0) ...[
+                        const SizedBox(width: 6),
+                        Text(
+                          '${behind > 0 ? "$behind↓" : ""}${ahead > 0 ? "$ahead↑" : ""}',
+                          style: TextStyle(fontSize: 11, color: colors.onSurfaceMuted),
+                        ),
+                      ],
+                      if (date.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        Text(date,
+                            style: TextStyle(fontSize: 11, color: colors.onSurfaceMuted)),
+                      ],
+                    ],
+                  ),
+                  // Second line: author • hash • message
+                  if (hash.isNotEmpty || message.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        [
+                          if (author.isNotEmpty) author,
+                          if (hash.isNotEmpty) hash,
+                          if (message.isNotEmpty) message,
+                        ].join(' • '),
+                        style: TextStyle(fontSize: 11, color: colors.onSurfaceMuted),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            // Right label
+            if (isCurrent)
+              Text(isTag ? S.of(context).gitBranchTag
+                  : isRemote ? S.of(context).gitBranchRemote
+                  : S.of(context).gitBranchLocal,
+                  style: TextStyle(fontSize: 11, color: colors.secondary)),
+          ],
+        ),
+      ),
+    );
   }
 }

@@ -28,6 +28,7 @@ def mock_git_service():
     git._cwd = ""
     git._command_timeout = 30
     git._discovery_timeout = 5
+    git.fetch = AsyncMock()  # Prevent real git fetch in background tasks
     return git
 
 
@@ -43,8 +44,17 @@ def mock_event_bus():
 
 @pytest.fixture
 def manager(mock_git_service, mock_event_bus):
-    """Create a MultiRepoManager instance."""
-    return MultiRepoManager(git_service=mock_git_service, event_bus=mock_event_bus)
+    """Create a MultiRepoManager instance. Cleans up on teardown."""
+    # Patch GitService constructor so open_repo doesn't create real instances
+    # that try to run actual git commands in background tasks.
+    with patch("mobileflow_agent.services.multi_repo_manager.GitService") as MockGitSvc:
+        mock_per_repo = MagicMock()
+        mock_per_repo.fetch = AsyncMock()
+        MockGitSvc.return_value = mock_per_repo
+
+        mgr = MultiRepoManager(git_service=mock_git_service, event_bus=mock_event_bus)
+        yield mgr
+        mgr.dispose()
 
 
 class TestNormalize:
@@ -209,13 +219,25 @@ class TestRefreshAll:
             mock1 = MagicMock()
             mock1.initialize = AsyncMock()
             mock1.throttled_status = AsyncMock()
+            mock1._git = MagicMock()
+            mock1._git.fetch = AsyncMock()
             mock2 = MagicMock()
             mock2.initialize = AsyncMock()
             mock2.throttled_status = AsyncMock()
+            mock2._git = MagicMock()
+            mock2._git.fetch = AsyncMock()
             MockGSM.side_effect = [mock1, mock2]
 
             await manager.open_repo("/project/repo1")
             await manager.open_repo("/project/repo2")
+
+            # Allow background tasks to settle
+            await asyncio.sleep(0.05)
+
+            # Reset call count after open_repo background tasks
+            mock1.throttled_status.reset_mock()
+            mock2.throttled_status.reset_mock()
+
             await manager.refresh_all()
 
             mock1.throttled_status.assert_called_once()

@@ -55,21 +55,47 @@ class GitFileStatus:
 
 
 @dataclass
+@dataclass
 class GitBranch:
-    """Branch metadata.
+    """Branch metadata with last commit info.
 
     Attributes:
         name: Branch name (without ``remotes/`` prefix for remote branches).
         current: Whether this is the currently checked-out branch.
         remote: Whether this is a remote-tracking branch.
+        ref_type: Type of ref — "branch", "remote", or "tag".
+        hash: Short commit hash of the branch tip.
+        message: First line of the branch tip commit message.
+        author: Author name of the branch tip commit.
+        date: Relative date of the branch tip commit (e.g. "2 hours ago").
+        ahead: Commits ahead of upstream (local branches only).
+        behind: Commits behind upstream (local branches only).
     """
     name: str
     current: bool
     remote: bool = False
+    ref_type: str = "branch"
+    hash: str = ""
+    message: str = ""
+    author: str = ""
+    date: str = ""
+    ahead: int = 0
+    behind: int = 0
 
     def to_dict(self) -> dict:
         """Serialise to a JSON-compatible dict."""
-        return {"name": self.name, "current": self.current, "remote": self.remote}
+        return {
+            "name": self.name,
+            "current": self.current,
+            "remote": self.remote,
+            "type": self.ref_type,
+            "hash": self.hash,
+            "message": self.message,
+            "author": self.author,
+            "date": self.date,
+            "ahead": self.ahead,
+            "behind": self.behind,
+        }
 
 
 @dataclass
@@ -752,10 +778,106 @@ class GitService:
     # ── Branch ──
 
     async def branches(self) -> dict:
-        """List all local and remote branches.
+        """List all local and remote branches with last commit metadata.
+
+        Implementation mirrors VS Code's git extension (getRefs with
+        includeCommitDetails). Uses git for-each-ref with NUL-separated
+        fields for reliable parsing.
+
+        Format per ref:
+          refname | objectname:short | authorname | committerdate:relative |
+          subject | upstream:track
 
         Returns:
             Dict with ``branches`` (list of branch dicts) and ``error`` keys.
+        """
+        # NUL separator for reliable field parsing (VS Code pattern)
+        sep = "%00"
+        fmt = sep.join([
+            "%(refname)",
+            "%(objectname:short)",
+            "%(authorname)",
+            "%(committerdate:relative)",
+            "%(subject)",
+            "%(upstream:track)",
+            "%(HEAD)",
+        ])
+        out, err, code = await self._run(
+            "for-each-ref",
+            f"--format={fmt}",
+            "--sort=-committerdate",
+            "refs/heads/", "refs/remotes/", "refs/tags/",
+        )
+        if code != 0:
+            return await self._branches_simple()
+
+        import re
+        track_regex = re.compile(r"\[(?:ahead (\d+))?(?:,\s*)?(?:behind (\d+))?\]")
+
+        branches: list[GitBranch] = []
+
+        for line in out.strip().split("\n"):
+            if not line.strip():
+                continue
+            parts = line.split("\x00")
+            if len(parts) < 6:
+                continue
+
+            refname = parts[0].strip()
+            short_hash = parts[1].strip()
+            author = parts[2].strip()
+            date = parts[3].strip()
+            message = parts[4].strip()
+            track = parts[5].strip()
+            head_marker = parts[6].strip() if len(parts) > 6 else ""
+
+            # Determine branch type and name from refname
+            current = head_marker == "*"
+            if refname.startswith("refs/heads/"):
+                name = refname[len("refs/heads/"):]
+                remote = False
+                ref_type = "branch"
+            elif refname.startswith("refs/remotes/"):
+                name = refname[len("refs/remotes/"):]
+                remote = True
+                ref_type = "remote"
+                # Skip origin/HEAD pointer
+                if name.endswith("/HEAD"):
+                    continue
+            elif refname.startswith("refs/tags/"):
+                name = refname[len("refs/tags/"):]
+                remote = False
+                ref_type = "tag"
+            else:
+                continue
+
+            # Parse ahead/behind from upstream:track field
+            ahead = 0
+            behind = 0
+            m = track_regex.search(track)
+            if m:
+                ahead = int(m.group(1)) if m.group(1) else 0
+                behind = int(m.group(2)) if m.group(2) else 0
+
+            branches.append(GitBranch(
+                name=name,
+                current=current,
+                remote=remote,
+                ref_type=ref_type,
+                hash=short_hash,
+                message=message,
+                author=author,
+                date=date,
+                ahead=ahead,
+                behind=behind,
+            ))
+
+        return {"branches": [b.to_dict() for b in branches], "error": ""}
+
+    async def _branches_simple(self) -> dict:
+        """Fallback: list branches without commit metadata.
+
+        Used when for-each-ref is not available or fails.
         """
         out, err, code = await self._run("branch", "-a", "--no-color")
         if code != 0:

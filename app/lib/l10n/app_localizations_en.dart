@@ -707,6 +707,24 @@ class SEn extends S {
   String get gitPullSuccess => 'Pull succeeded';
 
   @override
+  String get gitCheckoutSuccess => 'Branch switched';
+
+  @override
+  String get gitBranchSearchHint => 'Search branches...';
+
+  @override
+  String get gitBranchesLoading => 'Loading branches...';
+
+  @override
+  String get gitBranchLocal => 'LOCAL';
+
+  @override
+  String get gitBranchRemote => 'REMOTE';
+
+  @override
+  String get gitBranchTag => 'TAG';
+
+  @override
   String get gitExecSuccess => 'Command executed';
 
   @override

@@ -57,6 +57,7 @@ class MultiRepoManager:
         self._event_bus = event_bus
         self._managers: dict[str, GitStateManager] = {}
         self._semaphore = asyncio.Semaphore(_MAX_CONCURRENT_STATUS)
+        self._bg_tasks: set[asyncio.Task] = set()
 
     # ── Public API ──
 
@@ -118,7 +119,9 @@ class MultiRepoManager:
 
         # Background fetch: update remote refs for accurate ahead/behind.
         # Non-blocking — fires after registration, refreshes status on completion.
-        asyncio.create_task(self._background_fetch(normalized, per_repo_git, manager))
+        task = asyncio.create_task(self._background_fetch(normalized, per_repo_git, manager))
+        self._bg_tasks.add(task)
+        task.add_done_callback(self._bg_tasks.discard)
 
         return manager
 
@@ -292,7 +295,12 @@ class MultiRepoManager:
         await asyncio.gather(*tasks)
 
     def dispose(self) -> None:
-        """Dispose all managed repositories."""
+        """Dispose all managed repositories and cancel background tasks."""
+        # Cancel any pending background fetch tasks
+        for task in self._bg_tasks:
+            task.cancel()
+        self._bg_tasks.clear()
+
         for manager in self._managers.values():
             manager.dispose()
         self._managers.clear()

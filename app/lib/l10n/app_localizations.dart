@@ -1417,6 +1417,42 @@ abstract class S {
   /// **'Pull succeeded'**
   String get gitPullSuccess;
 
+  /// No description provided for @gitCheckoutSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Branch switched'**
+  String get gitCheckoutSuccess;
+
+  /// No description provided for @gitBranchSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search branches...'**
+  String get gitBranchSearchHint;
+
+  /// No description provided for @gitBranchesLoading.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading branches...'**
+  String get gitBranchesLoading;
+
+  /// No description provided for @gitBranchLocal.
+  ///
+  /// In en, this message translates to:
+  /// **'LOCAL'**
+  String get gitBranchLocal;
+
+  /// No description provided for @gitBranchRemote.
+  ///
+  /// In en, this message translates to:
+  /// **'REMOTE'**
+  String get gitBranchRemote;
+
+  /// No description provided for @gitBranchTag.
+  ///
+  /// In en, this message translates to:
+  /// **'TAG'**
+  String get gitBranchTag;
+
   /// No description provided for @gitExecSuccess.
   ///
   /// In en, this message translates to:

@@ -396,7 +396,8 @@ class GitHandler(BaseHandler):
         )
 
         await self.send(ws, Message(
-            type=MessageType.GIT_CHECKOUT_RESULT, payload=result))
+            type=MessageType.GIT_CHECKOUT_RESULT,
+            payload={**(result or {}), "repo": repo_path}))
 
     # ── Log (read) ──
 

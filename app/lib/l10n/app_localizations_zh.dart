@@ -682,6 +682,24 @@ class SZh extends S {
   String get gitPullSuccess => 'Pull 成功';
 
   @override
+  String get gitCheckoutSuccess => '分支已切换';
+
+  @override
+  String get gitBranchSearchHint => '搜索分支...';
+
+  @override
+  String get gitBranchesLoading => '正在加载分支...';
+
+  @override
+  String get gitBranchLocal => '分支';
+
+  @override
+  String get gitBranchRemote => '远程分支';
+
+  @override
+  String get gitBranchTag => '标记';
+
+  @override
   String get gitExecSuccess => '命令执行成功';
 
   @override
