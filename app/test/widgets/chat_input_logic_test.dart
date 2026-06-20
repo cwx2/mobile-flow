@@ -30,8 +30,11 @@ void main() {
     test('多条历史按顺序返回（最新的先）', () async {
       final history = InputHistory();
       await history.push('first');
+      await Future.delayed(const Duration(milliseconds: 2));
       await history.push('second');
+      await Future.delayed(const Duration(milliseconds: 2));
       await history.push('third');
+      // Sorted by lastUsed descending: third (newest) → second → first
       expect(history.previous(''), 'third');
       expect(history.previous(''), 'second');
       expect(history.previous(''), 'first');
@@ -47,11 +50,15 @@ void main() {
     test('next 可以向下翻', () async {
       final history = InputHistory();
       await history.push('a');
+      await Future.delayed(const Duration(milliseconds: 2));
       await history.push('b');
+      await Future.delayed(const Duration(milliseconds: 2));
       await history.push('c');
+      // Navigate up: c → b → a
       history.previous('');
       history.previous('');
       history.previous('');
+      // Navigate down: b → c → '' (back to input)
       expect(history.next(), 'b');
       expect(history.next(), 'c');
       expect(history.next(), '');
@@ -60,6 +67,7 @@ void main() {
     test('reset 重置游标', () async {
       final history = InputHistory();
       await history.push('a');
+      await Future.delayed(const Duration(milliseconds: 2));
       await history.push('b');
       history.previous('');
       history.reset();
