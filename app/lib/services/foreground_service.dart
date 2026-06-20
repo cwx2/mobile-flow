@@ -168,7 +168,7 @@ class ForegroundService {
 
     _throttleTimer = Timer(const Duration(milliseconds: 150), () {
       if (_running && _lineBuffer.isNotEmpty) {
-        _update(_titleStreaming, _lineBuffer.toString());
+        _update(_titleStreaming, _lineBuffer.toString(), streaming: true);
       }
     });
   }
@@ -195,11 +195,12 @@ class ForegroundService {
   }
 
   /// Internal helper to update notification content.
-  static Future<void> _update(String title, String text) async {
+  static Future<void> _update(String title, String text, {bool streaming = false}) async {
     try {
       await _channel.invokeMethod('update', {
         'title': title,
         'text': text,
+        'streaming': streaming,
       });
     } catch (e) {
       _log.warning('通知更新失败: $e');

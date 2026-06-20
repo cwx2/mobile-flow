@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Notification small icon for MobileFlow foreground service.
+     Must be monochrome white (alpha channel only) per Android guidelines.
+     Represents a code bracket with a connection dot: <·> -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#FFFFFF">
+    <!-- Left bracket < -->
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M9.4,16.6L4.8,12l4.6,-4.6L8,6l-6,6 6,6 1.4,-1.4z"/>
+    <!-- Right bracket > -->
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M14.6,16.6L19.2,12l-4.6,-4.6L16,6l6,6 -6,6 -1.4,-1.4z"/>
+    <!-- Center connection dot -->
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M12,12m-1.5,0a1.5,1.5 0,1 1,3 0a1.5,1.5 0,1 1,-3 0"/>
+</vector>

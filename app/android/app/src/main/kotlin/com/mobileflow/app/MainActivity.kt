@@ -1,6 +1,7 @@
 package com.mobileflow.app
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.ActivityCompat
@@ -56,7 +57,20 @@ class MainActivity : FlutterActivity() {
                     }
                     "update" -> {
                         val ticker = call.argument<String>("ticker")
-                        KeepAliveService.update(this, title, text, ticker)
+                        val streaming = call.argument<Boolean>("streaming") ?: false
+                        if (streaming) {
+                            // During streaming, use the streaming-aware update
+                            val intent = Intent(this, KeepAliveService::class.java).apply {
+                                action = KeepAliveService.ACTION_UPDATE
+                                putExtra(KeepAliveService.EXTRA_TITLE, title)
+                                putExtra(KeepAliveService.EXTRA_TEXT, text)
+                                putExtra(KeepAliveService.EXTRA_STREAMING, true)
+                                if (ticker != null) putExtra(KeepAliveService.EXTRA_TICKER, ticker)
+                            }
+                            startService(intent)
+                        } else {
+                            KeepAliveService.update(this, title, text, ticker)
+                        }
                         result.success(null)
                     }
                     "stop" -> {
