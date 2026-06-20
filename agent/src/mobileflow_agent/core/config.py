@@ -135,10 +135,17 @@ class WebSocketConfig(BaseSettings):
 
     # Max incoming message size (MB)
     max_message_size_mb: int = 10
-    # Ping interval (seconds)
-    ping_interval: int = 30
-    # Ping timeout (seconds)
-    ping_timeout: int = 60
+    # Server-side ping interval (seconds).
+    # Set to None to disable server-initiated pings entirely — the mobile
+    # client drives keepalive via its own heartbeat (status.ping/pong).
+    # When client is backgrounded, OS freezes the process and it cannot
+    # respond to server pings, causing premature disconnection.
+    # Value None means websockets library won't send pings at all.
+    ping_interval: int | None = None
+    # Server-side ping timeout (seconds).
+    # Only relevant if ping_interval is set. With ping_interval=None,
+    # the server never sends pings so this timeout is never triggered.
+    ping_timeout: int | None = None
     # Close handshake timeout (seconds)
     close_timeout: int = 10
 

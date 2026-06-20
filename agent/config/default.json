@@ -12,10 +12,10 @@
   },
 
   "websocket": {
-    "_comment": "WebSocket server tuning parameters",
+    "_comment": "WebSocket server tuning. ping_interval=null disables server-side pings — client drives keepalive via status.ping/pong. This prevents premature disconnect when mobile app is backgrounded and cannot respond to server pings.",
     "max_message_size_mb": 10,
-    "ping_interval": 30,
-    "ping_timeout": 60,
+    "ping_interval": null,
+    "ping_timeout": null,
     "close_timeout": 10
   },
 
