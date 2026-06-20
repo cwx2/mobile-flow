@@ -250,6 +250,10 @@ class WebSocketService extends ChangeNotifier with ChatStateMixin, WidgetsBindin
   /// from a previous disconnection event.
   void resetReconnectGuard() => _reconnectGuard.reset();
 
+  /// Whether the reconnect guard is currently in the grace window
+  /// (silently attempting to reconnect after a background disconnect).
+  bool get isReconnectGuardActive => _reconnectGuard.isGraceActive;
+
   // ── Public accessors for message handlers ──
 
   /// The event bus, accessible to handlers for emitting events.

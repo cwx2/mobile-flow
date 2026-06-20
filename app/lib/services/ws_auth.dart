@@ -491,6 +491,14 @@ class WsAuth {
     _backgroundedAt = null;
     _log.fine('App 回到前台: 后台 ${bgSec}s, state=$s');
 
+    // If ReconnectGuard is already handling a disconnection that happened
+    // in background, don't interfere — guard.onAppResumed() will trigger
+    // the retry. Just let it do its thing.
+    if (_ws.isReconnectGuardActive) {
+      _log.fine('ReconnectGuard 已激活，不干预');
+      return;
+    }
+
     switch (s) {
       case AppConnectionState.connected:
         if (bgSec <= 3) {

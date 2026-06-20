@@ -166,11 +166,17 @@ class ReconnectGuard {
   ///
   /// If we were using the extended background grace window, shorten it
   /// to the foreground window since the user is now looking.
+  /// Also immediately triggers a silent reconnect attempt since all
+  /// timers were frozen by the OS while in background.
   void onAppResumed() {
     _appInBackground = false;
     if (_state == _GuardState.graceActive) {
-      // User is back — shorten the grace window if needed.
-      // Give 2 more seconds from now for silent reconnect to complete.
+      // User is back — immediately attempt reconnect (timers were frozen
+      // by iOS/Android while in background, so retry loop was paused).
+      _attemptSilent();
+
+      // Also set a fallback timer: if silent reconnect doesn't succeed
+      // within 2 seconds, fall back to visible reconnect.
       _graceTimer?.cancel();
       _graceTimer = Timer(kGraceWindowForeground, () {
         if (_state == _GuardState.graceActive) {
