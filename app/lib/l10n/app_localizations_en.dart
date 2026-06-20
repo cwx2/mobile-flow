@@ -1429,6 +1429,16 @@ class SEn extends S {
   String get settingsClearedConnections => 'All saved connection info cleared';
 
   @override
+  String get settingsNotificationSection => 'Notifications';
+
+  @override
+  String get settingsNotificationManage => 'Notification Settings';
+
+  @override
+  String get settingsNotificationManageDesc =>
+      'Manage notification channels and permissions';
+
+  @override
   String get settingsAppearanceSection => 'Appearance';
 
   @override

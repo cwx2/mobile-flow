@@ -2773,6 +2773,24 @@ abstract class S {
   /// **'All saved connection info cleared'**
   String get settingsClearedConnections;
 
+  /// No description provided for @settingsNotificationSection.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications'**
+  String get settingsNotificationSection;
+
+  /// No description provided for @settingsNotificationManage.
+  ///
+  /// In en, this message translates to:
+  /// **'Notification Settings'**
+  String get settingsNotificationManage;
+
+  /// No description provided for @settingsNotificationManageDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage notification channels and permissions'**
+  String get settingsNotificationManageDesc;
+
   /// No description provided for @settingsAppearanceSection.
   ///
   /// In en, this message translates to:

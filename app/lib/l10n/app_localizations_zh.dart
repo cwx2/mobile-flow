@@ -1399,6 +1399,15 @@ class SZh extends S {
   String get settingsClearedConnections => '已清除所有保存的连接信息';
 
   @override
+  String get settingsNotificationSection => '通知';
+
+  @override
+  String get settingsNotificationManage => '通知设置';
+
+  @override
+  String get settingsNotificationManageDesc => '管理通知渠道和权限';
+
+  @override
   String get settingsAppearanceSection => '外观';
 
   @override

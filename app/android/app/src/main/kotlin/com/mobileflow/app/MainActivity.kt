@@ -77,6 +77,14 @@ class MainActivity : FlutterActivity() {
                         KeepAliveService.stop(this)
                         result.success(null)
                     }
+                    "openNotificationSettings" -> {
+                        val intent = Intent().apply {
+                            action = android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS
+                            putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, packageName)
+                        }
+                        startActivity(intent)
+                        result.success(null)
+                    }
                     else -> result.notImplemented()
                 }
             }

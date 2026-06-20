@@ -151,6 +151,7 @@ class KeepAliveService : Service() {
 
     // ── Wake Lock (CPU) ──
 
+    @Suppress("WakelockTimeout")
     private fun acquireWakeLock() {
         if (wakeLock != null) return
         val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
@@ -226,7 +227,6 @@ class KeepAliveService : Service() {
             .setContentText(text)
             .setSmallIcon(R.drawable.ic_stat_notification)
             .setColor(BRAND_COLOR)
-            .setColorized(false)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setSilent(true)
@@ -234,7 +234,7 @@ class KeepAliveService : Service() {
             .setContentIntent(contentIntent)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .addAction(
-                R.drawable.ic_stat_notification,
+                android.R.drawable.ic_menu_close_clear_cancel,
                 "断开连接",
                 disconnectIntent
             )

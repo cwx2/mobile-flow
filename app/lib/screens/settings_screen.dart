@@ -10,6 +10,7 @@
 //   - HomeScreen bottom navigation settings tab
 
 import 'dart:async';
+import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -217,6 +218,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       AppToast.show(context, S.of(context).settingsClearedConnections, type: AppToastType.success);
                     }
                   },
+                ),
+              ]),
+
+              SizedBox(height: spacing.sm),
+
+              // Notification settings
+              SectionHeader(
+                icon: Icons.notifications_outlined,
+                iconColor: colors.warning,
+                title: S.of(context).settingsNotificationSection,
+              ),
+              _buildCard([
+                ListTile(
+                  leading: Icon(Icons.notifications_active_outlined, color: colors.warning),
+                  title: Text(S.of(context).settingsNotificationManage, style: typography.bodyMedium),
+                  subtitle: Text(
+                    S.of(context).settingsNotificationManageDesc,
+                    style: typography.labelSmall.copyWith(color: colors.onSurfaceMuted),
+                  ),
+                  trailing: Icon(Icons.open_in_new, size: 18, color: colors.onSurfaceMuted),
+                  onTap: () => _openNotificationSettings(),
                 ),
               ]),
 
@@ -598,6 +620,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  /// Open the system notification settings page for this app.
+  ///
+  /// Uses Android's ACTION_APP_NOTIFICATION_SETTINGS intent to jump
+  /// directly to MobileFlow's notification channel management.
+  /// On non-Android platforms, falls back to general app settings.
+  Future<void> _openNotificationSettings() async {
+    if (Platform.isAndroid) {
+      const channel = MethodChannel('com.mobileflow.app/keepalive');
+      try {
+        await channel.invokeMethod('openNotificationSettings');
+      } catch (e) {
+        _log.warning('打开通知设置失败: $e');
+      }
+    }
   }
 
   /// Language picker bottom sheet.
