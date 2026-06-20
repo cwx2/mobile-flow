@@ -8,7 +8,8 @@ __pycache__/
 venv/
 
 # ── Python build artifacts ──
-agent/build/
+agent/build/temp/
+agent/build/pyinstaller/
 agent/dist/
 agent/*.spec
 
