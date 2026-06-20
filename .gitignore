@@ -8,8 +8,9 @@ __pycache__/
 venv/
 
 # ── Python build artifacts ──
-agent/build/temp/
+agent/build/
 agent/dist/
+agent/*.spec
 
 # ── Flutter build artifacts ──
 app/.dart_tool/
@@ -72,5 +73,4 @@ docs/roadmap.md
 docs/terminal-pty-plan.md
 docs/vscode-auth-pattern.md
 docs/远程连接指南.md
-agent/build/pocket-coder-agent.spec
 agent/scripts/
