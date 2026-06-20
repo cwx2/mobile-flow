@@ -6,7 +6,7 @@ a = Analysis(
     ['..\\entry_point.py'],
     pathex=['..\\src'],
     binaries=[],
-    datas=[('..\\locales', 'locales')],
+    datas=[('..\\locales', 'locales'), ('..\\config', 'config'), ('..\\assets', 'assets'), ('..\\src\\mobileflow_agent\\dashboard\\static', 'mobileflow_agent/dashboard/static')],
     hiddenimports=['mobileflow_agent'],
     hookspath=[],
     hooksconfig={},
@@ -36,4 +36,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='..\\assets\\icon.ico',
 )
