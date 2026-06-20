@@ -23,9 +23,10 @@ const kHeartbeatInterval = Duration(seconds: 10);
 const kHeartbeatTimeout = Duration(seconds: 10);
 
 /// Number of consecutive missed heartbeats before declaring the
-/// connection dead. A single miss may be transient network jitter;
-/// two consecutive misses strongly indicate a real outage.
-const kMaxMissedHeartbeats = 2;
+/// connection dead. Two misses may be a transient network hiccup
+/// (especially on mobile); three consecutive misses strongly indicate
+/// a real outage while giving more tolerance for brief interruptions.
+const kMaxMissedHeartbeats = 3;
 
 /// Delay before sending the first heartbeat ping after connecting.
 ///

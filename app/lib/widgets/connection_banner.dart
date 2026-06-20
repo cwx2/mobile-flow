@@ -41,12 +41,18 @@ class _ConnectionBannerState extends State<ConnectionBanner> {
   bool _showReconnectedFlash = false;
   Timer? _flashTimer;
 
+  /// Suppress the reconnecting banner for a short delay.
+  /// This prevents a brief flash when reconnection completes quickly.
+  bool _suppressReconnectBanner = false;
+  Timer? _suppressTimer;
+
   /// Track previous state to detect reconnecting → connected transition.
   AppConnectionState? _previousState;
 
   @override
   void dispose() {
     _flashTimer?.cancel();
+    _suppressTimer?.cancel();
     super.dispose();
   }
 
@@ -58,10 +64,27 @@ class _ConnectionBannerState extends State<ConnectionBanner> {
     final typography = context.typography;
     final spacing = context.spacing;
 
-    // Detect reconnecting → connected transition for success flash
+    // Detect transition INTO reconnecting — suppress banner for 1.5s
+    if (_previousState != AppConnectionState.reconnecting &&
+        state == AppConnectionState.reconnecting) {
+      _suppressReconnectBanner = true;
+      _suppressTimer?.cancel();
+      _suppressTimer = Timer(const Duration(milliseconds: 1500), () {
+        if (mounted) setState(() => _suppressReconnectBanner = false);
+      });
+    }
+
+    // Detect reconnecting → connected transition for success flash.
+    // Only show the "reconnected" flash if the banner was actually visible
+    // (i.e., the suppress period had already elapsed).
     if (_previousState == AppConnectionState.reconnecting &&
         state == AppConnectionState.connected) {
-      _triggerReconnectedFlash();
+      _suppressTimer?.cancel();
+      if (!_suppressReconnectBanner) {
+        // User saw the banner — show "reconnected" confirmation
+        _triggerReconnectedFlash();
+      }
+      _suppressReconnectBanner = false;
     }
     _previousState = state;
 
@@ -69,7 +92,7 @@ class _ConnectionBannerState extends State<ConnectionBanner> {
     final Widget? content;
     final Color? backgroundColor;
 
-    if (state == AppConnectionState.reconnecting) {
+    if (state == AppConnectionState.reconnecting && !_suppressReconnectBanner) {
       backgroundColor = colors.warning.withValues(alpha: 0.15);
       content = _ReconnectingContent(
         attempt: conn.reconnectAttempt,

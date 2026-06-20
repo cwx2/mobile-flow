@@ -10,12 +10,17 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 
 /**
  * Foreground Service that keeps the Flutter isolate alive when the app
  * is in the background. Displays a persistent notification whose content
  * can be dynamically updated from Dart via MethodChannel.
+ *
+ * Holds a PARTIAL_WAKE_LOCK to prevent CPU sleep, ensuring that Dart
+ * timers (heartbeat pings) continue to fire in background. The wake lock
+ * auto-releases after 30 minutes as a safety net against battery drain.
  *
  * Notification states:
  *   - Connected (idle):  "MobileFlow · 已连接"
@@ -32,6 +37,10 @@ class KeepAliveService : Service() {
         const val EXTRA_TITLE = "title"
         const val EXTRA_TEXT = "text"
         const val EXTRA_TICKER = "ticker"
+
+        /** Maximum wake lock hold time (30 minutes). Safety net to prevent
+         *  indefinite battery drain if the service is never stopped. */
+        private const val WAKE_LOCK_TIMEOUT_MS = 30L * 60 * 1000
 
         /** Start the service with an initial notification. */
         fun start(context: Context, title: String, text: String) {
@@ -63,6 +72,8 @@ class KeepAliveService : Service() {
         }
     }
 
+    private var wakeLock: PowerManager.WakeLock? = null
+
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
@@ -88,6 +99,10 @@ class KeepAliveService : Service() {
             } else {
                 startForeground(NOTIFICATION_ID, notification)
             }
+            // Acquire partial wake lock to prevent CPU sleep.
+            // This ensures Dart isolate timers (heartbeat) keep firing
+            // even when the screen is off or the app is in background.
+            acquireWakeLock()
         }
 
         return START_STICKY
@@ -96,9 +111,29 @@ class KeepAliveService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        releaseWakeLock()
         super.onDestroy()
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         nm.cancel(NOTIFICATION_ID)
+    }
+
+    private fun acquireWakeLock() {
+        if (wakeLock != null) return
+        val pm = getSystemService(Context.POWER_SERVICE) as PowerManager
+        wakeLock = pm.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            "MobileFlow::KeepAlive"
+        ).apply {
+            // Timeout prevents indefinite hold if service isn't stopped
+            acquire(WAKE_LOCK_TIMEOUT_MS)
+        }
+    }
+
+    private fun releaseWakeLock() {
+        wakeLock?.let {
+            if (it.isHeld) it.release()
+        }
+        wakeLock = null
     }
 
     private fun createNotificationChannel() {

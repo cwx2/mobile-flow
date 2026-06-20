@@ -24,6 +24,7 @@ import 'ws_message_sender.dart';
 import 'ws_heartbeat.dart';
 import 'ws_crypto.dart';
 import 'ws_auth.dart';
+import 'ws_reconnect_guard.dart';
 import 'stream_watchdog.dart';
 import 'ws_operations/chat_operations.dart';
 import 'ws_operations/file_operations.dart';
@@ -79,7 +80,12 @@ class WebSocketService extends ChangeNotifier with ChatStateMixin, WidgetsBindin
   late final WsHeartbeat _heartbeat = WsHeartbeat(
     sender: this,
     connManager: _connManager,
-    onConnectionDead: () => _auth.beginReconnect(),
+    onConnectionDead: () {
+      // Heartbeat death (3+ consecutive misses) bypasses grace window
+      // because it means sustained failure, not a brief interruption.
+      _reconnectGuard.reset();
+      _auth.beginReconnect();
+    },
     onStateChanged: notifyListeners,
   );
 
@@ -94,6 +100,16 @@ class WebSocketService extends ChangeNotifier with ChatStateMixin, WidgetsBindin
     connManager: _connManager,
     crypto: _wsCrypto,
     heartbeat: _heartbeat,
+  );
+
+  // ── Reconnect guard (grace window before showing banner) ──
+  late final ReconnectGuard _reconnectGuard = ReconnectGuard(
+    onSilentReconnect: () => _auth.performSilentReconnect(),
+    onVisibleReconnect: () => _auth.beginReconnect(),
+    onSilentSuccess: () {
+      _heartbeat.start();
+      notifyListeners();
+    },
   );
 
   // ── Message handler registry (strategy pattern) ──
@@ -226,6 +242,13 @@ class WebSocketService extends ChangeNotifier with ChatStateMixin, WidgetsBindin
   /// listeners but cannot access the protected [notifyListeners].
   // ignore: invalid_use_of_protected_member
   void notifyUI() => notifyListeners();
+
+  /// Reset the reconnect guard to idle state.
+  ///
+  /// Called by [WsAuth._postConnect] after a successful connection or
+  /// reconnection completes. Ensures the guard doesn't hold stale state
+  /// from a previous disconnection event.
+  void resetReconnectGuard() => _reconnectGuard.reset();
 
   // ── Public accessors for message handlers ──
 
@@ -577,7 +600,9 @@ class WebSocketService extends ChangeNotifier with ChatStateMixin, WidgetsBindin
 
   void _onError(dynamic error) {
     _log.severe('❌ WebSocket 错误: $error');
-    _heartbeat.stop();
+    // Stop heartbeat timers but keep foreground service alive for
+    // grace-window reconnection (process stays alive in background).
+    _heartbeat.stop(keepForegroundService: true);
     // Interrupt any active streaming turn immediately on error
     if (agentStatus != AgentStatus.idle) {
       interruptCurrentStream();
@@ -585,29 +610,36 @@ class WebSocketService extends ChangeNotifier with ChatStateMixin, WidgetsBindin
     }
     // Tunnel auth failures are unrecoverable — go straight to disconnected
     if (error.toString().contains('tunnel_auth_failed')) {
+      _heartbeat.stop(); // Full stop including foreground service
       _connection?.disconnect();
       notifyListeners();
       return;
     }
-    // For all other errors, attempt reconnect if we were connected
+    // Use grace window: attempt silent reconnect before showing banner.
+    // ReconnectGuard will fall back to visible reconnect if grace expires.
     if (_connection?.state == AppConnectionState.connected) {
-      _auth.beginReconnect();
+      _reconnectGuard.onDisconnected();
     }
   }
 
   void _onDone() {
     _log.warning('⚠️ WebSocket stream 关闭');
-    _heartbeat.stop();
+    // Stop heartbeat timers but keep foreground service alive for
+    // grace-window reconnection (process stays alive in background).
+    _heartbeat.stop(keepForegroundService: true);
     // Interrupt any active streaming turn immediately on disconnect
     if (agentStatus != AgentStatus.idle) {
       interruptCurrentStream();
       _streamWatchdog.cancel();
     }
-    // Only reconnect if we were in a connected state (not manual disconnect)
+    // Use grace window: attempt silent reconnect before showing banner.
+    // This covers the most common case: app went to background, OS killed
+    // the socket, and we can silently restore within 100-500ms on LAN.
     if (_connection?.state == AppConnectionState.connected) {
-      _auth.beginReconnect();
+      _reconnectGuard.onDisconnected();
     } else if (_connection?.state != AppConnectionState.reconnecting) {
       // Stream closed during connecting or other non-connected state
+      _heartbeat.stop(); // Full stop including foreground service
       _connection?.disconnect();
       notifyListeners();
     }
@@ -671,16 +703,24 @@ class WebSocketService extends ChangeNotifier with ChatStateMixin, WidgetsBindin
     WakeLockService.scheduleRelease();
   }
 
-  // ── App lifecycle (delegated to WsAuth) ──
+  // ── App lifecycle (delegated to WsAuth + ReconnectGuard) ──
 
   /// Handle app foreground/background transitions.
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.hidden) {
+      _reconnectGuard.markBackground();
       _auth.onAppBackgrounded();
+      // DO NOT stop heartbeat here on Android — WakeLock + ForegroundService
+      // keeps the connection alive. On iOS the OS will freeze us anyway,
+      // and _onDone will fire → ReconnectGuard handles it.
     } else if (state == AppLifecycleState.resumed) {
       _log.fine('App 回到前台');
+      _reconnectGuard.markForeground();
+      // If grace window is active (disconnect happened in background),
+      // shorten it so the user gets fast feedback if silent fails.
+      _reconnectGuard.onAppResumed();
       _auth.handleAppResumed();
     }
   }
@@ -690,6 +730,7 @@ class WebSocketService extends ChangeNotifier with ChatStateMixin, WidgetsBindin
     WidgetsBinding.instance.removeObserver(this);
     _heartbeat.dispose();
     _streamWatchdog.dispose();
+    _reconnectGuard.dispose();
     _auth.cancelReconnect();
     disposeChatState();
     _messageSub?.cancel();

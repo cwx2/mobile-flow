@@ -87,7 +87,7 @@ class WsHeartbeat {
   /// [kHeartbeatInterval]. Also starts the Android foreground
   /// service to keep the WebSocket alive in background.
   void start() {
-    stop();
+    stop(keepForegroundService: true);
     _pingTimedOut = false;
     _latencyMs = null;
     _missedHeartbeats = 0;
@@ -111,8 +111,10 @@ class WsHeartbeat {
   /// Stop all heartbeat timers and reset latency state.
   ///
   /// Called on disconnect or before starting a fresh heartbeat cycle.
-  /// Also stops the Android foreground service.
-  void stop() {
+  /// [keepForegroundService]: if true, does NOT stop the Android
+  /// foreground service. Used during grace-window reconnection to
+  /// maintain the process keep-alive while attempting silent recovery.
+  void stop({bool keepForegroundService = false}) {
     _heartbeatTimer?.cancel();
     _heartbeatTimer = null;
     _pongTimeoutTimer?.cancel();
@@ -122,8 +124,11 @@ class WsHeartbeat {
     _latencyMs = null;
     _connectedSince = null;
 
-    // Disable Android Foreground Service when connection drops
-    ForegroundService.stop();
+    // Only stop foreground service on explicit full disconnect,
+    // not during grace-window recovery.
+    if (!keepForegroundService) {
+      ForegroundService.stop();
+    }
   }
 
   /// Process an incoming `status.pong` — calculate RTT and reset counters.
@@ -163,7 +168,7 @@ class WsHeartbeat {
 
   /// Release all resources. Call once when the owning service is disposed.
   void dispose() {
-    stop();
+    stop(); // Full stop including foreground service
     pongNotifier.dispose();
   }
 

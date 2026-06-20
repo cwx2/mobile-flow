@@ -7,6 +7,8 @@
     <!-- Foreground Service to keep WebSocket alive in background -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+    <!-- Wake Lock to prevent CPU sleep while connection is active -->
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <!-- Notification permission (required on Android 13+ for foreground service notification) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
