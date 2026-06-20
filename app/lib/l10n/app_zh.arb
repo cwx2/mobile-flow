@@ -294,6 +294,7 @@
   "gitCommitPushing": "推送中...",
   "gitOutgoingCommits": "{count} 个未推送提交",
   "@gitOutgoingCommits": { "placeholders": { "count": { "type": "int" } } },
+  "gitSyncedCommits": "最近提交",
   "gitLogSelectBranch": "选择分支",
   "gitLogSelectAuthor": "选择作者",
   "gitLogSelectDateRange": "选择日期范围",

@@ -309,6 +309,7 @@
   "gitCommitPushing": "Pushing...",
   "gitOutgoingCommits": "{count} unpushed commits",
   "@gitOutgoingCommits": { "placeholders": { "count": { "type": "int" } } },
+  "gitSyncedCommits": "Recent commits",
   "gitLogSelectBranch": "Select branch",
   "gitLogSelectAuthor": "Select author",
   "gitLogSelectDateRange": "Select date range",

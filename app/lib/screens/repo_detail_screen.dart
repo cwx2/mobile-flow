@@ -228,6 +228,8 @@ class _RepoDetailScreenState extends State<RepoDetailScreen>
             onPush: () => git.push(repo: widget.repoPath),
             onPull: () => git.pull(repo: widget.repoPath),
             recentCommits: git.logEntriesFor(widget.repoPath),
+            repo: widget.repoPath,
+            branch: repo.branch,
           ),
           // Shell tab
           GitShellTab(
@@ -240,6 +242,7 @@ class _RepoDetailScreenState extends State<RepoDetailScreen>
             entries: git.logEntriesFor(widget.repoPath),
             branches: git.branchesFor(widget.repoPath),
             onCountChanged: (_) {},
+            repo: widget.repoPath,
           ),
         ],
       ),

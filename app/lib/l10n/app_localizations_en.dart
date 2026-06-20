@@ -858,6 +858,9 @@ class SEn extends S {
   }
 
   @override
+  String get gitSyncedCommits => 'Recent commits';
+
+  @override
   String get gitLogSelectBranch => 'Select branch';
 
   @override

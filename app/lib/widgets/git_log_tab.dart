@@ -36,12 +36,14 @@ class GitLogTab extends StatefulWidget {
   final List<Map<String, dynamic>> entries;
   final List<Map<String, dynamic>> branches;
   final ValueChanged<int>? onCountChanged;
+  final String repo;
 
   const GitLogTab({
     super.key,
     required this.entries,
     this.branches = const [],
     this.onCountChanged,
+    this.repo = '',
   });
 
   @override
@@ -120,6 +122,7 @@ class _GitLogTabState extends State<GitLogTab> {
       skip: _allEntries.length,
       branch: _filterBranch, author: _filterAuthor,
       since: _filterSince, until: _filterUntil,
+      repo: widget.repo,
     );
   }
 
@@ -135,6 +138,7 @@ class _GitLogTabState extends State<GitLogTab> {
       skip: 0,
       branch: _filterBranch, author: _filterAuthor,
       since: _filterSince, until: _filterUntil,
+      repo: widget.repo,
     );
   }
 
@@ -171,6 +175,7 @@ class _GitLogTabState extends State<GitLogTab> {
         commitHash: hash,
         shortHash: entry['short_hash'] as String? ?? '',
         message: entry['message'] as String? ?? '',
+        repo: widget.repo,
       ),
     ));
   }
@@ -207,7 +212,7 @@ class _GitLogTabState extends State<GitLogTab> {
 
   void _pickAuthor() async {
     if (_availableAuthors.isEmpty) {
-      context.read<GitOperations>().gitLogAuthors();
+      context.read<GitOperations>().gitLogAuthors(repo: widget.repo);
     }
 
     final result = await AppSearchSheet.show<String>(

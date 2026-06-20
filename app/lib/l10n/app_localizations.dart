@@ -1681,6 +1681,12 @@ abstract class S {
   /// **'{count} unpushed commits'**
   String gitOutgoingCommits(int count);
 
+  /// No description provided for @gitSyncedCommits.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent commits'**
+  String get gitSyncedCommits;
+
   /// No description provided for @gitLogSelectBranch.
   ///
   /// In en, this message translates to:

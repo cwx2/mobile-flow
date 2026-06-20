@@ -34,12 +34,14 @@ class CommitDetailScreen extends StatefulWidget {
   final String commitHash;
   final String shortHash;
   final String message;
+  final String repo;
 
   const CommitDetailScreen({
     super.key,
     required this.commitHash,
     required this.shortHash,
     required this.message,
+    this.repo = '',
   });
 
   @override
@@ -62,7 +64,7 @@ class _CommitDetailScreenState extends State<CommitDetailScreen> {
     super.initState();
     final ws = context.read<WebSocketService>();
     _sub = ws.messageStream.listen(_onMessage);
-    context.read<GitOperations>().gitShow(widget.commitHash);
+    context.read<GitOperations>().gitShow(widget.commitHash, repo: widget.repo);
     _log.fine('请求 commit 详情: ${widget.shortHash}');
   }
 
@@ -115,7 +117,8 @@ class _CommitDetailScreenState extends State<CommitDetailScreen> {
   }
 
   void _openFileDiff(String path) {
-    context.read<GitOperations>().gitDiffCommit(hash: widget.commitHash, path: path);
+    context.read<GitOperations>().gitDiffCommit(
+        hash: widget.commitHash, path: path, repo: widget.repo);
     _log.fine('请求 commit diff: ${widget.shortHash} $path');
   }
 

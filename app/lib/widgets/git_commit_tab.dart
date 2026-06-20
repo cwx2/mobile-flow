@@ -7,6 +7,8 @@
 
 import 'package:flutter/material.dart';
 
+import '../animation/page_transition_builder.dart';
+import '../screens/commit_detail_screen.dart';
 import '../services/websocket_service.dart';
 import '../l10n/app_localizations.dart';
 import '../theme/theme_extensions.dart';
@@ -24,6 +26,8 @@ class GitCommitTab extends StatefulWidget {
   final VoidCallback onPush;
   final VoidCallback onPull;
   final List<Map<String, dynamic>> recentCommits;
+  final String repo;
+  final String branch;
 
   const GitCommitTab({
     super.key,
@@ -38,6 +42,8 @@ class GitCommitTab extends StatefulWidget {
     required this.onPush,
     required this.onPull,
     this.recentCommits = const [],
+    this.repo = '',
+    this.branch = '',
   });
 
   @override
@@ -194,6 +200,8 @@ class _GitCommitTabState extends State<GitCommitTab> {
           _RecentCommitsSection(
             commits: widget.recentCommits,
             ahead: widget.ahead,
+            repo: widget.repo,
+            branch: widget.branch,
           ),
         ],
       ],
@@ -202,13 +210,20 @@ class _GitCommitTabState extends State<GitCommitTab> {
 }
 
 /// Displays recent commits with outgoing (unpushed) commits highlighted.
+///
+/// VS Code style: local unpushed commits show "main" badge,
+/// remote-synced commits show "origin/main" badge, with visual separator.
 class _RecentCommitsSection extends StatelessWidget {
   final List<Map<String, dynamic>> commits;
   final int ahead;
+  final String repo;
+  final String branch;
 
   const _RecentCommitsSection({
     required this.commits,
     required this.ahead,
+    required this.repo,
+    required this.branch,
   });
 
   @override
@@ -216,36 +231,88 @@ class _RecentCommitsSection extends StatelessWidget {
     final colors = context.colors;
     // Show at most 8 recent commits
     final display = commits.take(8).toList();
+    final outgoing = display.take(ahead).toList();
+    final synced = display.skip(ahead).toList();
+    final localBranch = branch.isNotEmpty ? branch : 'HEAD';
+    final remoteBranch = 'origin/$localBranch';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Section header
-        if (ahead > 0)
+        // Outgoing section (local, not yet pushed)
+        if (outgoing.isNotEmpty) ...[
+          _SectionLabel(
+            icon: Icons.arrow_upward,
+            label: S.of(context).gitOutgoingCommits(outgoing.length),
+            color: colors.secondary,
+          ),
+          ...outgoing.indexed.map((e) => _CommitRow(
+            commit: e.$2,
+            isOutgoing: true,
+            isFirst: e.$1 == 0,
+            isLast: e.$1 == outgoing.length - 1 && synced.isEmpty,
+            badge: e.$1 == 0 ? localBranch : null,
+            repo: repo,
+          )),
+        ],
+        // Separator between local and remote
+        if (outgoing.isNotEmpty && synced.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
             child: Row(
               children: [
-                Icon(Icons.arrow_upward, size: 14, color: colors.secondary),
+                Container(width: 8, height: 1, color: colors.border),
+                const SizedBox(width: 8),
+                Icon(Icons.cloud_outlined, size: 12, color: colors.onSurfaceMuted),
                 const SizedBox(width: 4),
-                Text(
-                  S.of(context).gitOutgoingCommits(ahead),
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: colors.secondary,
-                  ),
-                ),
+                Text(remoteBranch,
+                    style: TextStyle(fontSize: 10, color: colors.onSurfaceMuted)),
+                const SizedBox(width: 8),
+                Expanded(child: Container(height: 1, color: colors.border)),
               ],
             ),
           ),
-        // Commit list
-        ...List.generate(display.length, (i) {
-          final commit = display[i];
-          final isOutgoing = i < ahead;
-          return _CommitRow(commit: commit, isOutgoing: isOutgoing);
-        }),
+        // Synced section (already on remote)
+        if (synced.isNotEmpty) ...[
+          if (outgoing.isEmpty)
+            _SectionLabel(
+              icon: Icons.check_circle_outline,
+              label: S.of(context).gitSyncedCommits,
+              color: colors.onSurfaceMuted,
+            ),
+          ...synced.indexed.map((e) => _CommitRow(
+            commit: e.$2,
+            isOutgoing: false,
+            isFirst: e.$1 == 0 && outgoing.isEmpty,
+            isLast: e.$1 == synced.length - 1,
+            badge: e.$1 == 0 && outgoing.isNotEmpty ? remoteBranch : null,
+            repo: repo,
+          )),
+        ],
       ],
+    );
+  }
+}
+
+/// Section label with icon and text.
+class _SectionLabel extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _SectionLabel({required this.icon, required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
+        ],
+      ),
     );
   }
 }
@@ -254,8 +321,19 @@ class _RecentCommitsSection extends StatelessWidget {
 class _CommitRow extends StatelessWidget {
   final Map<String, dynamic> commit;
   final bool isOutgoing;
+  final bool isFirst;
+  final bool isLast;
+  final String? badge;
+  final String repo;
 
-  const _CommitRow({required this.commit, required this.isOutgoing});
+  const _CommitRow({
+    required this.commit,
+    required this.isOutgoing,
+    this.isFirst = false,
+    this.isLast = false,
+    this.badge,
+    required this.repo,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -264,53 +342,92 @@ class _CommitRow extends StatelessWidget {
     final author = commit['author'] as String? ?? '';
     final date = commit['date'] as String? ?? '';
     final shortHash = commit['short_hash'] as String? ?? '';
+    final hash = commit['hash'] as String? ?? '';
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Timeline dot + line
-          Padding(
-            padding: const EdgeInsets.only(top: 6, right: 10),
-            child: Icon(
-              Icons.circle,
-              size: 8,
-              color: isOutgoing ? colors.secondary : colors.onSurfaceMuted,
-            ),
+    return InkWell(
+      onTap: hash.isEmpty ? null : () {
+        Navigator.push(context, AppPageRoute(
+          type: PageTransitionType.slideUp,
+          page: CommitDetailScreen(
+            commitHash: hash,
+            shortHash: shortHash,
+            message: message,
+            repo: repo,
           ),
-          // Commit info
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 6),
+        ));
+      },
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Timeline dot
+            Padding(
+              padding: const EdgeInsets.only(top: 5, right: 10),
+              child: Icon(
+                isFirst ? Icons.radio_button_checked : Icons.circle,
+                size: isFirst ? 10 : 8,
+                color: isOutgoing ? colors.secondary : colors.onSurfaceMuted,
+              ),
+            ),
+            // Commit info
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Message
-                  Text(
-                    message,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: isOutgoing ? colors.onSurface : colors.onSurfaceMuted,
-                      fontWeight: isOutgoing ? FontWeight.w500 : FontWeight.normal,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  // Message line + badge
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          message,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: isOutgoing ? colors.onSurface : colors.onSurfaceMuted,
+                            fontWeight: isOutgoing ? FontWeight.w500 : FontWeight.normal,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (badge != null) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: isOutgoing
+                                ? colors.secondary.withValues(alpha: 0.15)
+                                : colors.primary.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            badge!,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: isOutgoing ? colors.secondary : colors.primary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 2),
                   // Author + hash + date
                   Text(
-                    [author, shortHash, date].where((s) => s.isNotEmpty).join(' · '),
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: colors.onSurfaceMuted,
-                    ),
+                    [author, shortHash, date].where((s) => s.isNotEmpty).join(' - '),
+                    style: TextStyle(fontSize: 11, color: colors.onSurfaceMuted),
                   ),
                 ],
               ),
             ),
-          ),
-        ],
+            // Chevron
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Icon(Icons.chevron_right, size: 14, color: colors.onSurfaceMuted),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -832,6 +832,9 @@ class SZh extends S {
   }
 
   @override
+  String get gitSyncedCommits => '最近提交';
+
+  @override
   String get gitLogSelectBranch => '选择分支';
 
   @override
