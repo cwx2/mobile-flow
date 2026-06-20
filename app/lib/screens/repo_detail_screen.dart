@@ -227,6 +227,7 @@ class _RepoDetailScreenState extends State<RepoDetailScreen>
             onCommit: () => git.commit(_commitController.text.trim(), repo: widget.repoPath),
             onPush: () => git.push(repo: widget.repoPath),
             onPull: () => git.pull(repo: widget.repoPath),
+            recentCommits: git.logEntriesFor(widget.repoPath),
           ),
           // Shell tab
           GitShellTab(

@@ -827,6 +827,11 @@ class SZh extends S {
   String get gitCommitPushing => '推送中...';
 
   @override
+  String gitOutgoingCommits(int count) {
+    return '$count 个未推送提交';
+  }
+
+  @override
   String get gitLogSelectBranch => '选择分支';
 
   @override

@@ -307,6 +307,8 @@
   "gitCommitButton": "Commit",
   "gitCommitPulling": "Pulling...",
   "gitCommitPushing": "Pushing...",
+  "gitOutgoingCommits": "{count} unpushed commits",
+  "@gitOutgoingCommits": { "placeholders": { "count": { "type": "int" } } },
   "gitLogSelectBranch": "Select branch",
   "gitLogSelectAuthor": "Select author",
   "gitLogSelectDateRange": "Select date range",

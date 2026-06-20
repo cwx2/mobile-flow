@@ -853,6 +853,11 @@ class SEn extends S {
   String get gitCommitPushing => 'Pushing...';
 
   @override
+  String gitOutgoingCommits(int count) {
+    return '$count unpushed commits';
+  }
+
+  @override
   String get gitLogSelectBranch => 'Select branch';
 
   @override

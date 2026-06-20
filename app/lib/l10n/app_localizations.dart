@@ -1675,6 +1675,12 @@ abstract class S {
   /// **'Pushing...'**
   String get gitCommitPushing;
 
+  /// No description provided for @gitOutgoingCommits.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} unpushed commits'**
+  String gitOutgoingCommits(int count);
+
   /// No description provided for @gitLogSelectBranch.
   ///
   /// In en, this message translates to:
