@@ -398,6 +398,15 @@ class SEn extends S {
   String get chatStreamInterrupted => 'Response interrupted — connection lost';
 
   @override
+  String get chatStreamTapToReconnect => 'Tap to reconnect and resume';
+
+  @override
+  String get chatStreamTapToResume => 'Tap to resume response';
+
+  @override
+  String get chatStreamReconnecting => 'Reconnecting...';
+
+  @override
   String get chatPermissionToolCall => 'Tool call';
 
   @override

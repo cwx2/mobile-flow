@@ -379,6 +379,15 @@ class SZh extends S {
   String get chatStreamInterrupted => '回复中断 — 连接已断开';
 
   @override
+  String get chatStreamTapToReconnect => '点击重连并恢复';
+
+  @override
+  String get chatStreamTapToResume => '点击恢复回复';
+
+  @override
+  String get chatStreamReconnecting => '正在重连...';
+
+  @override
   String get chatPermissionToolCall => '工具调用';
 
   @override

@@ -823,6 +823,24 @@ abstract class S {
   /// **'Response interrupted — connection lost'**
   String get chatStreamInterrupted;
 
+  /// No description provided for @chatStreamTapToReconnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to reconnect and resume'**
+  String get chatStreamTapToReconnect;
+
+  /// No description provided for @chatStreamTapToResume.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to resume response'**
+  String get chatStreamTapToResume;
+
+  /// No description provided for @chatStreamReconnecting.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnecting...'**
+  String get chatStreamReconnecting;
+
   /// No description provided for @chatPermissionToolCall.
   ///
   /// In en, this message translates to:
