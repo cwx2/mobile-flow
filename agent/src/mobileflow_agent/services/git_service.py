@@ -1597,28 +1597,20 @@ class GitService:
         return conflicts
 
     async def get_conflicts(self, path: str, context_lines: int = 5) -> dict:
-        """Parse conflicts in a single file and generate full-file previews.
+        """Parse conflicts and generate per-conflict full-file previews.
 
-        Reads the file content, extracts conflict blocks, and generates
-        three complete file versions (all-current, all-incoming, all-both)
-        so the App can show full-file thumbnail previews like VS Code's
-        3-way merge editor.
+        For each conflict block, generates three full-file previews showing
+        what the file looks like if THAT specific conflict is resolved with
+        each strategy (current/incoming/both). Other conflict markers remain
+        untouched in the preview. Supports "resolve one at a time" UI.
 
         Args:
             path: Relative file path within the repository.
             context_lines: Number of context lines before/after each conflict.
 
         Returns:
-            Dict with:
-            - path: file path
-            - conflicts: list of conflict block dicts with context
-            - count: number of conflicts
-            - file_current: full file with all conflicts resolved as "current"
-            - file_incoming: full file with all conflicts resolved as "incoming"
-            - file_both: full file with all conflicts resolved as "both"
-            - conflict_ranges: list of [start_line, end_line] in each version
-              (line ranges where conflict content appears, for highlighting)
-            - error: error message
+            Dict with path, conflicts (each with preview_current/incoming/both
+            and highlight_current/incoming/both), count, and error.
         """
         full_path = os.path.join(self._cwd, path)
         logger.debug(f"冲突解析: path={path}")
@@ -1643,122 +1635,56 @@ class GitService:
         logger.info(f"冲突解析完成: path={path}, count={len(blocks)}")
 
         if not blocks:
-            return {
-                "path": path,
-                "conflicts": [],
-                "count": 0,
-                "file_current": content,
-                "file_incoming": content,
-                "file_both": content,
-                "conflict_ranges_current": [],
-                "conflict_ranges_incoming": [],
-                "conflict_ranges_both": [],
-                "error": "",
-            }
+            return {"path": path, "conflicts": [], "count": 0, "error": ""}
 
-        # Build conflict dicts with context
+        # Build per-conflict data with full-file previews
         all_lines = content.split("\n")
         conflict_dicts = []
-        for b in blocks:
-            d = b.to_dict()
-            before_start = max(0, b.range_start - context_lines)
-            before_lines = all_lines[before_start:b.range_start]
+
+        for target_block in blocks:
+            d = target_block.to_dict()
+
+            # Context lines for the conflict snippet view
+            before_start = max(0, target_block.range_start - context_lines)
+            before_lines = all_lines[before_start:target_block.range_start]
             d["context_before"] = "\n".join(before_lines) + ("\n" if before_lines else "")
-            after_end = min(len(all_lines), b.range_end + 1 + context_lines)
-            after_lines = all_lines[b.range_end + 1:after_end]
+            after_end = min(len(all_lines), target_block.range_end + 1 + context_lines)
+            after_lines = all_lines[target_block.range_end + 1:after_end]
             d["context_after"] = "\n".join(after_lines) + ("\n" if after_lines else "")
+
+            # Generate 3 full-file previews for THIS conflict
+            for resolution in ("current", "incoming", "both"):
+                preview = apply_resolution(content, target_block, resolution)
+                d[f"preview_{resolution}"] = preview
+
+                # Calculate highlight range in the preview
+                if resolution == "current":
+                    resolved = target_block.current.content
+                elif resolution == "incoming":
+                    resolved = target_block.incoming.content
+                else:
+                    resolved = target_block.current.content + target_block.incoming.content
+
+                if resolved.endswith("\n"):
+                    resolved = resolved[:-1]
+                line_count = len(resolved.split("\n")) if resolved else 0
+                start = target_block.range_start
+                end = start + line_count - 1
+                d[f"highlight_{resolution}"] = [start, max(start, end)]
+
             conflict_dicts.append(d)
-
-        # Generate three full-file versions by resolving all conflicts
-        # Process from bottom to top to preserve line offsets
-        file_current = content
-        file_incoming = content
-        file_both = content
-        for block in reversed(blocks):
-            file_current = apply_resolution(file_current, block, "current")
-        # Re-parse for incoming (from original content)
-        for block in reversed(blocks):
-            file_incoming = apply_resolution(file_incoming, block, "incoming")
-        for block in reversed(blocks):
-            file_both = apply_resolution(file_both, block, "both")
-
-        # Calculate conflict line ranges in each resolved version
-        # (where the resolved content sits, for UI highlighting)
-        ranges_current = self._calc_resolved_ranges(content, blocks, "current")
-        ranges_incoming = self._calc_resolved_ranges(content, blocks, "incoming")
-        ranges_both = self._calc_resolved_ranges(content, blocks, "both")
 
         return {
             "path": path,
             "conflicts": conflict_dicts,
             "count": len(blocks),
-            "file_current": file_current,
-            "file_incoming": file_incoming,
-            "file_both": file_both,
-            "conflict_ranges_current": ranges_current,
-            "conflict_ranges_incoming": ranges_incoming,
-            "conflict_ranges_both": ranges_both,
             "error": "",
         }
 
     @staticmethod
     def _empty_conflicts(path: str, error: str) -> dict:
         """Return an empty conflicts result with error."""
-        return {
-            "path": path,
-            "conflicts": [],
-            "count": 0,
-            "file_current": "",
-            "file_incoming": "",
-            "file_both": "",
-            "conflict_ranges_current": [],
-            "conflict_ranges_incoming": [],
-            "conflict_ranges_both": [],
-            "error": error,
-        }
-
-    @staticmethod
-    def _calc_resolved_ranges(
-        content: str, blocks: list, resolution: str
-    ) -> list[list[int]]:
-        """Calculate line ranges of resolved content in the output file.
-
-        After resolving all conflicts with a given strategy, determine
-        where each conflict's resolved content sits (for highlighting).
-
-        Returns list of [start_line, end_line] (0-based, inclusive).
-        """
-        lines = content.split("\n")
-        # Track cumulative line offset as we resolve from top to bottom
-        offset = 0
-        ranges = []
-        for block in blocks:
-            # Original conflict occupies range_start to range_end (inclusive)
-            original_length = block.range_end - block.range_start + 1
-
-            # Resolved content length
-            if resolution == "current":
-                resolved = block.current.content
-            elif resolution == "incoming":
-                resolved = block.incoming.content
-            else:
-                resolved = block.current.content + block.incoming.content
-
-            if resolved.endswith("\n"):
-                resolved = resolved[:-1]
-            resolved_lines = resolved.split("\n") if resolved else []
-            resolved_length = len(resolved_lines)
-
-            # Position in the resolved file
-            start_in_resolved = block.range_start + offset
-            end_in_resolved = start_in_resolved + resolved_length - 1
-            if resolved_length > 0:
-                ranges.append([start_in_resolved, end_in_resolved])
-
-            # Update offset: resolved content replaces original conflict block
-            offset += resolved_length - original_length
-
-        return ranges
+        return {"path": path, "conflicts": [], "count": 0, "error": error}
 
     async def resolve_conflict(self, path: str, conflict_id: int, resolution: str) -> dict:
         """Resolve a single conflict block by immediately rewriting the file.

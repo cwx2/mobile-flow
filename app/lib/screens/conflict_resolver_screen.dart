@@ -44,16 +44,11 @@ class ConflictResolverScreen extends StatefulWidget {
 class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
   // Conflict data from Agent
   List<Map<String, dynamic>> _conflicts = [];
-  String _fileCurrent = '';
-  String _fileIncoming = '';
-  String _fileBoth = '';
-  List<List<int>> _rangesCurrent = [];
-  List<List<int>> _rangesIncoming = [];
-  List<List<int>> _rangesBoth = [];
+  int _currentIndex = 0; // Which conflict we're looking at
+  int _selected = 0; // 0=current, 1=incoming, 2=both
 
   bool _loading = true;
   String? _error;
-  int _selected = 0; // 0=current, 1=incoming, 2=both
   StreamSubscription? _sub;
 
   // Code editor controller for the large preview
@@ -90,16 +85,23 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
         if (error.isNotEmpty) {
           setState(() { _loading = false; _error = error; });
         } else {
-          _fileCurrent = msg.payload['file_current'] as String? ?? '';
-          _fileIncoming = msg.payload['file_incoming'] as String? ?? '';
-          _fileBoth = msg.payload['file_both'] as String? ?? '';
-          _rangesCurrent = _parseRanges(msg.payload['conflict_ranges_current']);
-          _rangesIncoming = _parseRanges(msg.payload['conflict_ranges_incoming']);
-          _rangesBoth = _parseRanges(msg.payload['conflict_ranges_both']);
           _conflicts = (msg.payload['conflicts'] as List?)
               ?.cast<Map<String, dynamic>>() ?? [];
+          _currentIndex = 0;
+          _selected = 0;
           _updateEditorContent();
           setState(() { _loading = false; _error = null; });
+        }
+
+      case MessageType.gitConflictResolveResult:
+        if (!_matchesFile(msg.payload)) break;
+        final success = msg.payload['success'] as bool? ?? false;
+        if (success) {
+          // Re-request conflicts (file has changed, IDs recalculated)
+          _requestConflicts();
+        } else {
+          AppToast.show(context, msg.payload['error'] as String? ?? 'Error',
+              type: AppToastType.error);
         }
 
       case MessageType.gitConflictResolveAllResult:
@@ -115,26 +117,43 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
   }
 
   void _updateEditorContent() {
-    final content = _fileForIndex(_selected);
+    final content = _currentPreview();
     _codeController?.dispose();
     _scrollController?.dispose();
     _codeController = CodeLineEditingController.fromText(content);
     _scrollController = CodeScrollController();
   }
 
-  List<List<int>> _parseRanges(dynamic data) {
-    if (data is! List) return [];
-    return data.map((r) {
-      if (r is List) return r.cast<int>();
-      return <int>[];
-    }).toList();
+  /// Get the preview content for the current conflict + selected resolution.
+  String _currentPreview() {
+    if (_conflicts.isEmpty || _currentIndex >= _conflicts.length) return '';
+    final conflict = _conflicts[_currentIndex];
+    final key = 'preview_${['current', 'incoming', 'both'][_selected]}';
+    return conflict[key] as String? ?? '';
   }
+
+  /// Get highlight range for current conflict + selected resolution.
+  /// (Reserved for future use when editor supports line decorations.)
 
   bool _matchesFile(Map<String, dynamic> payload) {
     final repo = (payload['repo'] as String? ?? '').replaceAll('\\', '/');
     final path = payload['path'] as String? ?? '';
     return repo == widget.repoPath.replaceAll('\\', '/') &&
         path == widget.filePath;
+  }
+
+  void _resolve() {
+    if (_conflicts.isEmpty || _currentIndex >= _conflicts.length) return;
+    final conflict = _conflicts[_currentIndex];
+    final conflictId = conflict['id'] as int? ?? _currentIndex;
+    final resolution = ['current', 'incoming', 'both'][_selected];
+    final ws = context.read<WebSocketService>();
+    ws.gitOps.gitConflictResolve(
+      repo: widget.repoPath,
+      path: widget.filePath,
+      conflictId: conflictId,
+      resolution: resolution,
+    );
   }
 
   void _resolveAll(String resolution) {
@@ -146,29 +165,10 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
     );
   }
 
-  void _stageFile() {
-    final git = context.read<GitStateProvider>();
-    git.stage([widget.filePath], repo: widget.repoPath);
-    AppToast.show(context, S.of(context).gitConflictsFileStaged,
-        type: AppToastType.success);
-    Navigator.pop(context, true);
-  }
-
-  String _fileForIndex(int i) =>
-      i == 0 ? _fileCurrent : i == 1 ? _fileIncoming : _fileBoth;
-
-  List<List<int>> _rangesForIndex(int i) =>
-      i == 0 ? _rangesCurrent : i == 1 ? _rangesIncoming : _rangesBoth;
-
   void _selectTab(int i) {
     if (i == _selected) return;
     setState(() => _selected = i);
-    // Update editor content to show the selected version
-    final content = _fileForIndex(i);
-    _codeController?.dispose();
-    _scrollController?.dispose();
-    _codeController = CodeLineEditingController.fromText(content);
-    _scrollController = CodeScrollController();
+    _updateEditorContent();
   }
 
   @override
@@ -192,6 +192,19 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
           ],
         ),
         actions: [
+          if (_conflicts.isNotEmpty)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert, size: 20),
+              onSelected: (v) => _resolveAll(v),
+              itemBuilder: (_) {
+                final l = S.of(context);
+                return [
+                  PopupMenuItem(value: 'current', child: Text(l.gitConflictsAcceptAllCurrent)),
+                  PopupMenuItem(value: 'incoming', child: Text(l.gitConflictsAcceptAllIncoming)),
+                  PopupMenuItem(value: 'both', child: Text(l.gitConflictsAcceptAllBoth)),
+                ];
+              },
+            ),
           IconButton(
             icon: const Icon(Icons.edit_note, size: 20),
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(
@@ -226,7 +239,13 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
                 style: TextStyle(fontSize: 16, color: colors.onSurface)),
             const SizedBox(height: 16),
             FilledButton.icon(
-              onPressed: _stageFile,
+              onPressed: () {
+                final git = context.read<GitStateProvider>();
+                git.stage([widget.filePath], repo: widget.repoPath);
+                AppToast.show(context, l.gitConflictsFileStaged,
+                    type: AppToastType.success);
+                Navigator.pop(context, true);
+              },
               icon: const Icon(Icons.check),
               label: Text(l.gitConflictsStageFile),
             ),
@@ -246,16 +265,47 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
       const Color(0xFF9C27B0),
     ];
 
+    final conflict = _conflicts[_currentIndex];
+    final currentLabel = conflict['current_label'] as String? ?? 'HEAD';
+    final incomingLabel = conflict['incoming_label'] as String? ?? '';
+
     return Column(
       children: [
-        // Three full-file thumbnails
+        // Conflict progress indicator
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: Row(
+            children: [
+              Text(
+                'Conflict ${_currentIndex + 1} / ${_conflicts.length}',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: colors.onSurface,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '$currentLabel ↔ $incomingLabel',
+                style: TextStyle(fontSize: 11, color: colors.onSurfaceMuted),
+              ),
+            ],
+          ),
+        ),
+
+        // Three thumbnails
         SizedBox(
-          height: 110,
+          height: 100,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Row(
               children: List.generate(3, (i) {
                 final isSelected = _selected == i;
+                final previewKey = 'preview_${['current', 'incoming', 'both'][i]}';
+                final previewContent = conflict[previewKey] as String? ?? '';
+                final highlightKey = 'highlight_${['current', 'incoming', 'both'][i]}';
+                final highlight = conflict[highlightKey] as List? ?? [];
+
                 return Expanded(
                   child: GestureDetector(
                     onTap: () => _selectTab(i),
@@ -281,7 +331,6 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Label
                           Container(
                             width: double.infinity,
                             padding: const EdgeInsets.symmetric(
@@ -308,7 +357,6 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          // Miniature file content
                           Expanded(
                             child: ClipRRect(
                               borderRadius: const BorderRadius.only(
@@ -316,8 +364,9 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
                                 bottomRight: Radius.circular(5),
                               ),
                               child: _FileThumbnail(
-                                content: _fileForIndex(i),
-                                ranges: _rangesForIndex(i),
+                                content: previewContent,
+                                ranges: highlight.isNotEmpty
+                                    ? [highlight.cast<int>()] : [],
                                 highlightColor: tabColors[i],
                               ),
                             ),
@@ -332,7 +381,9 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
           ),
         ),
 
-        // Full-size code preview using CodeEditorView (read-only)
+        const SizedBox(height: 4),
+
+        // Full code preview using CodeEditorView
         Expanded(
           child: _codeController != null
               ? CodeEditorView(
@@ -344,7 +395,7 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
               : const SizedBox.shrink(),
         ),
 
-        // Bottom confirm bar
+        // Bottom action bar: confirm current conflict
         SafeArea(
           child: Container(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
@@ -356,10 +407,7 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
               width: double.infinity,
               height: 46,
               child: FilledButton(
-                onPressed: () {
-                  final resolutions = ['current', 'incoming', 'both'];
-                  _resolveAll(resolutions[_selected]);
-                },
+                onPressed: _resolve,
                 style: FilledButton.styleFrom(
                   backgroundColor: tabColors[_selected],
                   shape: RoundedRectangleBorder(
