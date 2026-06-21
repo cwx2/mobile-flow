@@ -34,8 +34,8 @@ class RepoState {
     this.error = '',
   });
 
-  /// Total number of changed files in this repository.
-  int get totalChanges => staged.length + unstaged.length + untracked.length;
+  /// Total number of changed files in this repository (includes conflicts).
+  int get totalChanges => staged.length + unstaged.length + untracked.length + conflicted.length;
 
   /// Whether this repository has any uncommitted changes.
   bool get hasChanges => totalChanges > 0 || conflicted.isNotEmpty;
