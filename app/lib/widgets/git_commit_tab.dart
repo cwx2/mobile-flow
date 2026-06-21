@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 
 import '../animation/page_transition_builder.dart';
 import '../components/app_bottom_sheet.dart';
+import '../components/app_dialog.dart';
 import '../components/app_toast.dart';
 import '../screens/commit_detail_screen.dart';
 import '../services/websocket_service.dart';
@@ -640,30 +641,19 @@ class _CommitRow extends StatelessWidget {
   }
 
   void _confirmHardReset(BuildContext context, GitOperations gitOps, S l) {
-    final colors = context.colors;
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('⚠️ ${l.gitUndoCommitHardConfirmTitle}'),
-        content: Text(l.gitUndoCommitHardConfirmBody),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(l.commonCancel),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              gitOps.gitUndoCommit(repo: repo, mode: 'hard');
-              AppToast.show(context, l.gitUndoCommitDoneHard,
-                  type: AppToastType.error);
-            },
-            child: Text(l.gitUndoCommitHardConfirmButton,
-                style: TextStyle(color: colors.error)),
-          ),
-        ],
-      ),
-    );
+    showAppConfirmDialog(
+      context,
+      title: l.gitUndoCommitHardConfirmTitle,
+      message: l.gitUndoCommitHardConfirmBody,
+      confirmLabel: l.gitUndoCommitHardConfirmButton,
+      isDanger: true,
+    ).then((confirmed) {
+      if (confirmed == true) {
+        gitOps.gitUndoCommit(repo: repo, mode: 'hard');
+        AppToast.show(context, l.gitUndoCommitDoneHard,
+            type: AppToastType.error);
+      }
+    });
   }
 }
 
