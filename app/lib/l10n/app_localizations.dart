@@ -1663,6 +1663,42 @@ abstract class S {
   /// **'Abort Revert'**
   String get gitConflictsAbortRevert;
 
+  /// No description provided for @operationBannerCherryPick.
+  ///
+  /// In en, this message translates to:
+  /// **'Cherry-picking on {branch}'**
+  String operationBannerCherryPick(String branch);
+
+  /// No description provided for @operationBannerRevert.
+  ///
+  /// In en, this message translates to:
+  /// **'Reverting on {branch}'**
+  String operationBannerRevert(String branch);
+
+  /// No description provided for @operationBannerMerge.
+  ///
+  /// In en, this message translates to:
+  /// **'Merging on {branch}'**
+  String operationBannerMerge(String branch);
+
+  /// No description provided for @operationBannerContinue.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get operationBannerContinue;
+
+  /// No description provided for @operationBannerSkip.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip'**
+  String get operationBannerSkip;
+
+  /// No description provided for @operationBannerAbort.
+  ///
+  /// In en, this message translates to:
+  /// **'Abort'**
+  String get operationBannerAbort;
+
   /// No description provided for @gitConflictsRemaining.
   ///
   /// In en, this message translates to:
@@ -1872,6 +1908,12 @@ abstract class S {
   /// In en, this message translates to:
   /// **'Cherry-picking commit...'**
   String get gitCherryPickStarted;
+
+  /// No description provided for @gitCherryPickEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Nothing to cherry-pick — changes already applied'**
+  String get gitCherryPickEmpty;
 
   /// No description provided for @gitCherryPickSuccess.
   ///

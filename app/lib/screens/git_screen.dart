@@ -102,6 +102,7 @@ class _GitScreenState extends State<GitScreen> with LoadingStateMixin {
       case MessageType.gitCherryPickResult:
         final success = msg.payload['success'] as bool? ?? false;
         final hasConflicts = msg.payload['has_conflicts'] as bool? ?? false;
+        final isEmpty = msg.payload['is_empty'] as bool? ?? false;
         final error = msg.payload['error'] as String? ?? '';
         if (success) {
           AppToast.show(context, S.of(context).gitCherryPickSuccess, type: AppToastType.success);
@@ -111,6 +112,8 @@ class _GitScreenState extends State<GitScreen> with LoadingStateMixin {
             detail: error.isNotEmpty ? error : null,
             type: AppNotificationType.error,
           );
+        } else if (isEmpty) {
+          AppToast.show(context, S.of(context).gitCherryPickEmpty, type: AppToastType.info);
         } else if (error.isNotEmpty) {
           AppNotification.show(context,
             title: 'Cherry-pick failed',

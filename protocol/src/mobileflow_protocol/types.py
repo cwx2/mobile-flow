@@ -150,6 +150,8 @@ class MessageType(str, Enum):
     GIT_SEQUENCER_CONTINUE_RESULT = "git.sequencer.continue.result"  # Agent -> App: continue result
     GIT_SEQUENCER_ABORT = "git.sequencer.abort"                # App -> Agent: abort cherry-pick/revert
     GIT_SEQUENCER_ABORT_RESULT = "git.sequencer.abort.result"  # Agent -> App: abort result
+    GIT_SEQUENCER_SKIP = "git.sequencer.skip"                  # App -> Agent: skip current commit
+    GIT_SEQUENCER_SKIP_RESULT = "git.sequencer.skip.result"    # Agent -> App: skip result
 
     # ── Terminal ──
     # Interactive PTY terminal sessions.

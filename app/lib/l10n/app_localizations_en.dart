@@ -847,6 +847,30 @@ class SEn extends S {
   String get gitConflictsAbortRevert => 'Abort Revert';
 
   @override
+  String operationBannerCherryPick(String branch) {
+    return 'Cherry-picking on $branch';
+  }
+
+  @override
+  String operationBannerRevert(String branch) {
+    return 'Reverting on $branch';
+  }
+
+  @override
+  String operationBannerMerge(String branch) {
+    return 'Merging on $branch';
+  }
+
+  @override
+  String get operationBannerContinue => 'Continue';
+
+  @override
+  String get operationBannerSkip => 'Skip';
+
+  @override
+  String get operationBannerAbort => 'Abort';
+
+  @override
   String gitConflictsRemaining(int count) {
     return '$count conflicts remaining';
   }
@@ -956,6 +980,10 @@ class SEn extends S {
 
   @override
   String get gitCherryPickStarted => 'Cherry-picking commit...';
+
+  @override
+  String get gitCherryPickEmpty =>
+      'Nothing to cherry-pick — changes already applied';
 
   @override
   String get gitCherryPickSuccess => 'Cherry-pick successful';

@@ -45,6 +45,7 @@ from mobileflow_protocol.payloads.git import (
     GitRevertCommitPayload,
     GitSequencerAbortPayload,
     GitSequencerContinuePayload,
+    GitSequencerSkipPayload,
     GitShowPayload,
     GitStagePayload,
     GitStatusResultPayload,
@@ -977,4 +978,25 @@ class GitHandler(BaseHandler):
 
         await self.send(ws, Message(
             type=MessageType.GIT_SEQUENCER_ABORT_RESULT,
+            payload={**(result or {}), "repo": payload.repo}))
+
+    async def handle_git_sequencer_skip(self, client_id, ws, msg):
+        """Skip the current commit in a cherry-pick or revert sequence."""
+        try:
+            payload = msg.typed_payload(GitSequencerSkipPayload)
+        except PayloadValidationError as e:
+            await self.send_error(ws, f"Invalid payload: {e}")
+            return
+
+        manager, git = await self._require_repo(ws, payload.repo)
+        if not manager:
+            return
+
+        result = await manager.run(
+            Op.Commit,
+            run_operation=lambda: git.sequencer_skip(),
+        )
+
+        await self.send(ws, Message(
+            type=MessageType.GIT_SEQUENCER_SKIP_RESULT,
             payload={**(result or {}), "repo": payload.repo}))

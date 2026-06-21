@@ -264,4 +264,10 @@ class GitOperations {
       _sender.send(WsMessage(
           type: MessageType.gitSequencerAbort,
           payload: <String, dynamic>{'repo': repo}));
+
+  /// Skip the current commit in a cherry-pick or revert sequence.
+  void gitSequencerSkip({required String repo}) =>
+      _sender.send(WsMessage(
+          type: MessageType.gitSequencerSkip,
+          payload: <String, dynamic>{'repo': repo}));
 }

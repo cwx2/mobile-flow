@@ -821,6 +821,30 @@ class SZh extends S {
   String get gitConflictsAbortRevert => '放弃还原';
 
   @override
+  String operationBannerCherryPick(String branch) {
+    return '正在 $branch 中优选';
+  }
+
+  @override
+  String operationBannerRevert(String branch) {
+    return '正在 $branch 中还原';
+  }
+
+  @override
+  String operationBannerMerge(String branch) {
+    return '正在 $branch 中合并';
+  }
+
+  @override
+  String get operationBannerContinue => '继续';
+
+  @override
+  String get operationBannerSkip => '跳过';
+
+  @override
+  String get operationBannerAbort => '放弃';
+
+  @override
   String gitConflictsRemaining(int count) {
     return '剩余 $count 个冲突';
   }
@@ -926,6 +950,9 @@ class SZh extends S {
 
   @override
   String get gitCherryPickStarted => '正在优选提交...';
+
+  @override
+  String get gitCherryPickEmpty => '没有可优选的内容，更改已存在';
 
   @override
   String get gitCherryPickSuccess => '优选成功';

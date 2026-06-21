@@ -409,6 +409,7 @@ class GitStateProvider extends ChangeNotifier {
       untracked: _parseFileList(payload['untracked']),
       conflicted: _parseFileList(payload['conflicted']),
       error: payload['error'] as String? ?? '',
+      operationState: payload['operation_state'] as String? ?? '',
     );
     _initialized = true;
     notifyListeners();

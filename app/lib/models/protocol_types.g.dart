@@ -128,6 +128,8 @@ class MessageType {
   static const gitSequencerContinueResult = 'git.sequencer.continue.result';
   static const gitSequencerAbort = 'git.sequencer.abort';
   static const gitSequencerAbortResult = 'git.sequencer.abort.result';
+  static const gitSequencerSkip = 'git.sequencer.skip';
+  static const gitSequencerSkipResult = 'git.sequencer.skip.result';
 
   // ── Terminal ──
   static const terminalStart = 'terminal.start'; // App -> Agent: start terminal session [request]

@@ -1881,6 +1881,27 @@ class GitService:
         logger.info(f"git {op} --continue 成功")
         return {"success": True, "operation": op, "error": ""}
 
+    async def sequencer_skip(self) -> dict:
+        """Skip the current commit in a cherry-pick or revert sequence.
+
+        Runs --skip for the detected operation. Unlike abort (cancels everything),
+        skip only skips the current problematic commit and continues with the rest.
+
+        Returns:
+            Dict with ``success``, ``operation`` (str), and ``error`` keys.
+        """
+        op = await self._detect_sequencer_operation()
+        if not op:
+            return {"success": False, "operation": "", "error": "No operation in progress"}
+
+        logger.info(f"执行 git {op} --skip")
+        out, err, code = await self._run(op, "--skip")
+        if code != 0:
+            logger.error(f"git {op} --skip 失败: {err}")
+            return {"success": False, "operation": op, "error": err.strip()[:500] if err else ""}
+        logger.info(f"git {op} --skip 成功")
+        return {"success": True, "operation": op, "error": ""}
+
     async def detect_operation_state(self) -> str:
         """Detect if a merge/cherry-pick/revert is in progress.
 
@@ -2067,22 +2088,37 @@ class GitService:
         out, err, code = await self._run(*args)
 
         if code != 0:
+            combined = (out + err).strip()
             conflict_indicators = ["CONFLICT (", "Merge conflict in"]
-            has_conflicts = any(ind in (out + err) for ind in conflict_indicators)
+            has_conflicts = any(ind in combined for ind in conflict_indicators)
 
             if has_conflicts:
                 logger.warning(f"Cherry-pick 产生冲突: hash={commit_hash[:12]}")
                 return {
                     "success": False,
                     "has_conflicts": True,
-                    "error": (out + err).strip()[:500] if (out + err).strip() else "",
+                    "error": combined[:500],
+                }
+
+            # Auto-cleanup: if cherry-pick is empty or failed, abort residual state
+            empty_indicators = ["cherry-pick is now empty", "nothing to commit"]
+            is_empty = any(ind in combined for ind in empty_indicators)
+            if is_empty:
+                logger.info(f"Cherry-pick 为空，自动清理: hash={commit_hash[:12]}")
+                await self._run("cherry-pick", "--abort")
+                return {
+                    "success": False,
+                    "has_conflicts": False,
+                    "is_empty": True,
+                    "error": combined[:500] if combined else "",
                 }
 
             logger.error(f"Cherry-pick 失败: hash={commit_hash[:12]}, error={err}")
             return {
                 "success": False,
                 "has_conflicts": False,
-                "error": (err or out).strip()[:500] if (err or out) else "",
+                "is_empty": False,
+                "error": combined[:500] if combined else "",
             }
 
         logger.info(f"Cherry-pick 成功: hash={commit_hash[:12]}")

@@ -843,6 +843,28 @@ class GitSequencerAbortResultPayload(PayloadBase):
     error: str = ""
 
 
+class GitSequencerSkipPayload(PayloadBase):
+    """Payload for ``git.sequencer.skip``."""
+
+    repo: str = ""
+
+
+class GitSequencerSkipResultPayload(PayloadBase):
+    """Payload for ``git.sequencer.skip.result``.
+
+    Attributes:
+        repo: Repository path.
+        success: Whether the skip operation succeeded.
+        operation: The sequencer operation type ('cherry-pick' or 'revert').
+        error: Error message (empty on success).
+    """
+
+    repo: str = ""
+    success: bool = False
+    operation: str = ""
+    error: str = ""
+
+
 # ── Registry wiring ──
 # Register all git payload models so Message.typed_payload() and
 # get_payload_class() can resolve them by MessageType.
@@ -903,3 +925,5 @@ register_payload(MessageType.GIT_SEQUENCER_CONTINUE, GitSequencerContinuePayload
 register_payload(MessageType.GIT_SEQUENCER_CONTINUE_RESULT, GitSequencerContinueResultPayload)
 register_payload(MessageType.GIT_SEQUENCER_ABORT, GitSequencerAbortPayload)
 register_payload(MessageType.GIT_SEQUENCER_ABORT_RESULT, GitSequencerAbortResultPayload)
+register_payload(MessageType.GIT_SEQUENCER_SKIP, GitSequencerSkipPayload)
+register_payload(MessageType.GIT_SEQUENCER_SKIP_RESULT, GitSequencerSkipResultPayload)

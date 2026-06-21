@@ -10,6 +10,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../components/operation_banner.dart';
 import '../models/repo_state.dart';
 import '../screens/conflict_resolver_screen.dart';
 import '../screens/repo_detail_screen.dart';
@@ -204,6 +205,63 @@ class _RepoSectionState extends State<_RepoSection> {
 
         // Expanded file list
         if (_expanded || !widget.showHeader) ...[
+          // Dismiss operation banner when operation ends
+          if (repo.operationState.isEmpty && OperationBanner.isActive)
+            Builder(builder: (ctx) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                OperationBanner.dismiss();
+              });
+              return const SizedBox.shrink();
+            }),
+          // Operation banner (cherry-pick/revert/merge in progress)
+          // Shown as global overlay, not inline
+          if (repo.operationState.isNotEmpty && !OperationBanner.isActive)
+            Builder(builder: (ctx) {
+              // Trigger overlay banner on next frame to avoid build-phase issues
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!ctx.mounted) return;
+                OperationBanner.show(
+                  ctx,
+                  label: _operationLabel(ctx, repo),
+                  accentColor: context.colors.warning,
+                  actions: [
+                    if (repo.operationState != 'merge')
+                      BannerAction(
+                        label: S.of(ctx).operationBannerContinue,
+                        color: context.colors.success,
+                        enabled: repo.conflicted.isEmpty,
+                        onTap: () {
+                          widget.ws.gitOps.gitSequencerContinue(repo: repo.path);
+                          OperationBanner.dismiss();
+                        },
+                      ),
+                    if (repo.operationState != 'merge')
+                      BannerAction(
+                        label: S.of(ctx).operationBannerSkip,
+                        color: context.colors.onSurfaceVariant,
+                        onTap: () {
+                          widget.ws.gitOps.gitSequencerSkip(repo: repo.path);
+                          OperationBanner.dismiss();
+                        },
+                      ),
+                    BannerAction(
+                      label: S.of(ctx).operationBannerAbort,
+                      color: context.colors.error,
+                      onTap: () {
+                        if (repo.operationState == 'merge') {
+                          final git = context.read<GitStateProvider>();
+                          git.mergeAbort(repo: repo.path);
+                        } else {
+                          widget.ws.gitOps.gitSequencerAbort(repo: repo.path);
+                        }
+                        OperationBanner.dismiss();
+                      },
+                    ),
+                  ],
+                );
+              });
+              return const SizedBox.shrink();
+            }),
           if (!repo.hasChanges && widget.showHeader)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -305,6 +363,22 @@ class _RepoSectionState extends State<_RepoSection> {
         ],
       ],
     );
+  }
+}
+
+/// Build operation banner label from repo state.
+String _operationLabel(BuildContext context, RepoState repo) {
+  final l = S.of(context);
+  final branch = repo.branch.isNotEmpty ? repo.branch : 'HEAD';
+  switch (repo.operationState) {
+    case 'cherry-pick':
+      return l.operationBannerCherryPick(branch);
+    case 'revert':
+      return l.operationBannerRevert(branch);
+    case 'merge':
+      return l.operationBannerMerge(branch);
+    default:
+      return repo.operationState;
   }
 }
 

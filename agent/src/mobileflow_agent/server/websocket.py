@@ -1207,6 +1207,8 @@ class WebSocketServer:
                        requires_project=True)
             r.register(MessageType.GIT_SEQUENCER_ABORT, self._git.handle_git_sequencer_abort,
                        requires_project=True)
+            r.register(MessageType.GIT_SEQUENCER_SKIP, self._git.handle_git_sequencer_skip,
+                       requires_project=True)
 
         # CLI management (no CLI auth needed — these manage CLI lifecycle)
         r.register(MessageType.CLI_LIST, self._handle_cli_list)
