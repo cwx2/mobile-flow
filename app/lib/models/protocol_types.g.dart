@@ -107,6 +107,16 @@ class MessageType {
   static const gitExec = 'git.exec'; // App -> Agent: execute arbitrary git command [request]
   static const gitExecResult = 'git.exec.result'; // Agent -> App: execution result [request]
 
+  // ── Git Merge Conflict Resolution ──
+  static const gitConflicts = 'git.conflicts'; // App -> Agent: get conflicts for a file [request]
+  static const gitConflictsResult = 'git.conflicts.result'; // Agent -> App: conflict blocks list [request]
+  static const gitConflictResolve = 'git.conflict.resolve'; // App -> Agent: resolve single conflict [request]
+  static const gitConflictResolveResult = 'git.conflict.resolve.result'; // Agent -> App: resolve result [request]
+  static const gitConflictResolveAll = 'git.conflict.resolve.all'; // App -> Agent: resolve all in file [request]
+  static const gitConflictResolveAllResult = 'git.conflict.resolve.all.result'; // Agent -> App: result [request]
+  static const gitMergeAbort = 'git.merge.abort'; // App -> Agent: abort current merge [request]
+  static const gitMergeAbortResult = 'git.merge.abort.result'; // Agent -> App: abort result [request]
+
   // ── Terminal ──
   static const terminalStart = 'terminal.start'; // App -> Agent: start terminal session [request]
   static const terminalStarted = 'terminal.started'; // Agent -> App: terminal session ready [notification]

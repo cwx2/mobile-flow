@@ -28,6 +28,9 @@ from mobileflow_protocol.errors import PayloadValidationError
 from mobileflow_protocol.payloads.git import (
     GitCheckoutPayload,
     GitCommitPayload,
+    GitConflictResolveAllPayload,
+    GitConflictResolvePayload,
+    GitConflictsPayload,
     GitDiffCommitPayload,
     GitDiffPayload,
     GitDiscardPayload,
@@ -35,6 +38,7 @@ from mobileflow_protocol.payloads.git import (
     GitLogAuthorsResultPayload,
     GitLogPayload,
     GitLogSearchPayload,
+    GitMergeAbortPayload,
     GitReposPayload,
     GitReposResultPayload,
     GitShowPayload,
@@ -650,3 +654,162 @@ class GitHandler(BaseHandler):
         await self.send(ws, Message(
             type=MessageType.GIT_EXEC_RESULT,
             payload={**(result or {}), "repo": repo_path}))
+
+    # -- Merge Conflict Resolution --
+
+    async def handle_git_conflicts(self, client_id, ws, msg):
+        """Return parsed conflict blocks for a single file.
+
+        Reads the file and parses conflict markers (<<<<<<< / ======= / >>>>>>>)
+        into structured blocks with current/incoming content.
+
+        Args:
+            client_id: Identifier of the requesting client.
+            ws: The client's WebSocket connection.
+            msg: Protocol message with ``repo`` and ``path``.
+        """
+        try:
+            payload = msg.typed_payload(GitConflictsPayload)
+        except PayloadValidationError as e:
+            logger.warning(f"git.conflicts payload 无效: client={client_id}, {e}")
+            await self.send_error(ws, f"Invalid payload: {e}")
+            return
+
+        _, git = await self._require_repo(ws, payload.repo)
+        if not git:
+            return
+
+        if not payload.path:
+            await self.send_error(ws, "Missing file path")
+            return
+
+        logger.debug(f"git.conflicts: repo={Path(payload.repo).name}, path={payload.path}")
+        result = await git.get_conflicts(payload.path)
+
+        await self.send(ws, Message(
+            type=MessageType.GIT_CONFLICTS_RESULT,
+            payload={**result, "repo": payload.repo}))
+
+    async def handle_git_conflict_resolve(self, client_id, ws, msg):
+        """Resolve a single conflict block by immediately rewriting the file.
+
+        Mirrors VS Code's immediate applyEdit() behavior: after resolution,
+        the file is modified on disk and the updated conflict list (with
+        recalculated IDs/line numbers) is returned.
+
+        Args:
+            client_id: Identifier of the requesting client.
+            ws: The client's WebSocket connection.
+            msg: Protocol message with ``repo``, ``path``, ``conflict_id``, ``resolution``.
+        """
+        try:
+            payload = msg.typed_payload(GitConflictResolvePayload)
+        except PayloadValidationError as e:
+            logger.warning(f"git.conflict.resolve payload 无效: client={client_id}, {e}")
+            await self.send_error(ws, f"Invalid payload: {e}")
+            return
+
+        manager, git = await self._require_repo(ws, payload.repo)
+        if not manager:
+            return
+
+        if not payload.path:
+            await self.send_error(ws, "Missing file path")
+            return
+
+        if payload.resolution not in ("current", "incoming", "both"):
+            await self.send_error(ws, f"Invalid resolution: {payload.resolution}")
+            return
+
+        logger.info(
+            f"git.conflict.resolve: repo={Path(payload.repo).name}, "
+            f"path={payload.path}, id={payload.conflict_id}, "
+            f"resolution={payload.resolution}"
+        )
+
+        result = await manager.run(
+            Op.ConflictResolve,
+            run_operation=lambda: git.resolve_conflict(
+                payload.path, payload.conflict_id, payload.resolution
+            ),
+        )
+
+        await self.send(ws, Message(
+            type=MessageType.GIT_CONFLICT_RESOLVE_RESULT,
+            payload={**(result or {}), "repo": payload.repo, "path": payload.path}))
+
+    async def handle_git_conflict_resolve_all(self, client_id, ws, msg):
+        """Resolve all conflicts in a file with the same strategy.
+
+        Mirrors VS Code's acceptAll command — all conflicts are resolved
+        in a single pass from bottom to top.
+
+        Args:
+            client_id: Identifier of the requesting client.
+            ws: The client's WebSocket connection.
+            msg: Protocol message with ``repo``, ``path``, ``resolution``.
+        """
+        try:
+            payload = msg.typed_payload(GitConflictResolveAllPayload)
+        except PayloadValidationError as e:
+            logger.warning(f"git.conflict.resolve.all payload 无效: client={client_id}, {e}")
+            await self.send_error(ws, f"Invalid payload: {e}")
+            return
+
+        manager, git = await self._require_repo(ws, payload.repo)
+        if not manager:
+            return
+
+        if not payload.path:
+            await self.send_error(ws, "Missing file path")
+            return
+
+        if payload.resolution not in ("current", "incoming", "both"):
+            await self.send_error(ws, f"Invalid resolution: {payload.resolution}")
+            return
+
+        logger.info(
+            f"git.conflict.resolve.all: repo={Path(payload.repo).name}, "
+            f"path={payload.path}, resolution={payload.resolution}"
+        )
+
+        result = await manager.run(
+            Op.ConflictResolve,
+            run_operation=lambda: git.resolve_all_conflicts(
+                payload.path, payload.resolution
+            ),
+        )
+
+        await self.send(ws, Message(
+            type=MessageType.GIT_CONFLICT_RESOLVE_ALL_RESULT,
+            payload={**(result or {}), "repo": payload.repo, "path": payload.path}))
+
+    async def handle_git_merge_abort(self, client_id, ws, msg):
+        """Abort the current merge operation (git merge --abort).
+
+        Args:
+            client_id: Identifier of the requesting client.
+            ws: The client's WebSocket connection.
+            msg: Protocol message with ``repo``.
+        """
+        try:
+            payload = msg.typed_payload(GitMergeAbortPayload)
+        except PayloadValidationError as e:
+            logger.warning(f"git.merge.abort payload 无效: client={client_id}, {e}")
+            await self.send_error(ws, f"Invalid payload: {e}")
+            return
+
+        manager, git = await self._require_repo(ws, payload.repo)
+        if not manager:
+            return
+
+        logger.info(f"git.merge.abort: repo={Path(payload.repo).name}")
+
+        result = await manager.run(
+            Op.MergeAbort,
+            run_operation=git.merge_abort,
+        )
+
+        await self.send(ws, Message(
+            type=MessageType.GIT_MERGE_ABORT_RESULT,
+            payload={**(result or {}), "repo": payload.repo}))

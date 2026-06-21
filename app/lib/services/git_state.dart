@@ -238,6 +238,10 @@ class GitStateProvider extends ChangeNotifier {
   void requestLog({required String repo}) =>
       _gitOps?.gitLog(repo: repo);
 
+  /// Abort the current merge operation.
+  void mergeAbort({required String repo}) =>
+      _gitOps?.gitMergeAbort(repo: repo);
+
   // ── EventBus handlers (state.push from Agent) ──
 
   void _onStatusPush(Map<String, dynamic> data) {

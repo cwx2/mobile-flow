@@ -18,6 +18,7 @@ class RepoState {
   final List<Map<String, dynamic>> staged;
   final List<Map<String, dynamic>> unstaged;
   final List<Map<String, dynamic>> untracked;
+  final List<Map<String, dynamic>> conflicted;
   final String error;
 
   const RepoState({
@@ -29,6 +30,7 @@ class RepoState {
     this.staged = const [],
     this.unstaged = const [],
     this.untracked = const [],
+    this.conflicted = const [],
     this.error = '',
   });
 
@@ -36,10 +38,13 @@ class RepoState {
   int get totalChanges => staged.length + unstaged.length + untracked.length;
 
   /// Whether this repository has any uncommitted changes.
-  bool get hasChanges => totalChanges > 0;
+  bool get hasChanges => totalChanges > 0 || conflicted.isNotEmpty;
 
   /// Whether this repository has staged files ready to commit.
   bool get hasStagedChanges => staged.isNotEmpty;
+
+  /// Whether this repository has unresolved merge conflicts.
+  bool get hasMergeConflicts => conflicted.isNotEmpty;
 
   /// Create from a status payload dict (from Agent state.push or git.status.all.result).
   factory RepoState.fromJson(Map<String, dynamic> json) {
@@ -52,6 +57,7 @@ class RepoState {
       staged: _parseFileList(json['staged']),
       unstaged: _parseFileList(json['unstaged']),
       untracked: _parseFileList(json['untracked']),
+      conflicted: _parseFileList(json['conflicted']),
       error: json['error'] as String? ?? '',
     );
   }

@@ -1188,6 +1188,16 @@ class WebSocketServer:
             r.register(MessageType.GIT_EXEC, self._git.handle_git_exec,
                        requires_project=True)
 
+            # Merge conflict resolution
+            r.register(MessageType.GIT_CONFLICTS, self._git.handle_git_conflicts,
+                       requires_project=True)
+            r.register(MessageType.GIT_CONFLICT_RESOLVE, self._git.handle_git_conflict_resolve,
+                       requires_project=True)
+            r.register(MessageType.GIT_CONFLICT_RESOLVE_ALL, self._git.handle_git_conflict_resolve_all,
+                       requires_project=True)
+            r.register(MessageType.GIT_MERGE_ABORT, self._git.handle_git_merge_abort,
+                       requires_project=True)
+
         # CLI management (no CLI auth needed — these manage CLI lifecycle)
         r.register(MessageType.CLI_LIST, self._handle_cli_list)
         r.register(MessageType.CLI_SWITCH, self._handle_cli_switch)

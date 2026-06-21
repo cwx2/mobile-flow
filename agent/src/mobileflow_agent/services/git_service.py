@@ -11,7 +11,8 @@ Called by:
 
 Supported operations:
     status, diff, stage/unstage, commit, push/pull, branch management,
-    log, discard, repository discovery, and safe command execution.
+    log, discard, repository discovery, merge conflict resolution,
+    and safe command execution.
 """
 
 from __future__ import annotations
@@ -27,6 +28,270 @@ from loguru import logger
 
 from ..utils.encoding import decode_process_output
 from ..utils.i18n import t
+
+
+# ══════════════════════════════════════════════════════════════════════
+# Merge Conflict Data Models & Parser
+# ══════════════════════════════════════════════════════════════════════
+#
+# Architecture mirrors VS Code's merge-conflict extension:
+#   - mergeConflictParser.ts → parse_conflicts()
+#   - interfaces.ts IMergeRegion → ConflictRegion
+#   - interfaces.ts IDocumentMergeConflictDescriptor → ConflictBlock
+#   - documentMergeConflict.ts applyEdit() → apply_resolution()
+
+# Marker constants (same as VS Code mergeConflictParser.ts)
+_START_MARKER = "<<<<<<<"
+_ANCESTOR_MARKER = "|||||||"
+_SPLITTER_MARKER = "======="
+_END_MARKER = ">>>>>>>"
+
+
+@dataclass
+class ConflictRegion:
+    """One side of a merge conflict (current or incoming).
+
+    Corresponds to VS Code's IMergeRegion. Stores the branch label
+    (extracted from the marker line) and the actual content text
+    between markers.
+
+    Attributes:
+        label: Branch name from marker (e.g. "HEAD", "feature/auth").
+        content: Code text between markers (excludes marker lines).
+        start_line: 0-based line number where content begins.
+        end_line: 0-based line number where content ends (exclusive).
+    """
+    label: str
+    content: str
+    start_line: int
+    end_line: int
+
+    def to_dict(self) -> dict:
+        """Serialise to a JSON-compatible dict."""
+        return {
+            "label": self.label,
+            "content": self.content,
+            "start_line": self.start_line,
+            "end_line": self.end_line,
+        }
+
+
+@dataclass
+class ConflictBlock:
+    """A single merge conflict within a file.
+
+    Corresponds to VS Code's IDocumentMergeConflictDescriptor:
+    - range → (range_start, range_end): entire conflict including markers
+    - current → our version (between <<<<<<< and =======)
+    - incoming → their version (between ======= and >>>>>>>)
+    - splitter → implicit (line of =======)
+    - commonAncestors → skipped (diff3 mode, not supported in MVP)
+
+    Attributes:
+        id: Sequential index within the file (0-based).
+        current: "Ours" region — code between <<<<<<< and =======.
+        incoming: "Theirs" region — code between ======= and >>>>>>>.
+        range_start: Line number of <<<<<<< marker (0-based).
+        range_end: Line number of >>>>>>> marker (0-based, inclusive).
+    """
+    id: int
+    current: ConflictRegion
+    incoming: ConflictRegion
+    range_start: int
+    range_end: int
+
+    def to_dict(self) -> dict:
+        """Serialise to a JSON-compatible dict."""
+        return {
+            "id": self.id,
+            "current_label": self.current.label,
+            "current_content": self.current.content,
+            "incoming_label": self.incoming.label,
+            "incoming_content": self.incoming.content,
+            "range_start": self.range_start,
+            "range_end": self.range_end,
+        }
+
+
+def parse_conflicts(content: str) -> list[ConflictBlock]:
+    """Parse merge conflict markers from file content.
+
+    Implements the same state-machine approach as VS Code's
+    MergeConflictParser.scanDocument():
+
+    1. Track a current_conflict state (None or in-progress scan).
+    2. line.startsWith('<<<<<<<') → start new conflict.
+       - If already tracking a conflict → malformed file, break entirely.
+    3. line.startsWith('|||||||') → skip (diff3 common ancestor block).
+    4. line == '=======' → exact match, record splitter position.
+    5. line.startsWith('>>>>>>>') → complete the conflict descriptor.
+    6. Build ConflictBlock from collected line ranges.
+
+    Args:
+        content: Full file content as a string.
+
+    Returns:
+        List of ConflictBlock objects. Empty if no valid conflicts found
+        or if the file contains malformed markers.
+    """
+    lines = content.split("\n")
+    # Remove trailing empty element from split (file ending with newline)
+    if lines and lines[-1] == "":
+        lines = lines[:-1]
+
+    conflicts: list[ConflictBlock] = []
+
+    # State machine variables (mirrors VS Code's IScanMergedConflict)
+    in_conflict = False
+    start_line = -1
+    start_label = ""
+    splitter_line = -1
+    in_ancestor = False  # True when inside |||||||...======= block
+
+    for i, line in enumerate(lines):
+        # Start marker: <<<<<<<
+        if line.startswith(_START_MARKER):
+            if in_conflict:
+                # Malformed: nested start marker. VS Code breaks here.
+                logger.warning(
+                    f"冲突解析: 嵌套 <<<<<<< 标记 (line {i}), 停止解析"
+                )
+                break
+
+            in_conflict = True
+            start_line = i
+            # Extract label after marker (e.g. "<<<<<<< HEAD" → "HEAD")
+            start_label = line[len(_START_MARKER):].strip()
+            splitter_line = -1
+            in_ancestor = False
+            continue
+
+        if not in_conflict:
+            continue
+
+        # Common ancestor marker: ||||||| (diff3 mode, skip content)
+        if line.startswith(_ANCESTOR_MARKER) and splitter_line == -1:
+            in_ancestor = True
+            continue
+
+        # Splitter: ======= (must be exact match for the line content)
+        if line == _SPLITTER_MARKER and splitter_line == -1:
+            splitter_line = i
+            in_ancestor = False
+            continue
+
+        # End marker: >>>>>>>
+        if line.startswith(_END_MARKER):
+            if splitter_line == -1:
+                # No splitter found — malformed conflict, skip it
+                in_conflict = False
+                continue
+
+            end_label = line[len(_END_MARKER):].strip()
+
+            # Build current region: lines between start marker and splitter
+            # (excluding ancestor block if present)
+            current_start = start_line + 1
+            current_end = splitter_line  # exclusive
+            current_lines = []
+            # Collect lines for current, skipping ancestor blocks
+            temp_in_ancestor = False
+            for j in range(current_start, current_end):
+                if lines[j].startswith(_ANCESTOR_MARKER):
+                    temp_in_ancestor = True
+                    continue
+                if temp_in_ancestor:
+                    # Skip all ancestor content until splitter
+                    continue
+                current_lines.append(lines[j])
+            current_content = "\n".join(current_lines)
+            if current_lines:
+                current_content += "\n"
+
+            # Build incoming region: lines between splitter and end marker
+            incoming_start = splitter_line + 1
+            incoming_end = i  # exclusive
+            incoming_lines = lines[incoming_start:incoming_end]
+            incoming_content = "\n".join(incoming_lines)
+            if incoming_lines:
+                incoming_content += "\n"
+
+            conflicts.append(ConflictBlock(
+                id=len(conflicts),
+                current=ConflictRegion(
+                    label=start_label,
+                    content=current_content,
+                    start_line=current_start,
+                    end_line=current_end,
+                ),
+                incoming=ConflictRegion(
+                    label=end_label,
+                    content=incoming_content,
+                    start_line=incoming_start,
+                    end_line=incoming_end,
+                ),
+                range_start=start_line,
+                range_end=i,
+            ))
+
+            # Reset state for next conflict
+            in_conflict = False
+            start_line = -1
+            splitter_line = -1
+
+    return conflicts
+
+
+def apply_resolution(content: str, conflict: ConflictBlock, resolution: str) -> str:
+    """Replace a single conflict block with the chosen content.
+
+    Mirrors VS Code's DocumentMergeConflict.applyEdit():
+    - "current": replace entire conflict range with current.content
+    - "incoming": replace entire conflict range with incoming.content
+    - "both": replace with current.content + incoming.content (concatenated)
+
+    VS Code special case: if the resolved content is newline-only
+    ('\\n' or '\\r\\n'), the range is replaced with empty string.
+
+    Args:
+        content: Full file content.
+        conflict: The ConflictBlock to resolve.
+        resolution: One of "current", "incoming", "both".
+
+    Returns:
+        Updated file content with the conflict markers removed and
+        the chosen content in place.
+
+    Raises:
+        ValueError: If resolution is not one of the valid values.
+    """
+    if resolution not in ("current", "incoming", "both"):
+        raise ValueError(f"Invalid resolution: {resolution!r}")
+
+    lines = content.split("\n")
+
+    # Determine replacement content
+    if resolution == "current":
+        replacement = conflict.current.content
+    elif resolution == "incoming":
+        replacement = conflict.incoming.content
+    else:  # both
+        replacement = conflict.current.content + conflict.incoming.content
+
+    # VS Code behavior: newline-only content → empty string
+    if replacement in ("\n", "\r\n"):
+        replacement = ""
+
+    # Split replacement into lines for insertion
+    # Remove trailing newline before splitting (we handle line joins)
+    if replacement.endswith("\n"):
+        replacement = replacement[:-1]
+    replacement_lines = replacement.split("\n") if replacement else []
+
+    # Replace the conflict range (range_start to range_end inclusive)
+    new_lines = lines[:conflict.range_start] + replacement_lines + lines[conflict.range_end + 1:]
+
+    return "\n".join(new_lines)
 
 
 @dataclass
@@ -135,6 +400,7 @@ class GitStatusResult:
         staged: List of staged file changes.
         unstaged: List of unstaged file changes.
         untracked: List of untracked files.
+        conflicted: List of files with merge conflicts (UU/AA/DD/UD/DU status).
         ahead: Number of local commits not yet pushed to remote.
         behind: Number of remote commits not yet pulled locally.
         error: Error message (empty on success).
@@ -143,6 +409,7 @@ class GitStatusResult:
     staged: list[GitFileStatus] = field(default_factory=list)
     unstaged: list[GitFileStatus] = field(default_factory=list)
     untracked: list[GitFileStatus] = field(default_factory=list)
+    conflicted: list[GitFileStatus] = field(default_factory=list)
     ahead: int = 0
     behind: int = 0
     error: str = ""
@@ -154,6 +421,7 @@ class GitStatusResult:
             "staged": [f.to_dict() for f in self.staged],
             "unstaged": [f.to_dict() for f in self.unstaged],
             "untracked": [f.to_dict() for f in self.untracked],
+            "conflicted": [f.to_dict() for f in self.conflicted],
             "ahead": self.ahead,
             "behind": self.behind,
             "error": self.error,
@@ -531,6 +799,16 @@ class GitService:
             if x == "?" and y == "?":
                 result.untracked.append(GitFileStatus(
                     path=path, status="?", staged=False))
+                continue
+
+            # Merge conflicts: UU, AA, DD, UD, DU, AU, UA
+            # These files have unresolved conflict markers and need
+            # special handling (separate from staged/unstaged).
+            xy = f"{x}{y}"
+            conflict_codes = {"UU", "AA", "DD", "UD", "DU", "AU", "UA"}
+            if xy in conflict_codes:
+                result.conflicted.append(GitFileStatus(
+                    path=path, status="U", staged=False))
                 continue
 
             # Staged changes
@@ -1283,3 +1561,253 @@ class GitService:
             "reason": "",
             "dangerous": False,
         }
+
+    # ── Merge Conflict Resolution ──
+
+    async def get_conflict_files(self) -> list[dict]:
+        """List all files with unresolved merge conflicts.
+
+        Uses git status porcelain output to identify conflict status codes:
+        UU (both modified), AA (both added), DD (both deleted),
+        UD (us modified, them deleted), DU (us deleted, them modified).
+
+        Returns:
+            List of dicts with ``path`` and ``conflict_type`` keys.
+            Empty list if no conflicts or not in a merge state.
+        """
+        out, err, code = await self._run("status", "--porcelain=v1", "-uall")
+        if code != 0:
+            return []
+
+        conflict_codes = {"UU", "AA", "DD", "UD", "DU", "AU", "UA"}
+        conflicts = []
+
+        for line in out.rstrip().split("\n"):
+            if not line or len(line) < 4:
+                continue
+            xy = line[0:2]
+            if xy in conflict_codes:
+                path = line[3:]
+                conflicts.append({
+                    "path": path,
+                    "conflict_type": xy,
+                })
+
+        logger.debug(f"冲突文件检测: {len(conflicts)} 个冲突文件")
+        return conflicts
+
+    async def get_conflicts(self, path: str) -> dict:
+        """Parse conflicts in a single file.
+
+        Reads the file content and applies the conflict parser to extract
+        all conflict blocks with their current/incoming content.
+
+        Args:
+            path: Relative file path within the repository.
+
+        Returns:
+            Dict with ``path``, ``conflicts`` (list of block dicts),
+            ``count``, and ``error`` keys.
+        """
+        full_path = os.path.join(self._cwd, path)
+        logger.debug(f"冲突解析: path={path}")
+
+        try:
+            with open(full_path, "rb") as f:
+                head = f.read(8000)
+            if b"\x00" in head:
+                return {
+                    "path": path,
+                    "conflicts": [],
+                    "count": 0,
+                    "error": "binary",
+                }
+        except FileNotFoundError:
+            return {
+                "path": path,
+                "conflicts": [],
+                "count": 0,
+                "error": f"File not found: {path}",
+            }
+        except Exception as e:
+            return {
+                "path": path,
+                "conflicts": [],
+                "count": 0,
+                "error": str(e),
+            }
+
+        try:
+            with open(full_path, "r", encoding="utf-8") as f:
+                content = f.read()
+        except UnicodeDecodeError:
+            return {
+                "path": path,
+                "conflicts": [],
+                "count": 0,
+                "error": "binary",
+            }
+
+        blocks = parse_conflicts(content)
+        logger.info(f"冲突解析完成: path={path}, count={len(blocks)}")
+
+        return {
+            "path": path,
+            "conflicts": [b.to_dict() for b in blocks],
+            "count": len(blocks),
+            "error": "",
+        }
+
+    async def resolve_conflict(self, path: str, conflict_id: int, resolution: str) -> dict:
+        """Resolve a single conflict block by immediately rewriting the file.
+
+        Mirrors VS Code's immediate applyEdit() behavior:
+        1. Read file content
+        2. Parse all conflict blocks
+        3. Find target block by ID
+        4. Apply resolution (replace conflict range with chosen content)
+        5. Write file back immediately
+        6. Re-parse and return updated conflict list
+
+        After resolution, subsequent conflict IDs and line numbers shift.
+        The returned ``remaining`` list has recalculated IDs/positions.
+
+        Args:
+            path: Relative file path within the repository.
+            conflict_id: 0-based index of the conflict to resolve.
+            resolution: One of "current", "incoming", "both".
+
+        Returns:
+            Dict with ``success``, ``remaining`` (updated conflicts),
+            ``remaining_count``, and ``error`` keys.
+        """
+        full_path = os.path.join(self._cwd, path)
+        logger.debug(
+            f"冲突解决: path={path}, conflict_id={conflict_id}, "
+            f"resolution={resolution}"
+        )
+
+        # Read current file content
+        try:
+            with open(full_path, "r", encoding="utf-8") as f:
+                content = f.read()
+        except Exception as e:
+            logger.error(f"冲突解决失败（读取文件）: path={path}, error={e}")
+            return {
+                "success": False,
+                "remaining": [],
+                "remaining_count": 0,
+                "error": str(e),
+            }
+
+        # Parse conflicts
+        blocks = parse_conflicts(content)
+        if conflict_id < 0 or conflict_id >= len(blocks):
+            logger.error(
+                f"冲突解决失败（ID 无效）: path={path}, "
+                f"conflict_id={conflict_id}, total={len(blocks)}"
+            )
+            return {
+                "success": False,
+                "remaining": [b.to_dict() for b in blocks],
+                "remaining_count": len(blocks),
+                "error": f"Invalid conflict_id: {conflict_id} (file has {len(blocks)} conflicts)",
+            }
+
+        # Apply resolution
+        target = blocks[conflict_id]
+        try:
+            new_content = apply_resolution(content, target, resolution)
+        except ValueError as e:
+            return {
+                "success": False,
+                "remaining": [b.to_dict() for b in blocks],
+                "remaining_count": len(blocks),
+                "error": str(e),
+            }
+
+        # Write back immediately (VS Code behavior: instant file modification)
+        try:
+            with open(full_path, "w", encoding="utf-8") as f:
+                f.write(new_content)
+        except Exception as e:
+            logger.error(f"冲突解决失败（写入文件）: path={path}, error={e}")
+            return {
+                "success": False,
+                "remaining": [b.to_dict() for b in blocks],
+                "remaining_count": len(blocks),
+                "error": str(e),
+            }
+
+        # Re-parse to get updated conflict list (IDs/lines recalculated)
+        remaining_blocks = parse_conflicts(new_content)
+        logger.info(
+            f"冲突解决成功: path={path}, conflict_id={conflict_id}, "
+            f"resolution={resolution}, remaining={len(remaining_blocks)}"
+        )
+
+        return {
+            "success": True,
+            "remaining": [b.to_dict() for b in remaining_blocks],
+            "remaining_count": len(remaining_blocks),
+            "error": "",
+        }
+
+    async def resolve_all_conflicts(self, path: str, resolution: str) -> dict:
+        """Resolve all conflicts in a file with the same strategy.
+
+        Mirrors VS Code's acceptAll command — processes all conflicts in
+        a single pass. Must apply from bottom to top to prevent line
+        offset corruption (same approach as VS Code's batch edit).
+
+        Args:
+            path: Relative file path within the repository.
+            resolution: One of "current", "incoming", "both".
+
+        Returns:
+            Dict with ``success``, ``resolved_count``, and ``error`` keys.
+        """
+        full_path = os.path.join(self._cwd, path)
+        logger.debug(f"全部冲突解决: path={path}, resolution={resolution}")
+
+        try:
+            with open(full_path, "r", encoding="utf-8") as f:
+                content = f.read()
+        except Exception as e:
+            logger.error(f"全部冲突解决失败（读取文件）: path={path}, error={e}")
+            return {"success": False, "resolved_count": 0, "error": str(e)}
+
+        blocks = parse_conflicts(content)
+        if not blocks:
+            return {"success": True, "resolved_count": 0, "error": ""}
+
+        # Apply from bottom to top to preserve line numbers
+        for block in reversed(blocks):
+            content = apply_resolution(content, block, resolution)
+
+        try:
+            with open(full_path, "w", encoding="utf-8") as f:
+                f.write(content)
+        except Exception as e:
+            logger.error(f"全部冲突解决失败（写入文件）: path={path}, error={e}")
+            return {"success": False, "resolved_count": 0, "error": str(e)}
+
+        logger.info(
+            f"全部冲突解决成功: path={path}, resolution={resolution}, "
+            f"resolved_count={len(blocks)}"
+        )
+        return {"success": True, "resolved_count": len(blocks), "error": ""}
+
+    async def merge_abort(self) -> dict:
+        """Abort the current merge operation (``git merge --abort``).
+
+        Returns:
+            Dict with ``success`` and ``error`` keys.
+        """
+        logger.info("执行 git merge --abort")
+        out, err, code = await self._run("merge", "--abort")
+        if code != 0:
+            logger.error(f"git merge --abort 失败: {err}")
+            return {"success": False, "error": err.split("\n")[0] if err else ""}
+        logger.info("git merge --abort 成功")
+        return {"success": True, "error": ""}

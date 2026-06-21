@@ -55,6 +55,8 @@ class OpKind(str, Enum):
     STAGE_ALL = "StageAll"
     UNSTAGE_ALL = "UnstageAll"
     GIT_COMMAND = "GitCommand"
+    CONFLICT_RESOLVE = "ConflictResolve"
+    MERGE_ABORT = "MergeAbort"
 
     # State management
     REFRESH = "Refresh"
@@ -134,6 +136,8 @@ class Op:
     Rebase = Operation(OpKind.REBASE, blocking=True, show_progress=True)
     Discard = Operation(OpKind.DISCARD, show_progress=True)
     GitCommand = Operation(OpKind.GIT_COMMAND, show_progress=True)
+    ConflictResolve = Operation(OpKind.CONFLICT_RESOLVE, show_progress=True)
+    MergeAbort = Operation(OpKind.MERGE_ABORT, blocking=True, show_progress=True)
 
     # ── State management ──
     Refresh = Operation(OpKind.REFRESH, show_progress=True)

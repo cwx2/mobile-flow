@@ -586,6 +586,131 @@ class GitExecResultPayload(PayloadBase):
     error: Optional[str] = None
 
 
+# ── Merge Conflict Resolution Payloads ──
+
+
+class GitConflictsPayload(PayloadBase):
+    """Payload for ``git.conflicts`` — request conflict blocks for a file.
+
+    Attributes:
+        repo: Target repository path.
+        path: Relative file path to parse conflicts from.
+    """
+
+    repo: str = ""
+    path: str = ""
+
+
+class GitConflictsResultPayload(PayloadBase):
+    """Payload for ``git.conflicts.result`` — conflict blocks list.
+
+    Attributes:
+        repo: Repository path.
+        path: File path.
+        conflicts: List of conflict block dicts (id, current_*, incoming_*, range_*).
+        count: Total number of conflicts in the file.
+        error: Error message (empty on success).
+    """
+
+    repo: str = ""
+    path: str = ""
+    conflicts: list[dict[str, Any]] = []
+    count: int = 0
+    error: str = ""
+
+
+class GitConflictResolvePayload(PayloadBase):
+    """Payload for ``git.conflict.resolve`` — resolve a single conflict block.
+
+    Attributes:
+        repo: Target repository path.
+        path: Relative file path.
+        conflict_id: 0-based index of the conflict to resolve.
+        resolution: Resolution strategy — "current", "incoming", or "both".
+    """
+
+    repo: str = ""
+    path: str = ""
+    conflict_id: int = 0
+    resolution: str = ""
+
+
+class GitConflictResolveResultPayload(PayloadBase):
+    """Payload for ``git.conflict.resolve.result`` — single resolve result.
+
+    Attributes:
+        repo: Repository path.
+        path: File path.
+        success: Whether the resolution succeeded.
+        remaining: Updated conflict list after resolution (recalculated IDs).
+        remaining_count: Number of remaining unresolved conflicts.
+        error: Error message (empty on success).
+    """
+
+    repo: str = ""
+    path: str = ""
+    success: bool = False
+    remaining: list[dict[str, Any]] = []
+    remaining_count: int = 0
+    error: str = ""
+
+
+class GitConflictResolveAllPayload(PayloadBase):
+    """Payload for ``git.conflict.resolve.all`` — resolve all conflicts in file.
+
+    Attributes:
+        repo: Target repository path.
+        path: Relative file path.
+        resolution: Resolution strategy — "current", "incoming", or "both".
+    """
+
+    repo: str = ""
+    path: str = ""
+    resolution: str = ""
+
+
+class GitConflictResolveAllResultPayload(PayloadBase):
+    """Payload for ``git.conflict.resolve.all.result`` — batch resolve result.
+
+    Attributes:
+        repo: Repository path.
+        path: File path.
+        success: Whether all resolutions succeeded.
+        resolved_count: Number of conflicts resolved.
+        error: Error message (empty on success).
+    """
+
+    repo: str = ""
+    path: str = ""
+    success: bool = False
+    resolved_count: int = 0
+    error: str = ""
+
+
+class GitMergeAbortPayload(PayloadBase):
+    """Payload for ``git.merge.abort`` — abort current merge operation.
+
+    Attributes:
+        repo: Target repository path.
+    """
+
+    repo: str = ""
+
+
+class GitMergeAbortResultPayload(PayloadBase):
+    """Payload for ``git.merge.abort.result`` — abort result.
+
+    Attributes:
+        repo: Repository path.
+        success: Whether the abort succeeded.
+        error: Error message (empty on success).
+    """
+
+    repo: str = ""
+    success: bool = False
+    error: str = ""
+
+
 # ── Registry wiring ──
 # Register all git payload models so Message.typed_payload() and
 # get_payload_class() can resolve them by MessageType.
@@ -626,3 +751,13 @@ register_payload(MessageType.GIT_REPOS, GitReposPayload)
 register_payload(MessageType.GIT_REPOS_RESULT, GitReposResultPayload)
 register_payload(MessageType.GIT_EXEC, GitExecPayload)
 register_payload(MessageType.GIT_EXEC_RESULT, GitExecResultPayload)
+
+# Merge conflict resolution payloads
+register_payload(MessageType.GIT_CONFLICTS, GitConflictsPayload)
+register_payload(MessageType.GIT_CONFLICTS_RESULT, GitConflictsResultPayload)
+register_payload(MessageType.GIT_CONFLICT_RESOLVE, GitConflictResolvePayload)
+register_payload(MessageType.GIT_CONFLICT_RESOLVE_RESULT, GitConflictResolveResultPayload)
+register_payload(MessageType.GIT_CONFLICT_RESOLVE_ALL, GitConflictResolveAllPayload)
+register_payload(MessageType.GIT_CONFLICT_RESOLVE_ALL_RESULT, GitConflictResolveAllResultPayload)
+register_payload(MessageType.GIT_MERGE_ABORT, GitMergeAbortPayload)
+register_payload(MessageType.GIT_MERGE_ABORT_RESULT, GitMergeAbortResultPayload)

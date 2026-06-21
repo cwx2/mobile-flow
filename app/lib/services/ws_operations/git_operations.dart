@@ -168,4 +168,48 @@ class GitOperations {
           type: MessageType.gitExec,
           payload: GitExecPayload(
               command: command, confirmed: confirmed, repo: repo).toJson()));
+
+  // ── Merge Conflict Resolution ──
+
+  /// Request parsed conflict blocks for a file.
+  void gitConflicts({required String repo, required String path}) =>
+      _sender.send(WsMessage(
+          type: MessageType.gitConflicts,
+          payload: <String, dynamic>{'repo': repo, 'path': path}));
+
+  /// Resolve a single conflict block (immediate write).
+  void gitConflictResolve({
+    required String repo,
+    required String path,
+    required int conflictId,
+    required String resolution,
+  }) =>
+      _sender.send(WsMessage(
+          type: MessageType.gitConflictResolve,
+          payload: <String, dynamic>{
+            'repo': repo,
+            'path': path,
+            'conflict_id': conflictId,
+            'resolution': resolution,
+          }));
+
+  /// Resolve all conflicts in a file with the same strategy.
+  void gitConflictResolveAll({
+    required String repo,
+    required String path,
+    required String resolution,
+  }) =>
+      _sender.send(WsMessage(
+          type: MessageType.gitConflictResolveAll,
+          payload: <String, dynamic>{
+            'repo': repo,
+            'path': path,
+            'resolution': resolution,
+          }));
+
+  /// Abort the current merge operation.
+  void gitMergeAbort({required String repo}) =>
+      _sender.send(WsMessage(
+          type: MessageType.gitMergeAbort,
+          payload: <String, dynamic>{'repo': repo}));
 }

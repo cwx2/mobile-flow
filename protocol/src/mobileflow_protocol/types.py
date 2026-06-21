@@ -125,6 +125,18 @@ class MessageType(str, Enum):
     GIT_EXEC = "git.exec"                # App -> Agent: execute arbitrary git command
     GIT_EXEC_RESULT = "git.exec.result"   # Agent -> App: execution result
 
+    # ── Git Merge Conflict Resolution ──
+    # Detect, parse, and resolve merge conflicts (mirrors VS Code merge-conflict extension).
+
+    GIT_CONFLICTS = "git.conflicts"                    # App -> Agent: get conflicts for a file
+    GIT_CONFLICTS_RESULT = "git.conflicts.result"      # Agent -> App: conflict blocks list
+    GIT_CONFLICT_RESOLVE = "git.conflict.resolve"      # App -> Agent: resolve single conflict
+    GIT_CONFLICT_RESOLVE_RESULT = "git.conflict.resolve.result"  # Agent -> App: resolve result
+    GIT_CONFLICT_RESOLVE_ALL = "git.conflict.resolve.all"        # App -> Agent: resolve all in file
+    GIT_CONFLICT_RESOLVE_ALL_RESULT = "git.conflict.resolve.all.result"  # Agent -> App: result
+    GIT_MERGE_ABORT = "git.merge.abort"                # App -> Agent: abort current merge
+    GIT_MERGE_ABORT_RESULT = "git.merge.abort.result"  # Agent -> App: abort result
+
     # ── Terminal ──
     # Interactive PTY terminal sessions.
 

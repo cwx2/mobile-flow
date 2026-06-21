@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../models/repo_state.dart';
+import '../screens/conflict_resolver_screen.dart';
 import '../screens/repo_detail_screen.dart';
 import '../services/git_state.dart';
 import '../services/websocket_service.dart';
@@ -218,6 +219,23 @@ class _RepoSectionState extends State<_RepoSection> {
               ),
             )
           else ...[
+            // Conflicts section (highest priority, shown first)
+            if (repo.conflicted.isNotEmpty) ...[
+              _SectionHeader(
+                title: 'Conflicts (${repo.conflicted.length})',
+                color: colors.error,
+                actionLabel: 'Abort Merge',
+                onAction: () {
+                  final git = context.read<GitStateProvider>();
+                  git.mergeAbort(repo: repo.path);
+                },
+              ),
+              ...repo.conflicted.map((f) => _ConflictFileItem(
+                    file: f,
+                    repoPath: repo.path,
+                    ws: widget.ws,
+                  )),
+            ],
             if (repo.staged.isNotEmpty) ...[
               _SectionHeader(
                 title: S.of(context).gitChangesStagedCount(repo.staged.length),
@@ -277,6 +295,66 @@ class _RepoSectionState extends State<_RepoSection> {
           ],
         ],
       ],
+    );
+  }
+}
+
+/// Single conflict file item — taps navigate to ConflictResolverScreen.
+class _ConflictFileItem extends StatelessWidget {
+  final Map<String, dynamic> file;
+  final String repoPath;
+  final WebSocketService ws;
+
+  const _ConflictFileItem({
+    required this.file,
+    required this.repoPath,
+    required this.ws,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final path = file['path'] as String? ?? '';
+    final fileName = path.split('/').last;
+    final dirPath = path.contains('/') ? path.substring(0, path.lastIndexOf('/')) : '';
+
+    return InkWell(
+      onTap: () {
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => ConflictResolverScreen(
+            repoPath: repoPath,
+            filePath: path,
+          ),
+        ));
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: colors.error.withValues(alpha: 0.05),
+        ),
+        child: Row(
+          children: [
+            // Conflict warning icon
+            Icon(Icons.warning_amber_rounded, size: 18, color: colors.error),
+            const SizedBox(width: 8),
+            // Filename + directory path
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(fileName,
+                      style: TextStyle(fontSize: 13, color: colors.onSurface)),
+                  if (dirPath.isNotEmpty)
+                    Text(dirPath,
+                        style: TextStyle(fontSize: 10, color: colors.onSurfaceMuted)),
+                ],
+              ),
+            ),
+            // Navigate arrow
+            Icon(Icons.chevron_right, size: 18, color: colors.onSurfaceMuted),
+          ],
+        ),
+      ),
     );
   }
 }
