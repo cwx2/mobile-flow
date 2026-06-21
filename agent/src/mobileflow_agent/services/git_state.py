@@ -409,6 +409,14 @@ class GitStateManager:
                         )
 
                 self._status = new_status
+
+                # Inject operation state (merge/cherry-pick/revert in progress)
+                try:
+                    op_state = await self._git.detect_operation_state()
+                    if self._status and isinstance(self._status, dict):
+                        self._status["operation_state"] = op_state
+                except Exception:
+                    pass  # Non-critical, don't block status refresh
             else:
                 logger.warning(f"git status 刷新失败: {status_result}")
 

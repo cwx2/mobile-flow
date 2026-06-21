@@ -815,6 +815,12 @@ class SZh extends S {
   String get gitConflictsAbortMerge => '放弃合并';
 
   @override
+  String get gitConflictsAbortCherryPick => '放弃优选';
+
+  @override
+  String get gitConflictsAbortRevert => '放弃还原';
+
+  @override
   String gitConflictsRemaining(int count) {
     return '剩余 $count 个冲突';
   }

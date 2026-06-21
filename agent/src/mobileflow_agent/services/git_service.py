@@ -1840,6 +1840,89 @@ class GitService:
         logger.info("git merge --abort 成功")
         return {"success": True, "error": ""}
 
+    async def sequencer_abort(self) -> dict:
+        """Abort the current cherry-pick or revert operation.
+
+        Detects which operation is in progress by checking .git/ sentinel
+        files, then runs the appropriate --abort command.
+
+        Returns:
+            Dict with ``success``, ``operation`` (str), and ``error`` keys.
+        """
+        op = await self._detect_sequencer_operation()
+        if not op:
+            return {"success": False, "operation": "", "error": "No operation in progress"}
+
+        logger.info(f"执行 git {op} --abort")
+        out, err, code = await self._run(op, "--abort")
+        if code != 0:
+            logger.error(f"git {op} --abort 失败: {err}")
+            return {"success": False, "operation": op, "error": err.strip()[:500] if err else ""}
+        logger.info(f"git {op} --abort 成功")
+        return {"success": True, "operation": op, "error": ""}
+
+    async def sequencer_continue(self) -> dict:
+        """Continue the current cherry-pick or revert after conflicts resolved.
+
+        Detects which operation is in progress, then runs --continue.
+
+        Returns:
+            Dict with ``success``, ``operation`` (str), and ``error`` keys.
+        """
+        op = await self._detect_sequencer_operation()
+        if not op:
+            return {"success": False, "operation": "", "error": "No operation in progress"}
+
+        logger.info(f"执行 git {op} --continue")
+        out, err, code = await self._run(op, "--continue")
+        if code != 0:
+            logger.error(f"git {op} --continue 失败: {err}")
+            return {"success": False, "operation": op, "error": err.strip()[:500] if err else ""}
+        logger.info(f"git {op} --continue 成功")
+        return {"success": True, "operation": op, "error": ""}
+
+    async def detect_operation_state(self) -> str:
+        """Detect if a merge/cherry-pick/revert is in progress.
+
+        Returns 'merge', 'cherry-pick', 'revert', or '' (no operation).
+        """
+        import os
+        git_dir = os.path.join(self._cwd, ".git")
+        if os.path.exists(os.path.join(git_dir, "MERGE_HEAD")):
+            return "merge"
+        if os.path.exists(os.path.join(git_dir, "CHERRY_PICK_HEAD")):
+            return "cherry-pick"
+        if os.path.exists(os.path.join(git_dir, "REVERT_HEAD")):
+            return "revert"
+        return ""
+
+    async def _detect_sequencer_operation(self) -> str | None:
+        """Detect which sequencer operation (cherry-pick/revert) is in progress.
+
+        Checks .git/ sentinel files. Returns 'cherry-pick', 'revert', or None.
+        """
+        import os
+        git_dir = os.path.join(self._cwd, ".git")
+        if os.path.exists(os.path.join(git_dir, "CHERRY_PICK_HEAD")):
+            return "cherry-pick"
+        if os.path.exists(os.path.join(git_dir, "REVERT_HEAD")):
+            return "revert"
+        # Check sequencer dir (for multi-commit operations)
+        sequencer_dir = os.path.join(git_dir, "sequencer")
+        if os.path.isdir(sequencer_dir):
+            todo_file = os.path.join(sequencer_dir, "todo")
+            if os.path.exists(todo_file):
+                try:
+                    with open(todo_file, "r") as f:
+                        first_line = f.readline()
+                    if "pick" in first_line:
+                        return "cherry-pick"
+                    if "revert" in first_line:
+                        return "revert"
+                except OSError:
+                    pass
+        return None
+
     # ── Undo / Revert Commit ──
 
     async def undo_commit(self, mode: str = "soft") -> dict:
@@ -1917,7 +2000,7 @@ class GitService:
 
         if code != 0:
             # Check if failure is due to conflicts
-            conflict_indicators = ["CONFLICT", "conflict", "Merge conflict"]
+            conflict_indicators = ["CONFLICT (", "Merge conflict in"]
             has_conflicts = any(ind in (out + err) for ind in conflict_indicators)
 
             if has_conflicts:
@@ -1984,7 +2067,7 @@ class GitService:
         out, err, code = await self._run(*args)
 
         if code != 0:
-            conflict_indicators = ["CONFLICT", "conflict", "Merge conflict"]
+            conflict_indicators = ["CONFLICT (", "Merge conflict in"]
             has_conflicts = any(ind in (out + err) for ind in conflict_indicators)
 
             if has_conflicts:

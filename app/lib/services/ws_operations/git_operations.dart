@@ -252,4 +252,16 @@ class GitOperations {
             'hash': hash,
             'no_commit': noCommit,
           }));
+
+  /// Continue the current cherry-pick or revert operation after resolving conflicts.
+  void gitSequencerContinue({required String repo}) =>
+      _sender.send(WsMessage(
+          type: MessageType.gitSequencerContinue,
+          payload: <String, dynamic>{'repo': repo}));
+
+  /// Abort the current cherry-pick or revert operation.
+  void gitSequencerAbort({required String repo}) =>
+      _sender.send(WsMessage(
+          type: MessageType.gitSequencerAbort,
+          payload: <String, dynamic>{'repo': repo}));
 }

@@ -21,6 +21,9 @@ class RepoState {
   final List<Map<String, dynamic>> conflicted;
   final String error;
 
+  /// Current in-progress operation: 'merge', 'cherry-pick', 'revert', or '' (none).
+  final String operationState;
+
   const RepoState({
     required this.path,
     required this.name,
@@ -32,6 +35,7 @@ class RepoState {
     this.untracked = const [],
     this.conflicted = const [],
     this.error = '',
+    this.operationState = '',
   });
 
   /// Total number of changed files in this repository (includes conflicts).
@@ -59,6 +63,7 @@ class RepoState {
       untracked: _parseFileList(json['untracked']),
       conflicted: _parseFileList(json['conflicted']),
       error: json['error'] as String? ?? '',
+      operationState: json['operation_state'] as String? ?? '',
     );
   }
 

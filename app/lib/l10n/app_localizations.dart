@@ -1651,6 +1651,18 @@ abstract class S {
   /// **'Abort Merge'**
   String get gitConflictsAbortMerge;
 
+  /// No description provided for @gitConflictsAbortCherryPick.
+  ///
+  /// In en, this message translates to:
+  /// **'Abort Cherry-pick'**
+  String get gitConflictsAbortCherryPick;
+
+  /// No description provided for @gitConflictsAbortRevert.
+  ///
+  /// In en, this message translates to:
+  /// **'Abort Revert'**
+  String get gitConflictsAbortRevert;
+
   /// No description provided for @gitConflictsRemaining.
   ///
   /// In en, this message translates to:

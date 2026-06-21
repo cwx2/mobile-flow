@@ -146,6 +146,10 @@ class MessageType(str, Enum):
     GIT_REVERT_COMMIT_RESULT = "git.revert.commit.result"  # Agent -> App: revert result
     GIT_CHERRY_PICK = "git.cherry.pick"                # App -> Agent: cherry-pick a commit
     GIT_CHERRY_PICK_RESULT = "git.cherry.pick.result"  # Agent -> App: cherry-pick result
+    GIT_SEQUENCER_CONTINUE = "git.sequencer.continue"          # App -> Agent: continue cherry-pick/revert
+    GIT_SEQUENCER_CONTINUE_RESULT = "git.sequencer.continue.result"  # Agent -> App: continue result
+    GIT_SEQUENCER_ABORT = "git.sequencer.abort"                # App -> Agent: abort cherry-pick/revert
+    GIT_SEQUENCER_ABORT_RESULT = "git.sequencer.abort.result"  # Agent -> App: abort result
 
     # ── Terminal ──
     # Interactive PTY terminal sessions.

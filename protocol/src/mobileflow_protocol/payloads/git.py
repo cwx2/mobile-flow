@@ -799,6 +799,50 @@ class GitCherryPickResultPayload(PayloadBase):
     error: str = ""
 
 
+class GitSequencerContinuePayload(PayloadBase):
+    """Payload for ``git.sequencer.continue``."""
+
+    repo: str = ""
+
+
+class GitSequencerContinueResultPayload(PayloadBase):
+    """Payload for ``git.sequencer.continue.result``.
+
+    Attributes:
+        repo: Repository path.
+        success: Whether the continue operation succeeded.
+        operation: The sequencer operation type ('cherry-pick' or 'revert').
+        error: Error message (empty on success).
+    """
+
+    repo: str = ""
+    success: bool = False
+    operation: str = ""
+    error: str = ""
+
+
+class GitSequencerAbortPayload(PayloadBase):
+    """Payload for ``git.sequencer.abort``."""
+
+    repo: str = ""
+
+
+class GitSequencerAbortResultPayload(PayloadBase):
+    """Payload for ``git.sequencer.abort.result``.
+
+    Attributes:
+        repo: Repository path.
+        success: Whether the abort operation succeeded.
+        operation: The sequencer operation type ('cherry-pick' or 'revert').
+        error: Error message (empty on success).
+    """
+
+    repo: str = ""
+    success: bool = False
+    operation: str = ""
+    error: str = ""
+
+
 # ── Registry wiring ──
 # Register all git payload models so Message.typed_payload() and
 # get_payload_class() can resolve them by MessageType.
@@ -855,3 +899,7 @@ register_payload(MessageType.GIT_REVERT_COMMIT, GitRevertCommitPayload)
 register_payload(MessageType.GIT_REVERT_COMMIT_RESULT, GitRevertCommitResultPayload)
 register_payload(MessageType.GIT_CHERRY_PICK, GitCherryPickPayload)
 register_payload(MessageType.GIT_CHERRY_PICK_RESULT, GitCherryPickResultPayload)
+register_payload(MessageType.GIT_SEQUENCER_CONTINUE, GitSequencerContinuePayload)
+register_payload(MessageType.GIT_SEQUENCER_CONTINUE_RESULT, GitSequencerContinueResultPayload)
+register_payload(MessageType.GIT_SEQUENCER_ABORT, GitSequencerAbortPayload)
+register_payload(MessageType.GIT_SEQUENCER_ABORT_RESULT, GitSequencerAbortResultPayload)

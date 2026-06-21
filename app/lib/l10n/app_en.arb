@@ -303,6 +303,8 @@
   "gitConflictsCount": "Conflicts ({count})",
   "@gitConflictsCount": { "placeholders": { "count": { "type": "int" } } },
   "gitConflictsAbortMerge": "Abort Merge",
+  "gitConflictsAbortCherryPick": "Abort Cherry-pick",
+  "gitConflictsAbortRevert": "Abort Revert",
   "gitConflictsRemaining": "{count} conflicts remaining",
   "@gitConflictsRemaining": { "placeholders": { "count": { "type": "int" } } },
   "gitConflictsAllResolved": "All conflicts resolved",

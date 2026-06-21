@@ -224,10 +224,19 @@ class _RepoSectionState extends State<_RepoSection> {
               _SectionHeader(
                 title: S.of(context).gitConflictsCount(repo.conflicted.length),
                 color: colors.error,
-                actionLabel: S.of(context).gitConflictsAbortMerge,
+                actionLabel: repo.operationState == 'cherry-pick'
+                    ? S.of(context).gitConflictsAbortCherryPick
+                    : repo.operationState == 'revert'
+                        ? S.of(context).gitConflictsAbortRevert
+                        : S.of(context).gitConflictsAbortMerge,
                 onAction: () {
                   final git = context.read<GitStateProvider>();
-                  git.mergeAbort(repo: repo.path);
+                  if (repo.operationState == 'cherry-pick' ||
+                      repo.operationState == 'revert') {
+                    widget.ws.gitOps.gitSequencerAbort(repo: repo.path);
+                  } else {
+                    git.mergeAbort(repo: repo.path);
+                  }
                 },
               ),
               ...repo.conflicted.map((f) => _ConflictFileItem(

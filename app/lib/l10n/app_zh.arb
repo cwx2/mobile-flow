@@ -288,6 +288,8 @@
   "gitChangesAddAll": "全部添加",
   "gitConflictsCount": "冲突 ({count})",
   "gitConflictsAbortMerge": "放弃合并",
+  "gitConflictsAbortCherryPick": "放弃优选",
+  "gitConflictsAbortRevert": "放弃还原",
   "gitConflictsRemaining": "剩余 {count} 个冲突",
   "gitConflictsAllResolved": "所有冲突已解决",
   "gitConflictsAllResolvedDesc": "暂存文件以标记为已解决",

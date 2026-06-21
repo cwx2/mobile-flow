@@ -841,6 +841,12 @@ class SEn extends S {
   String get gitConflictsAbortMerge => 'Abort Merge';
 
   @override
+  String get gitConflictsAbortCherryPick => 'Abort Cherry-pick';
+
+  @override
+  String get gitConflictsAbortRevert => 'Abort Revert';
+
+  @override
   String gitConflictsRemaining(int count) {
     return '$count conflicts remaining';
   }

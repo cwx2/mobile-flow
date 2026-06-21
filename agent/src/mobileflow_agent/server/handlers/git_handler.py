@@ -43,6 +43,8 @@ from mobileflow_protocol.payloads.git import (
     GitReposPayload,
     GitReposResultPayload,
     GitRevertCommitPayload,
+    GitSequencerAbortPayload,
+    GitSequencerContinuePayload,
     GitShowPayload,
     GitStagePayload,
     GitStatusResultPayload,
@@ -931,4 +933,48 @@ class GitHandler(BaseHandler):
 
         await self.send(ws, Message(
             type=MessageType.GIT_CHERRY_PICK_RESULT,
+            payload={**(result or {}), "repo": payload.repo}))
+
+    # -- Sequencer continue / abort --
+
+    async def handle_git_sequencer_continue(self, client_id, ws, msg):
+        """Continue the current cherry-pick or revert after conflict resolution."""
+        try:
+            payload = msg.typed_payload(GitSequencerContinuePayload)
+        except PayloadValidationError as e:
+            await self.send_error(ws, f"Invalid payload: {e}")
+            return
+
+        manager, git = await self._require_repo(ws, payload.repo)
+        if not manager:
+            return
+
+        result = await manager.run(
+            Op.Commit,
+            run_operation=lambda: git.sequencer_continue(),
+        )
+
+        await self.send(ws, Message(
+            type=MessageType.GIT_SEQUENCER_CONTINUE_RESULT,
+            payload={**(result or {}), "repo": payload.repo}))
+
+    async def handle_git_sequencer_abort(self, client_id, ws, msg):
+        """Abort the current cherry-pick or revert operation."""
+        try:
+            payload = msg.typed_payload(GitSequencerAbortPayload)
+        except PayloadValidationError as e:
+            await self.send_error(ws, f"Invalid payload: {e}")
+            return
+
+        manager, git = await self._require_repo(ws, payload.repo)
+        if not manager:
+            return
+
+        result = await manager.run(
+            Op.Commit,
+            run_operation=lambda: git.sequencer_abort(),
+        )
+
+        await self.send(ws, Message(
+            type=MessageType.GIT_SEQUENCER_ABORT_RESULT,
             payload={**(result or {}), "repo": payload.repo}))
