@@ -712,30 +712,35 @@ class GitMergeAbortResultPayload(PayloadBase):
 
 
 class GitUndoCommitPayload(PayloadBase):
-    """Payload for ``git.undo.commit`` — undo last commit via reset.
+    """Payload for ``git.undo.commit`` — undo/reset commit(s) via git reset.
 
     Attributes:
         repo: Target repository path.
         mode: Reset mode — "soft", "mixed", or "hard".
+        target: Reset target — defaults to "HEAD~1" (undo last commit).
+            Can be a commit hash to reset the branch to that commit.
     """
 
     repo: str = ""
     mode: str = "soft"
+    target: str = "HEAD~1"
 
 
 class GitUndoCommitResultPayload(PayloadBase):
-    """Payload for ``git.undo.commit.result`` — undo result.
+    """Payload for ``git.undo.commit.result`` — undo/reset result.
 
     Attributes:
         repo: Repository path.
-        success: Whether the undo succeeded.
+        success: Whether the reset succeeded.
         message: The undone commit's message (for pre-filling input).
+        commits_reset: Number of commits that were reset (0 if failed).
         error: Error message (empty on success).
     """
 
     repo: str = ""
     success: bool = False
     message: str = ""
+    commits_reset: int = 0
     error: str = ""
 
 

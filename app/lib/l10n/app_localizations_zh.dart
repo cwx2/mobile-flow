@@ -967,6 +967,30 @@ class SZh extends S {
   String get gitRevertConflict => '还原产生冲突，请解决冲突';
 
   @override
+  String get gitResetToHere => '重置到此处';
+
+  @override
+  String gitResetToHereDesc(String hash) {
+    return '将当前分支 HEAD 移动到 $hash';
+  }
+
+  @override
+  String get gitResetHardConfirmTitle => '危险操作';
+
+  @override
+  String gitResetHardConfirmBody(String hash) {
+    return '这将永久丢弃 $hash 之后的所有改动，无法撤销。';
+  }
+
+  @override
+  String get gitResetHardConfirmButton => '重置 (--hard)';
+
+  @override
+  String gitResetDone(String hash) {
+    return '分支已重置到 $hash';
+  }
+
+  @override
   String get gitViewDetails => '查看详情';
 
   @override

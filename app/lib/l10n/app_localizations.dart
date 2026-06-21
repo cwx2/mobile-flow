@@ -1939,6 +1939,42 @@ abstract class S {
   /// **'Revert produced conflicts, please resolve them'**
   String get gitRevertConflict;
 
+  /// No description provided for @gitResetToHere.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset Branch to Here'**
+  String get gitResetToHere;
+
+  /// No description provided for @gitResetToHereDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Move the current branch HEAD to {hash}'**
+  String gitResetToHereDesc(String hash);
+
+  /// No description provided for @gitResetHardConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Destructive Reset'**
+  String get gitResetHardConfirmTitle;
+
+  /// No description provided for @gitResetHardConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This will permanently discard all changes after {hash}. This cannot be undone.'**
+  String gitResetHardConfirmBody(String hash);
+
+  /// No description provided for @gitResetHardConfirmButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Reset (--hard)'**
+  String get gitResetHardConfirmButton;
+
+  /// No description provided for @gitResetDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Branch reset to {hash}'**
+  String gitResetDone(String hash);
+
   /// No description provided for @gitViewDetails.
   ///
   /// In en, this message translates to:

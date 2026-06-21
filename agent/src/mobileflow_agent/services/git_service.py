@@ -1946,42 +1946,56 @@ class GitService:
 
     # ── Undo / Revert Commit ──
 
-    async def undo_commit(self, mode: str = "soft") -> dict:
-        """Undo the last commit (git reset HEAD~1).
+    async def undo_commit(self, mode: str = "soft", target: str = "HEAD~1") -> dict:
+        """Reset the current branch to a target commit.
 
-        Mirrors JetBrains' "Undo Commit" — removes the most recent commit
-        and puts changes back according to the mode. Also returns the
-        undone commit's message so the UI can pre-fill the input box.
+        Supports both "undo last commit" (target=HEAD~1) and "reset to
+        specific commit" (target=<hash>). Returns the number of commits
+        affected so the UI can inform the user.
 
         Args:
             mode: Reset mode — "soft", "mixed", or "hard".
                 - soft: keep changes in staged (index preserved)
                 - mixed: keep changes in working dir (unstaged)
                 - hard: discard all changes (destructive!)
+            target: Reset target — "HEAD~1" for undo-last, or a commit hash
+                for reset-to-here.
 
         Returns:
-            Dict with ``success``, ``message`` (undone commit msg),
-            and ``error`` keys.
+            Dict with ``success``, ``message`` (commit msg before reset),
+            ``commits_reset`` (int), and ``error`` keys.
         """
         if mode not in ("soft", "mixed", "hard"):
-            return {"success": False, "message": "", "error": f"Invalid mode: {mode}"}
+            return {"success": False, "message": "", "commits_reset": 0,
+                    "error": f"Invalid mode: {mode}"}
 
-        # Get the commit message before resetting (for UI pre-fill)
+        # Count how many commits will be reset
+        count_out, _, count_code = await self._run(
+            "rev-list", "--count", f"{target}..HEAD",
+        )
+        commits_reset = int(count_out.strip()) if count_code == 0 and count_out.strip().isdigit() else 1
+
+        # Get the commit message at HEAD before resetting (for UI pre-fill)
         msg_out, _, msg_code = await self._run(
             "log", "-1", "--pretty=format:%s",
         )
         commit_message = msg_out.strip() if msg_code == 0 else ""
 
-        logger.info(f"撤销提交: mode={mode}, message={commit_message[:50]}")
+        logger.info(
+            f"重置分支: mode={mode}, target={target[:12]}, "
+            f"commits_reset={commits_reset}"
+        )
 
-        args = ["reset", f"--{mode}", "HEAD~1"]
+        args = ["reset", f"--{mode}", target]
         out, err, code = await self._run(*args)
         if code != 0:
-            logger.error(f"撤销提交失败: mode={mode}, error={err}")
-            return {"success": False, "message": "", "error": err.strip()[:500] if err else ""}
+            logger.error(f"重置分支失败: mode={mode}, target={target[:12]}, error={err}")
+            return {"success": False, "message": "", "commits_reset": 0,
+                    "error": err.strip()[:500] if err else ""}
 
-        logger.info(f"撤销提交成功: mode={mode}")
-        return {"success": True, "message": commit_message, "error": ""}
+        logger.info(f"重置分支成功: mode={mode}, target={target[:12]}, reset={commits_reset}")
+        return {"success": True, "message": commit_message,
+                "commits_reset": commits_reset, "error": ""}
 
     async def revert_commit(self, commit_hash: str, no_commit: bool = False) -> dict:
         """Revert a commit by creating a new reverse commit.

@@ -1000,6 +1000,30 @@ class SEn extends S {
       'Revert produced conflicts, please resolve them';
 
   @override
+  String get gitResetToHere => 'Reset Branch to Here';
+
+  @override
+  String gitResetToHereDesc(String hash) {
+    return 'Move the current branch HEAD to $hash';
+  }
+
+  @override
+  String get gitResetHardConfirmTitle => 'Destructive Reset';
+
+  @override
+  String gitResetHardConfirmBody(String hash) {
+    return 'This will permanently discard all changes after $hash. This cannot be undone.';
+  }
+
+  @override
+  String get gitResetHardConfirmButton => 'Reset (--hard)';
+
+  @override
+  String gitResetDone(String hash) {
+    return 'Branch reset to $hash';
+  }
+
+  @override
   String get gitViewDetails => 'View Details';
 
   @override

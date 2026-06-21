@@ -213,13 +213,15 @@ class GitOperations {
           type: MessageType.gitMergeAbort,
           payload: <String, dynamic>{'repo': repo}));
 
-  /// Undo the last commit (git reset).
+  /// Undo commit(s) via git reset.
   ///
   /// [mode]: "soft" (staged), "mixed" (unstaged), or "hard" (discard).
-  void gitUndoCommit({required String repo, String mode = 'soft'}) =>
+  /// [target]: Reset target — "HEAD~1" for undo-last, or a commit hash
+  /// for "reset branch to here".
+  void gitUndoCommit({required String repo, String mode = 'soft', String target = 'HEAD~1'}) =>
       _sender.send(WsMessage(
           type: MessageType.gitUndoCommit,
-          payload: <String, dynamic>{'repo': repo, 'mode': mode}));
+          payload: <String, dynamic>{'repo': repo, 'mode': mode, 'target': target}));
 
   /// Revert a commit (create reverse commit).
   ///

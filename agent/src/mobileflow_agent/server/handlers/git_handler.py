@@ -844,11 +844,11 @@ class GitHandler(BaseHandler):
         if not manager:
             return
 
-        logger.info(f"git.undo.commit: repo={Path(payload.repo).name}, mode={payload.mode}")
+        logger.info(f"git.undo.commit: repo={Path(payload.repo).name}, mode={payload.mode}, target={payload.target[:12]}")
 
         result = await manager.run(
             Op.Commit,  # Uses Commit op (blocking, triggers refresh)
-            run_operation=lambda: git.undo_commit(payload.mode),
+            run_operation=lambda: git.undo_commit(payload.mode, payload.target),
         )
 
         await self.send(ws, Message(

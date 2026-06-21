@@ -107,6 +107,17 @@ void showCommitActionsSheet(
           },
         ),
 
+        // Reset branch to here
+        _ActionTile(
+          icon: Icons.restart_alt,
+          title: l.gitResetToHere,
+          color: colors.warning,
+          onTap: () {
+            Navigator.pop(ctx);
+            _showResetToHereOptions(context, repo: repo, hash: hash, shortHash: shortHash);
+          },
+        ),
+
         // View details
         _ActionTile(
           icon: Icons.info_outline,
@@ -141,10 +152,9 @@ void _confirmCherryPick(BuildContext context, {required String repo, required St
     message: l.gitCherryPickDesc,
     confirmLabel: l.gitCherryPickButton,
   ).then((confirmed) {
-    if (confirmed == true) {
-      gitOps.gitCherryPick(repo: repo, hash: hash);
-      AppToast.show(context, l.gitCherryPickStarted, type: AppToastType.info);
-    }
+    if (confirmed != true || !context.mounted) return;
+    gitOps.gitCherryPick(repo: repo, hash: hash);
+    AppToast.show(context, l.gitCherryPickStarted, type: AppToastType.info);
   });
 }
 
@@ -159,11 +169,67 @@ void _showRevertOptions(BuildContext context, {required String repo, required St
     checkboxLabel: l.gitRevertNoCommitDesc,
     initialChecked: false,
   ).then((result) {
-    if (result == null) return;
+    if (result == null || !context.mounted) return;
     final noCommit = result.checked;
     gitOps.gitRevertCommit(repo: repo, hash: hash, noCommit: noCommit);
     final msg = noCommit ? l.gitRevertNoCommitDone : l.gitRevertInProgress;
     AppToast.show(context, msg, type: AppToastType.info);
+  });
+}
+
+/// Reset-to-here mode selection + hard reset confirmation.
+void _showResetToHereOptions(
+  BuildContext context, {
+  required String repo,
+  required String hash,
+  required String shortHash,
+}) {
+  final l = S.of(context);
+  final gitOps = context.read<GitOperations>();
+
+  showAppOptionsDialog<String>(
+    context,
+    title: l.gitResetToHere,
+    message: l.gitResetToHereDesc(shortHash),
+    options: [
+      AppDialogOption(
+        value: 'soft',
+        title: '--soft',
+        subtitle: l.gitUndoCommitSoftDesc,
+      ),
+      AppDialogOption(
+        value: 'mixed',
+        title: '--mixed',
+        subtitle: l.gitUndoCommitMixedDesc,
+      ),
+      AppDialogOption(
+        value: 'hard',
+        title: '--hard',
+        subtitle: l.gitUndoCommitHardDesc,
+        isDanger: true,
+      ),
+    ],
+    initialValue: 'mixed',
+  ).then((selectedMode) {
+    if (selectedMode == null || !context.mounted) return;
+    if (selectedMode == 'hard') {
+      showAppConfirmDialog(
+        context,
+        title: l.gitResetHardConfirmTitle,
+        message: l.gitResetHardConfirmBody(shortHash),
+        confirmLabel: l.gitResetHardConfirmButton,
+        isDanger: true,
+      ).then((confirmed) {
+        if (confirmed != true || !context.mounted) return;
+        gitOps.gitUndoCommit(repo: repo, mode: 'hard', target: hash);
+        AppToast.show(context, l.gitResetDone(shortHash),
+            type: AppToastType.error);
+      });
+    } else {
+      gitOps.gitUndoCommit(repo: repo, mode: selectedMode, target: hash);
+      AppToast.show(context, l.gitResetDone(shortHash),
+          type: AppToastType.success);
+    }
   });
 }
 
