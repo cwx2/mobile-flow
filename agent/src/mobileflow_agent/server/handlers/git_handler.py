@@ -368,11 +368,13 @@ class GitHandler(BaseHandler):
 
         if manager.branches is not None:
             await self.send(ws, Message(
-                type=MessageType.GIT_BRANCHES_RESULT, payload=manager.branches))
+                type=MessageType.GIT_BRANCHES_RESULT,
+                payload={**manager.branches, "repo_path": repo_path}))
         else:
             result = await git.branches()
             await self.send(ws, Message(
-                type=MessageType.GIT_BRANCHES_RESULT, payload=result))
+                type=MessageType.GIT_BRANCHES_RESULT,
+                payload={**result, "repo_path": repo_path}))
 
     async def handle_git_checkout(self, client_id, ws, msg):
         """Check out a branch.
@@ -428,11 +430,13 @@ class GitHandler(BaseHandler):
 
         if manager.log_entries is not None:
             await self.send(ws, Message(
-                type=MessageType.GIT_LOG_RESULT, payload=manager.log_entries))
+                type=MessageType.GIT_LOG_RESULT,
+                payload={**manager.log_entries, "repo_path": repo_path}))
         else:
             result = await git.log(payload.count)
             await self.send(ws, Message(
-                type=MessageType.GIT_LOG_RESULT, payload=result))
+                type=MessageType.GIT_LOG_RESULT,
+                payload={**result, "repo_path": repo_path}))
 
     async def handle_git_log_authors(self, client_id, ws, msg):
         """Return the list of unique commit authors.
@@ -482,7 +486,8 @@ class GitHandler(BaseHandler):
             grep=payload.query,
         )
         await self.send(ws, Message(
-            type=MessageType.GIT_LOG_SEARCH_RESULT, payload=result))
+            type=MessageType.GIT_LOG_SEARCH_RESULT,
+            payload={**result, "repo_path": repo_path}))
 
     # -- Show / Diff commit (read) --
 
@@ -643,4 +648,5 @@ class GitHandler(BaseHandler):
         result = await manager.run(Op.GitCommand, run_operation=_do_exec)
 
         await self.send(ws, Message(
-            type=MessageType.GIT_EXEC_RESULT, payload=result))
+            type=MessageType.GIT_EXEC_RESULT,
+            payload={**(result or {}), "repo": repo_path}))

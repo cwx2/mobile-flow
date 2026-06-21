@@ -20,12 +20,14 @@ class GitShellTab extends StatelessWidget {
   final List<Map<String, dynamic>> history;
   final TextEditingController controller;
   final WebSocketService ws;
+  final String repo;
 
   const GitShellTab({
     super.key,
     required this.history,
     required this.controller,
     required this.ws,
+    this.repo = '',
   });
 
   @override
@@ -62,7 +64,7 @@ class GitShellTab extends StatelessWidget {
                   itemCount: history.length,
                   itemBuilder: (_, i) {
                     final item = history[history.length - 1 - i];
-                    return _ShellHistoryItem(item: item, ws: ws);
+                    return _ShellHistoryItem(item: item, ws: ws, repo: repo);
                   },
                 ),
         ),
@@ -90,7 +92,7 @@ class GitShellTab extends StatelessWidget {
                   ),
                   onSubmitted: (cmd) {
                     if (cmd.trim().isNotEmpty) {
-                      ws.gitOps.execGitCommand('git ${cmd.trim()}');
+                      ws.gitOps.execGitCommand('git ${cmd.trim()}', repo: repo);
                       controller.clear();
                     }
                   },
@@ -100,7 +102,7 @@ class GitShellTab extends StatelessWidget {
                 onTap: () {
                   final cmd = controller.text.trim();
                   if (cmd.isNotEmpty) {
-                    ws.gitOps.execGitCommand('git $cmd');
+                    ws.gitOps.execGitCommand('git $cmd', repo: repo);
                     controller.clear();
                   }
                 },
@@ -121,8 +123,9 @@ class GitShellTab extends StatelessWidget {
 class _ShellHistoryItem extends StatelessWidget {
   final Map<String, dynamic> item;
   final WebSocketService ws;
+  final String repo;
 
-  const _ShellHistoryItem({required this.item, required this.ws});
+  const _ShellHistoryItem({required this.item, required this.ws, required this.repo});
 
   @override
   Widget build(BuildContext context) {
@@ -173,7 +176,7 @@ class _ShellHistoryItem extends StatelessWidget {
                                   : colors.error))),
                   if (dangerous)
                     TextButton(
-                      onPressed: () => ws.gitOps.execGitCommand(cmd, confirmed: true),
+                      onPressed: () => ws.gitOps.execGitCommand(cmd, repo: repo, confirmed: true),
                       child: Text(S.of(context).gitShellConfirmExecute,
                           style: TextStyle(
                               fontSize: 11, color: colors.warning)),

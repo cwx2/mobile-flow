@@ -171,14 +171,20 @@ class _RepoDetailScreenState extends State<RepoDetailScreen>
         actions: [
           // Pull
           IconButton(
-            icon: Badge(
-              isLabelVisible: repo.behind > 0,
-              label: Text('${repo.behind}', style: const TextStyle(fontSize: 9)),
-              offset: const Offset(6, -6),
-              child: Icon(Icons.download, size: 20,
-                  color: git.isPulling(widget.repoPath)
-                      ? colors.secondary
-                      : repo.behind > 0 ? null : colors.onSurfaceMuted.withValues(alpha: 0.3)),
+            icon: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.download, size: 20,
+                    color: git.isPulling(widget.repoPath)
+                        ? colors.secondary
+                        : repo.behind > 0 ? null : colors.onSurfaceMuted.withValues(alpha: 0.3)),
+                if (repo.behind > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 2),
+                    child: Text('${repo.behind}',
+                        style: TextStyle(fontSize: 11, color: colors.secondary, fontWeight: FontWeight.w600)),
+                  ),
+              ],
             ),
             onPressed: git.isPulling(widget.repoPath)
                 ? null
@@ -186,14 +192,20 @@ class _RepoDetailScreenState extends State<RepoDetailScreen>
           ),
           // Push
           IconButton(
-            icon: Badge(
-              isLabelVisible: repo.ahead > 0,
-              label: Text('${repo.ahead}', style: const TextStyle(fontSize: 9)),
-              offset: const Offset(6, -6),
-              child: Icon(Icons.upload, size: 20,
-                  color: git.isPushing(widget.repoPath)
-                      ? colors.secondary
-                      : repo.ahead > 0 ? null : colors.onSurfaceMuted.withValues(alpha: 0.3)),
+            icon: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.upload, size: 20,
+                    color: git.isPushing(widget.repoPath)
+                        ? colors.secondary
+                        : repo.ahead > 0 ? null : colors.onSurfaceMuted.withValues(alpha: 0.3)),
+                if (repo.ahead > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 2),
+                    child: Text('${repo.ahead}',
+                        style: TextStyle(fontSize: 11, color: colors.secondary, fontWeight: FontWeight.w600)),
+                  ),
+              ],
             ),
             onPressed: git.isPushing(widget.repoPath) || repo.ahead == 0
                 ? null
@@ -246,6 +258,7 @@ class _RepoDetailScreenState extends State<RepoDetailScreen>
             history: git.shellHistoryFor(widget.repoPath),
             controller: _shellController,
             ws: context.read<WebSocketService>(),
+            repo: widget.repoPath,
           ),
           // Log tab
           GitLogTab(
