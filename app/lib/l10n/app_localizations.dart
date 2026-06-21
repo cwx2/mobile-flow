@@ -1729,6 +1729,120 @@ abstract class S {
   /// **'File staged'**
   String get gitConflictsFileStaged;
 
+  /// No description provided for @gitUndoCommitSoft.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo Commit (--soft)'**
+  String get gitUndoCommitSoft;
+
+  /// No description provided for @gitUndoCommitSoftDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep changes in staged area'**
+  String get gitUndoCommitSoftDesc;
+
+  /// No description provided for @gitUndoCommitMixed.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo Commit (--mixed)'**
+  String get gitUndoCommitMixed;
+
+  /// No description provided for @gitUndoCommitMixedDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep changes in working directory'**
+  String get gitUndoCommitMixedDesc;
+
+  /// No description provided for @gitUndoCommitHard.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo Commit (--hard)'**
+  String get gitUndoCommitHard;
+
+  /// No description provided for @gitUndoCommitHardDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard all changes permanently'**
+  String get gitUndoCommitHardDesc;
+
+  /// No description provided for @gitUndoCommitHardConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Destructive Action'**
+  String get gitUndoCommitHardConfirmTitle;
+
+  /// No description provided for @gitUndoCommitHardConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This will permanently discard all changes from the last commit. This cannot be undone. Are you sure?'**
+  String get gitUndoCommitHardConfirmBody;
+
+  /// No description provided for @gitUndoCommitHardConfirmButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard'**
+  String get gitUndoCommitHardConfirmButton;
+
+  /// No description provided for @gitUndoCommitDoneSoft.
+  ///
+  /// In en, this message translates to:
+  /// **'Commit undone (soft)'**
+  String get gitUndoCommitDoneSoft;
+
+  /// No description provided for @gitUndoCommitDoneMixed.
+  ///
+  /// In en, this message translates to:
+  /// **'Commit undone (mixed)'**
+  String get gitUndoCommitDoneMixed;
+
+  /// No description provided for @gitUndoCommitDoneHard.
+  ///
+  /// In en, this message translates to:
+  /// **'Commit discarded (hard reset)'**
+  String get gitUndoCommitDoneHard;
+
+  /// No description provided for @gitRevertCommit.
+  ///
+  /// In en, this message translates to:
+  /// **'Revert Commit'**
+  String get gitRevertCommit;
+
+  /// No description provided for @gitRevertCommitDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Create a new commit that undoes this change'**
+  String get gitRevertCommitDesc;
+
+  /// No description provided for @gitRevertNoCommit.
+  ///
+  /// In en, this message translates to:
+  /// **'Revert (--no-commit)'**
+  String get gitRevertNoCommit;
+
+  /// No description provided for @gitRevertNoCommitDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Stage revert changes without committing'**
+  String get gitRevertNoCommitDesc;
+
+  /// No description provided for @gitRevertInProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Reverting commit...'**
+  String get gitRevertInProgress;
+
+  /// No description provided for @gitRevertNoCommitDone.
+  ///
+  /// In en, this message translates to:
+  /// **'Revert staged (no commit)'**
+  String get gitRevertNoCommitDone;
+
+  /// No description provided for @gitViewDetails.
+  ///
+  /// In en, this message translates to:
+  /// **'View Details'**
+  String get gitViewDetails;
+
   /// No description provided for @gitCommitStagedReady.
   ///
   /// In en, this message translates to:

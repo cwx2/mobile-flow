@@ -883,6 +883,65 @@ class SEn extends S {
   String get gitConflictsFileStaged => 'File staged';
 
   @override
+  String get gitUndoCommitSoft => 'Undo Commit (--soft)';
+
+  @override
+  String get gitUndoCommitSoftDesc => 'Keep changes in staged area';
+
+  @override
+  String get gitUndoCommitMixed => 'Undo Commit (--mixed)';
+
+  @override
+  String get gitUndoCommitMixedDesc => 'Keep changes in working directory';
+
+  @override
+  String get gitUndoCommitHard => 'Undo Commit (--hard)';
+
+  @override
+  String get gitUndoCommitHardDesc => 'Discard all changes permanently';
+
+  @override
+  String get gitUndoCommitHardConfirmTitle => 'Destructive Action';
+
+  @override
+  String get gitUndoCommitHardConfirmBody =>
+      'This will permanently discard all changes from the last commit. This cannot be undone. Are you sure?';
+
+  @override
+  String get gitUndoCommitHardConfirmButton => 'Discard';
+
+  @override
+  String get gitUndoCommitDoneSoft => 'Commit undone (soft)';
+
+  @override
+  String get gitUndoCommitDoneMixed => 'Commit undone (mixed)';
+
+  @override
+  String get gitUndoCommitDoneHard => 'Commit discarded (hard reset)';
+
+  @override
+  String get gitRevertCommit => 'Revert Commit';
+
+  @override
+  String get gitRevertCommitDesc =>
+      'Create a new commit that undoes this change';
+
+  @override
+  String get gitRevertNoCommit => 'Revert (--no-commit)';
+
+  @override
+  String get gitRevertNoCommitDesc => 'Stage revert changes without committing';
+
+  @override
+  String get gitRevertInProgress => 'Reverting commit...';
+
+  @override
+  String get gitRevertNoCommitDone => 'Revert staged (no commit)';
+
+  @override
+  String get gitViewDetails => 'View Details';
+
+  @override
   String gitCommitStagedReady(int count) {
     return '$count files staged, ready to commit';
   }

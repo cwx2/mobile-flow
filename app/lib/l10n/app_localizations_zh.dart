@@ -856,6 +856,63 @@ class SZh extends S {
   String get gitConflictsFileStaged => '文件已暂存';
 
   @override
+  String get gitUndoCommitSoft => '撤销提交 (--soft)';
+
+  @override
+  String get gitUndoCommitSoftDesc => '改动保留在暂存区';
+
+  @override
+  String get gitUndoCommitMixed => '撤销提交 (--mixed)';
+
+  @override
+  String get gitUndoCommitMixedDesc => '改动保留在工作区';
+
+  @override
+  String get gitUndoCommitHard => '撤销提交 (--hard)';
+
+  @override
+  String get gitUndoCommitHardDesc => '永久丢弃所有改动';
+
+  @override
+  String get gitUndoCommitHardConfirmTitle => '危险操作';
+
+  @override
+  String get gitUndoCommitHardConfirmBody => '这将永久丢弃上次提交的所有改动，无法撤销。确定要继续吗？';
+
+  @override
+  String get gitUndoCommitHardConfirmButton => '丢弃';
+
+  @override
+  String get gitUndoCommitDoneSoft => '提交已撤销 (soft)';
+
+  @override
+  String get gitUndoCommitDoneMixed => '提交已撤销 (mixed)';
+
+  @override
+  String get gitUndoCommitDoneHard => '提交已丢弃 (hard reset)';
+
+  @override
+  String get gitRevertCommit => '还原提交';
+
+  @override
+  String get gitRevertCommitDesc => '创建一个新提交来撤销此次更改';
+
+  @override
+  String get gitRevertNoCommit => '还原 (--no-commit)';
+
+  @override
+  String get gitRevertNoCommitDesc => '将还原改动放入暂存区，不自动提交';
+
+  @override
+  String get gitRevertInProgress => '正在还原提交...';
+
+  @override
+  String get gitRevertNoCommitDone => '已还原到暂存区';
+
+  @override
+  String get gitViewDetails => '查看详情';
+
+  @override
   String gitCommitStagedReady(int count) {
     return '$count 个文件已暂存，准备提交';
   }

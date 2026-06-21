@@ -451,6 +451,7 @@ class _CommitRow extends StatelessWidget {
   void _showCommitActions(BuildContext context, String hash, String message) {
     final colors = context.colors;
     final gitOps = context.read<GitOperations>();
+    final l = S.of(context);
 
     AppBottomSheet.show(context, builder: (ctx) {
       return Column(
@@ -479,35 +480,34 @@ class _CommitRow extends StatelessWidget {
           if (isOutgoing && isFirst) ...[
             _ActionTile(
               icon: Icons.undo,
-              title: 'Undo Commit (--soft)',
-              subtitle: 'Keep changes in staged area',
+              title: l.gitUndoCommitSoft,
+              subtitle: l.gitUndoCommitSoftDesc,
               color: colors.warning,
               onTap: () {
                 Navigator.pop(ctx);
                 gitOps.gitUndoCommit(repo: repo, mode: 'soft');
-                AppToast.show(context, 'Commit undone (soft)', type: AppToastType.success);
+                AppToast.show(context, l.gitUndoCommitDoneSoft, type: AppToastType.success);
               },
             ),
             _ActionTile(
               icon: Icons.undo,
-              title: 'Undo Commit (--mixed)',
-              subtitle: 'Keep changes in working directory',
+              title: l.gitUndoCommitMixed,
+              subtitle: l.gitUndoCommitMixedDesc,
               color: colors.warning,
               onTap: () {
                 Navigator.pop(ctx);
                 gitOps.gitUndoCommit(repo: repo, mode: 'mixed');
-                AppToast.show(context, 'Commit undone (mixed)', type: AppToastType.success);
+                AppToast.show(context, l.gitUndoCommitDoneMixed, type: AppToastType.success);
               },
             ),
             _ActionTile(
               icon: Icons.delete_forever,
-              title: 'Undo Commit (--hard)',
-              subtitle: 'Discard all changes permanently',
+              title: l.gitUndoCommitHard,
+              subtitle: l.gitUndoCommitHardDesc,
               color: colors.error,
               onTap: () {
                 Navigator.pop(ctx);
-                // Show confirmation for destructive action
-                _confirmHardReset(context, gitOps);
+                _confirmHardReset(context, gitOps, l);
               },
             ),
             const Divider(height: 1),
@@ -516,24 +516,24 @@ class _CommitRow extends StatelessWidget {
           // Revert commit (available for any commit)
           _ActionTile(
             icon: Icons.replay,
-            title: 'Revert Commit',
-            subtitle: 'Create a new commit that undoes this change',
+            title: l.gitRevertCommit,
+            subtitle: l.gitRevertCommitDesc,
             color: colors.primary,
             onTap: () {
               Navigator.pop(ctx);
               gitOps.gitRevertCommit(repo: repo, hash: hash);
-              AppToast.show(context, 'Reverting commit...', type: AppToastType.info);
+              AppToast.show(context, l.gitRevertInProgress, type: AppToastType.info);
             },
           ),
           _ActionTile(
             icon: Icons.replay,
-            title: 'Revert (--no-commit)',
-            subtitle: 'Stage revert changes without committing',
+            title: l.gitRevertNoCommit,
+            subtitle: l.gitRevertNoCommitDesc,
             color: colors.primary,
             onTap: () {
               Navigator.pop(ctx);
               gitOps.gitRevertCommit(repo: repo, hash: hash, noCommit: true);
-              AppToast.show(context, 'Revert staged (no commit)', type: AppToastType.info);
+              AppToast.show(context, l.gitRevertNoCommitDone, type: AppToastType.info);
             },
           ),
 
@@ -541,7 +541,7 @@ class _CommitRow extends StatelessWidget {
           // View details
           _ActionTile(
             icon: Icons.info_outline,
-            title: 'View Details',
+            title: l.gitViewDetails,
             subtitle: null,
             color: colors.onSurfaceVariant,
             onTap: () {
@@ -563,29 +563,27 @@ class _CommitRow extends StatelessWidget {
     });
   }
 
-  void _confirmHardReset(BuildContext context, GitOperations gitOps) {
+  void _confirmHardReset(BuildContext context, GitOperations gitOps, S l) {
     final colors = context.colors;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('⚠️ Destructive Action'),
-        content: const Text(
-          'This will permanently discard all changes from the last commit. '
-          'This cannot be undone. Are you sure?',
-        ),
+        title: Text('⚠️ ${l.gitUndoCommitHardConfirmTitle}'),
+        content: Text(l.gitUndoCommitHardConfirmBody),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: Text(l.commonCancel),
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
               gitOps.gitUndoCommit(repo: repo, mode: 'hard');
-              AppToast.show(context, 'Commit discarded (hard reset)',
+              AppToast.show(context, l.gitUndoCommitDoneHard,
                   type: AppToastType.error);
             },
-            child: Text('Discard', style: TextStyle(color: colors.error)),
+            child: Text(l.gitUndoCommitHardConfirmButton,
+                style: TextStyle(color: colors.error)),
           ),
         ],
       ),
