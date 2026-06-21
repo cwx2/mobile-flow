@@ -5,11 +5,15 @@
 <h1 align="center">MobileFlow</h1>
 
 <p align="center">
-  <strong>手机变成编程终端。<br/>和 AI 对话、编辑文件、跑命令、管理 Git — 全在口袋里。</strong>
+  <strong>在手机上远程控制 Claude Code、OpenAI Codex、Aider、Gemini CLI、GitHub Copilot 等 AI 编程工具。</strong>
 </p>
 
 <p align="center">
-  <em>桌面 AI 编程工具的手机遥控器</em>
+  MobileFlow 是一个开源手机远程 AI 编程客户端。你可以在手机上和 AI Coding Agent 对话、浏览文件、运行终端命令、预览本地 Web 应用、管理 Git。
+</p>
+
+<p align="center">
+  电脑负责运行编程工具，手机负责远程控制。
 </p>
 
 <p align="center">
@@ -22,11 +26,16 @@
 <p align="center">
   <a href="../../releases/latest">⬇️ 下载</a>&nbsp;&nbsp;•&nbsp;&nbsp;
   <a href="#-快速开始">🚀 快速开始</a>&nbsp;&nbsp;•&nbsp;&nbsp;
+  <a href="#支持的-ai-编程工具">🤖 支持工具</a>&nbsp;&nbsp;•&nbsp;&nbsp;
   <a href="#-连接模式">📡 连接模式</a>&nbsp;&nbsp;•&nbsp;&nbsp;
+  <a href="#常见问题">❓ FAQ</a>&nbsp;&nbsp;•&nbsp;&nbsp;
   <a href="README.md">🌍 English</a>
 </p>
 
 ---
+
+<!-- ## 演示：在手机上控制 Claude Code -->
+<!-- TODO: 添加 10 秒动图：连接 → 发任务给 Claude Code → 电脑执行 → 查看文件变化 → Git diff → 提交 -->
 
 ## 为什么用 MobileFlow？
 
@@ -63,9 +72,50 @@ MobileFlow 把你的手机变成桌面 AI 编程工具的遥控器。代码始�
   </tr>
 </table>
 
+## 支持的 AI 编程工具
+
+| 工具 | 状态 | 说明 |
+|------|------|------|
+| Claude Code | ✅ 已支持 | Anthropic 的 AI 编程 Agent |
+| OpenAI Codex | ✅ 已支持 | OpenAI 的编程 CLI |
+| Aider | ✅ 已支持 | 开源 AI 结对编程工具 |
+| Gemini CLI | ✅ 已支持 | Google 的 AI 编程工具（有免费额度） |
+| GitHub Copilot | ✅ 已支持 | GitHub 的 AI 助手 |
+| Kiro CLI | ✅ 已支持 | AWS 的 AI 编程 Agent |
+| 本地终端工具 | ✅ 已支持 | 电脑上的任何 CLI 工具 |
+| Cline | 🔜 计划中 | VS Code AI 扩展 |
+
+所有工具通过 [ACP（Agent Client Protocol）](https://github.com/anthropics/agent-client-protocol) 协议通信。
+
 ## ✨ 你能做什么
 
-- 🤖 **和 AI 对话** — Claude Code、Codex、Gemini CLI、Kiro、GitHub Copilot 等
+### 在手机上使用 Claude Code
+
+在手机上和电脑上运行的 Claude Code 对话。发送编程任务、审查代码变更、批准文件修改 — 全在手机屏幕上完成。
+
+### 在手机上使用 OpenAI Codex
+
+远程控制 OpenAI Codex CLI。提交 prompt、观看代码生成、随时随地管理编程会话。
+
+### 在手机上使用 Aider
+
+从手机运行 Aider 结对编程会话。添加文件到上下文、发送指令、审查 AI 生成的 commit。
+
+### 在手机上运行终端命令
+
+完整的 PTY 终端支持。运行构建、安装依赖、查看日志、Ctrl+C 中断 — 和坐在电脑前一模一样。
+
+### 在手机上管理 Git
+
+查看 diff、暂存文件、提交、推送、拉取、切换分支、浏览提交历史。支持多仓库。
+
+### 在手机上预览本地 Web 应用
+
+手机上直接看到电脑运行的 Web 应用。不用部署就能测试响应式布局。
+
+### 功能一览
+
+- 🤖 **和 AI 对话** — Claude Code、Codex、Gemini CLI、Kiro、GitHub Copilot、Aider 等
 - 📁 **浏览和编辑文件** — 100+ 语言语法高亮、搜索
 - 💻 **完整终端** — 跑命令、看输出、Ctrl+C 中断
 - 🔀 **Git 全功能** — diff、暂存、提交、推送、拉取、切换分支、多仓库
@@ -105,6 +155,7 @@ cd agent && pip install -e . && python -m mobileflow_agent
 npm i -g @anthropic-ai/claude-code    # 或者你喜欢的任何 AI CLI
 npm i -g @openai/codex                # OpenAI Codex
 npm i -g @google/gemini-cli           # Gemini CLI（有免费额度）
+pip install aider-chat                # Aider
 ```
 
 搞定。打开 App，开始对话。
@@ -146,20 +197,6 @@ npm i -g @google/gemini-cli           # Gemini CLI（有免费额度）
 
 > 📖 不在同一 WiFi？查看[远程连接指南](docs/remote-connection-guide.md)了解中继和隧道配置。
 
-## 支持的 AI 工具
-
-| 工具 | 状态 |
-|------|------|
-| Claude Code | ✅ 已支持 |
-| OpenAI Codex | ✅ 已支持 |
-| Gemini CLI | ✅ 已支持 |
-| Kiro CLI | ✅ 已支持 |
-| GitHub Copilot | ✅ 已支持 |
-| Aider | ✅ 已支持 |
-| Cline | 🔜 计划中 |
-
-所有工具通过 [ACP（Agent Client Protocol）](https://github.com/anthropics/agent-client-protocol) 协议通信。
-
 ## 🛠️ 开发
 
 ```bash
@@ -174,6 +211,44 @@ flutter pub get
 flutter test
 flutter run
 ```
+
+## 常见问题
+
+### 能在手机上用 Claude Code 吗？
+
+可以。MobileFlow 让你从手机控制电脑上运行的 Claude Code。你可以完整使用聊天、文件浏览和终端功能。
+
+### 能在手机上用 OpenAI Codex 吗？
+
+可以。MobileFlow 支持远程控制 OpenAI Codex CLI。在电脑上安装 Codex，然后从手机控制它。
+
+### 支持 Aider 吗？
+
+支持。MobileFlow 支持 Aider 和其他终端类 AI 编程工具。电脑上能跑的 CLI 工具都可以从手机控制。
+
+### 这是手机 IDE 吗？
+
+不是。MobileFlow 不是手机 IDE。你的电脑运行编程工具，手机只是安全的远程遥控器。代码不会离开你的电脑。
+
+### 能在手机上跑终端命令吗？
+
+可以。MobileFlow 提供完整的 PTY 终端。运行任何命令、看实时输出、用 Ctrl+C 中断 — 和坐在电脑前一模一样。
+
+### 能在手机上管理 Git 吗？
+
+可以。你可以从手机查看 diff、暂存文件、提交、推送、拉取、切换分支、浏览提交历史。支持多仓库。
+
+### 代码安全吗？
+
+安全。所有通信端到端加密（AES-256 / NaCl SecretBox）。代码始终在你的电脑上，手机只是远程显示器。不涉及任何第三方服务器。
+
+### 支持哪些 AI 工具？
+
+Claude Code、OpenAI Codex、Aider、Gemini CLI、GitHub Copilot、Kiro CLI，以及任何终端类 AI 工具。MobileFlow 使用开放的 ACP 协议，新工具很容易接入。
+
+## 关键词
+
+手机编程、AI 编程 Agent、Claude Code 手机端、Codex 手机端、Aider 手机端、Gemini CLI 手机端、GitHub Copilot 手机端、手机远程编程、手机终端、手机管理 Git、移动端开发工具、远程开发、AI 结对编程、vibe coding、手机写代码。
 
 ## 🤝 参与贡献
 
