@@ -14,19 +14,21 @@ library;
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-import '../animation/page_transition_builder.dart';
 import '../components/app_bottom_sheet.dart';
 import '../components/app_search_sheet.dart';
 import '../l10n/app_localizations.dart';
 import '../models/payloads/git_payloads.g.dart';
 import '../models/protocol.dart';
+import '../animation/page_transition_builder.dart';
 import '../screens/commit_detail_screen.dart';
 import '../services/websocket_service.dart';
 import '../services/ws_operations/git_operations.dart';
 import '../theme/theme_extensions.dart';
 import '../utils/logger.dart';
+import 'commit_actions_sheet.dart';
 
 // ignore: unused_element
 final _log = getLogger('GitLogTab');
@@ -178,6 +180,22 @@ class _GitLogTabState extends State<GitLogTab> {
         repo: widget.repo,
       ),
     ));
+  }
+
+  /// Long-press commit actions: delegates to shared commit_actions_sheet.
+  void _showCommitActions(Map<String, dynamic> entry) {
+    final hash = entry['hash'] as String? ?? '';
+    final shortHash = entry['short_hash'] as String? ?? '';
+    final message = entry['message'] as String? ?? '';
+    if (hash.isEmpty) return;
+
+    showCommitActionsSheet(
+      context,
+      hash: hash,
+      shortHash: shortHash,
+      message: message,
+      repo: widget.repo,
+    );
   }
 
   // ── Filter chip pickers ──
@@ -478,6 +496,7 @@ class _GitLogTabState extends State<GitLogTab> {
 
     return InkWell(
       onTap: () => _openCommitDetail(entry),
+      onLongPress: () => _showCommitActions(entry),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Row(

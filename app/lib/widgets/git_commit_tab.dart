@@ -10,7 +10,6 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../animation/page_transition_builder.dart';
-import '../components/app_bottom_sheet.dart';
 import '../components/app_dialog.dart';
 import '../components/app_toast.dart';
 import '../screens/commit_detail_screen.dart';
@@ -18,6 +17,7 @@ import '../services/websocket_service.dart';
 import '../services/ws_operations/git_operations.dart';
 import '../l10n/app_localizations.dart';
 import '../theme/theme_extensions.dart';
+import 'commit_actions_sheet.dart';
 
 /// Git commit tab: message input + commit/push/pull buttons + recent commits.
 class GitCommitTab extends StatefulWidget {
@@ -451,121 +451,15 @@ class _CommitRow extends StatelessWidget {
   }
 
   void _showCommitActions(BuildContext context, String hash, String message) {
-    final colors = context.colors;
-    final l = S.of(context);
-
-    AppBottomSheet.show(context, builder: (ctx) {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Commit info header
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(message,
-                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-                    maxLines: 2, overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 4),
-                Text(hash.substring(0, 12),
-                    style: TextStyle(fontSize: 11, fontFamily: 'monospace',
-                        color: colors.onSurfaceMuted)),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-
-          // Copy commit hash
-          _ActionTile(
-            icon: Icons.copy,
-            title: l.gitCopyHash,
-            subtitle: null,
-            color: colors.onSurfaceVariant,
-            onTap: () {
-              Navigator.pop(ctx);
-              Clipboard.setData(ClipboardData(text: hash));
-              AppToast.show(context, l.commonCopied);
-            },
-          ),
-
-          // Cherry-pick (apply this commit to current branch)
-          _ActionTile(
-            icon: Icons.content_copy_rounded,
-            title: l.gitCherryPick,
-            subtitle: null,
-            color: colors.success,
-            onTap: () {
-              Navigator.pop(ctx);
-              _confirmCherryPick(context, hash, l);
-            },
-          ),
-
-          // Undo commit (only for outgoing/first commit)
-          if (isOutgoing && isFirst)
-            _ActionTile(
-              icon: Icons.undo,
-              title: l.gitUndoCommitSoft.replaceAll(' (--soft)', ''),
-              subtitle: null,
-              color: colors.warning,
-              onTap: () {
-                Navigator.pop(ctx);
-                _showUndoOptions(context, l);
-              },
-            ),
-
-          // Revert commit (available for any commit)
-          _ActionTile(
-            icon: Icons.replay,
-            title: l.gitRevertCommit,
-            subtitle: null,
-            color: colors.primary,
-            onTap: () {
-              Navigator.pop(ctx);
-              _showRevertOptions(context, hash, l);
-            },
-          ),
-
-          // View details
-          _ActionTile(
-            icon: Icons.info_outline,
-            title: l.gitViewDetails,
-            subtitle: null,
-            color: colors.onSurfaceVariant,
-            onTap: () {
-              Navigator.pop(ctx);
-              Navigator.push(context, AppPageRoute(
-                type: PageTransitionType.slideUp,
-                page: CommitDetailScreen(
-                  commitHash: hash,
-                  shortHash: hash.substring(0, 7),
-                  message: message,
-                  repo: repo,
-                ),
-              ));
-            },
-          ),
-          const SizedBox(height: 8),
-        ],
-      );
-    });
-  }
-
-  /// Confirm and execute cherry-pick operation.
-  void _confirmCherryPick(BuildContext context, String hash, S l) {
-    final gitOps = context.read<GitOperations>();
-    showAppConfirmDialog(
+    showCommitActionsSheet(
       context,
-      title: l.gitCherryPick,
-      message: l.gitCherryPickDesc,
-      confirmLabel: l.gitCherryPickButton,
-    ).then((confirmed) {
-      if (confirmed == true) {
-        gitOps.gitCherryPick(repo: repo, hash: hash);
-        AppToast.show(context, l.gitCherryPickStarted, type: AppToastType.info);
-      }
-    });
+      hash: hash,
+      shortHash: hash.substring(0, 7),
+      message: message,
+      repo: repo,
+      showUndo: isOutgoing && isFirst,
+      onUndo: () => _showUndoOptions(context, S.of(context)),
+    );
   }
 
   /// Second-level dialog: choose undo mode (soft/mixed/hard) then confirm.
@@ -608,25 +502,6 @@ class _CommitRow extends StatelessWidget {
     });
   }
 
-  /// Second-level dialog: choose revert options then confirm.
-  void _showRevertOptions(BuildContext context, String hash, S l) {
-    final gitOps = context.read<GitOperations>();
-
-    showAppCheckConfirmDialog(
-      context,
-      title: l.gitRevertCommit,
-      message: l.gitRevertCommitDesc,
-      checkboxLabel: l.gitRevertNoCommitDesc,
-      initialChecked: false,
-    ).then((result) {
-      if (result == null) return;
-      final noCommit = result.checked;
-      gitOps.gitRevertCommit(repo: repo, hash: hash, noCommit: noCommit);
-      final msg = noCommit ? l.gitRevertNoCommitDone : l.gitRevertInProgress;
-      AppToast.show(context, msg, type: AppToastType.info);
-    });
-  }
-
   void _confirmHardReset(BuildContext context, GitOperations gitOps, S l) {
     showAppConfirmDialog(
       context,
@@ -641,35 +516,5 @@ class _CommitRow extends StatelessWidget {
             type: AppToastType.error);
       }
     });
-  }
-}
-
-/// Action tile for the commit action bottom sheet.
-class _ActionTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String? subtitle;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _ActionTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      dense: true,
-      leading: Icon(icon, size: 20, color: color),
-      title: Text(title, style: TextStyle(fontSize: 13, color: color)),
-      subtitle: subtitle != null
-          ? Text(subtitle!, style: const TextStyle(fontSize: 11))
-          : null,
-      onTap: onTap,
-    );
   }
 }
