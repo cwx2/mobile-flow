@@ -117,6 +117,12 @@ class MessageType {
   static const gitMergeAbort = 'git.merge.abort'; // App -> Agent: abort current merge [request]
   static const gitMergeAbortResult = 'git.merge.abort.result'; // Agent -> App: abort result [request]
 
+  // ── Git Undo / Revert Commit ──
+  static const gitUndoCommit = 'git.undo.commit'; // App -> Agent: undo last commit [request]
+  static const gitUndoCommitResult = 'git.undo.commit.result'; // Agent -> App: undo result [request]
+  static const gitRevertCommit = 'git.revert.commit'; // App -> Agent: revert a commit [request]
+  static const gitRevertCommitResult = 'git.revert.commit.result'; // Agent -> App: revert result [request]
+
   // ── Terminal ──
   static const terminalStart = 'terminal.start'; // App -> Agent: start terminal session [request]
   static const terminalStarted = 'terminal.started'; // Agent -> App: terminal session ready [notification]

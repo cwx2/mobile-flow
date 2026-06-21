@@ -41,9 +41,11 @@ from mobileflow_protocol.payloads.git import (
     GitMergeAbortPayload,
     GitReposPayload,
     GitReposResultPayload,
+    GitRevertCommitPayload,
     GitShowPayload,
     GitStagePayload,
     GitStatusResultPayload,
+    GitUndoCommitPayload,
     GitUnstagePayload,
 )
 from mobileflow_protocol.types import MessageType
@@ -812,4 +814,78 @@ class GitHandler(BaseHandler):
 
         await self.send(ws, Message(
             type=MessageType.GIT_MERGE_ABORT_RESULT,
+            payload={**(result or {}), "repo": payload.repo}))
+
+    # -- Undo / Revert Commit --
+
+    async def handle_git_undo_commit(self, client_id, ws, msg):
+        """Undo the last commit via git reset (JetBrains Undo Commit).
+
+        Supports three modes: soft (staged), mixed (unstaged), hard (discard).
+        Returns the undone commit message for UI pre-fill.
+
+        Args:
+            client_id: Identifier of the requesting client.
+            ws: The client's WebSocket connection.
+            msg: Protocol message with ``repo`` and ``mode``.
+        """
+        try:
+            payload = msg.typed_payload(GitUndoCommitPayload)
+        except PayloadValidationError as e:
+            logger.warning(f"git.undo.commit payload 无效: client={client_id}, {e}")
+            await self.send_error(ws, f"Invalid payload: {e}")
+            return
+
+        manager, git = await self._require_repo(ws, payload.repo)
+        if not manager:
+            return
+
+        logger.info(f"git.undo.commit: repo={Path(payload.repo).name}, mode={payload.mode}")
+
+        result = await manager.run(
+            Op.Commit,  # Uses Commit op (blocking, triggers refresh)
+            run_operation=lambda: git.undo_commit(payload.mode),
+        )
+
+        await self.send(ws, Message(
+            type=MessageType.GIT_UNDO_COMMIT_RESULT,
+            payload={**(result or {}), "repo": payload.repo}))
+
+    async def handle_git_revert_commit(self, client_id, ws, msg):
+        """Revert a commit by creating a reverse commit (JetBrains Revert Commit).
+
+        Safe for already-pushed commits. May produce merge conflicts.
+
+        Args:
+            client_id: Identifier of the requesting client.
+            ws: The client's WebSocket connection.
+            msg: Protocol message with ``repo``, ``hash``, and ``no_commit``.
+        """
+        try:
+            payload = msg.typed_payload(GitRevertCommitPayload)
+        except PayloadValidationError as e:
+            logger.warning(f"git.revert.commit payload 无效: client={client_id}, {e}")
+            await self.send_error(ws, f"Invalid payload: {e}")
+            return
+
+        manager, git = await self._require_repo(ws, payload.repo)
+        if not manager:
+            return
+
+        if not payload.hash:
+            await self.send_error(ws, "Missing commit hash")
+            return
+
+        logger.info(
+            f"git.revert.commit: repo={Path(payload.repo).name}, "
+            f"hash={payload.hash[:12]}, no_commit={payload.no_commit}"
+        )
+
+        result = await manager.run(
+            Op.Commit,  # Uses Commit op (blocking, triggers refresh)
+            run_operation=lambda: git.revert_commit(payload.hash, payload.no_commit),
+        )
+
+        await self.send(ws, Message(
+            type=MessageType.GIT_REVERT_COMMIT_RESULT,
             payload={**(result or {}), "repo": payload.repo}))

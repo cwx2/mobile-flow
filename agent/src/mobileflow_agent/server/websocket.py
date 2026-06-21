@@ -1197,6 +1197,10 @@ class WebSocketServer:
                        requires_project=True)
             r.register(MessageType.GIT_MERGE_ABORT, self._git.handle_git_merge_abort,
                        requires_project=True)
+            r.register(MessageType.GIT_UNDO_COMMIT, self._git.handle_git_undo_commit,
+                       requires_project=True)
+            r.register(MessageType.GIT_REVERT_COMMIT, self._git.handle_git_revert_commit,
+                       requires_project=True)
 
         # CLI management (no CLI auth needed — these manage CLI lifecycle)
         r.register(MessageType.CLI_LIST, self._handle_cli_list)

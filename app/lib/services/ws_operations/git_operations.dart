@@ -212,4 +212,28 @@ class GitOperations {
       _sender.send(WsMessage(
           type: MessageType.gitMergeAbort,
           payload: <String, dynamic>{'repo': repo}));
+
+  /// Undo the last commit (git reset).
+  ///
+  /// [mode]: "soft" (staged), "mixed" (unstaged), or "hard" (discard).
+  void gitUndoCommit({required String repo, String mode = 'soft'}) =>
+      _sender.send(WsMessage(
+          type: MessageType.gitUndoCommit,
+          payload: <String, dynamic>{'repo': repo, 'mode': mode}));
+
+  /// Revert a commit (create reverse commit).
+  ///
+  /// [noCommit]: if true, stage changes without auto-committing.
+  void gitRevertCommit({
+    required String repo,
+    required String hash,
+    bool noCommit = false,
+  }) =>
+      _sender.send(WsMessage(
+          type: MessageType.gitRevertCommit,
+          payload: <String, dynamic>{
+            'repo': repo,
+            'hash': hash,
+            'no_commit': noCommit,
+          }));
 }

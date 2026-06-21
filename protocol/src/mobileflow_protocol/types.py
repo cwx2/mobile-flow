@@ -137,6 +137,14 @@ class MessageType(str, Enum):
     GIT_MERGE_ABORT = "git.merge.abort"                # App -> Agent: abort current merge
     GIT_MERGE_ABORT_RESULT = "git.merge.abort.result"  # Agent -> App: abort result
 
+    # ── Git Undo / Revert Commit ──
+    # Undo (reset) and revert commit operations.
+
+    GIT_UNDO_COMMIT = "git.undo.commit"                # App -> Agent: undo last commit (reset)
+    GIT_UNDO_COMMIT_RESULT = "git.undo.commit.result"  # Agent -> App: undo result + message
+    GIT_REVERT_COMMIT = "git.revert.commit"            # App -> Agent: revert a commit
+    GIT_REVERT_COMMIT_RESULT = "git.revert.commit.result"  # Agent -> App: revert result
+
     # ── Terminal ──
     # Interactive PTY terminal sessions.
 

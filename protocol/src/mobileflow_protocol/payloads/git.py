@@ -711,6 +711,64 @@ class GitMergeAbortResultPayload(PayloadBase):
     error: str = ""
 
 
+class GitUndoCommitPayload(PayloadBase):
+    """Payload for ``git.undo.commit`` — undo last commit via reset.
+
+    Attributes:
+        repo: Target repository path.
+        mode: Reset mode — "soft", "mixed", or "hard".
+    """
+
+    repo: str = ""
+    mode: str = "soft"
+
+
+class GitUndoCommitResultPayload(PayloadBase):
+    """Payload for ``git.undo.commit.result`` — undo result.
+
+    Attributes:
+        repo: Repository path.
+        success: Whether the undo succeeded.
+        message: The undone commit's message (for pre-filling input).
+        error: Error message (empty on success).
+    """
+
+    repo: str = ""
+    success: bool = False
+    message: str = ""
+    error: str = ""
+
+
+class GitRevertCommitPayload(PayloadBase):
+    """Payload for ``git.revert.commit`` — revert a commit.
+
+    Attributes:
+        repo: Target repository path.
+        hash: Commit hash to revert.
+        no_commit: If True, stage revert changes without auto-committing.
+    """
+
+    repo: str = ""
+    hash: str = ""
+    no_commit: bool = False
+
+
+class GitRevertCommitResultPayload(PayloadBase):
+    """Payload for ``git.revert.commit.result`` — revert result.
+
+    Attributes:
+        repo: Repository path.
+        success: Whether the revert succeeded.
+        has_conflicts: Whether revert produced merge conflicts.
+        error: Error message (empty on success).
+    """
+
+    repo: str = ""
+    success: bool = False
+    has_conflicts: bool = False
+    error: str = ""
+
+
 # ── Registry wiring ──
 # Register all git payload models so Message.typed_payload() and
 # get_payload_class() can resolve them by MessageType.
@@ -761,3 +819,7 @@ register_payload(MessageType.GIT_CONFLICT_RESOLVE_ALL, GitConflictResolveAllPayl
 register_payload(MessageType.GIT_CONFLICT_RESOLVE_ALL_RESULT, GitConflictResolveAllResultPayload)
 register_payload(MessageType.GIT_MERGE_ABORT, GitMergeAbortPayload)
 register_payload(MessageType.GIT_MERGE_ABORT_RESULT, GitMergeAbortResultPayload)
+register_payload(MessageType.GIT_UNDO_COMMIT, GitUndoCommitPayload)
+register_payload(MessageType.GIT_UNDO_COMMIT_RESULT, GitUndoCommitResultPayload)
+register_payload(MessageType.GIT_REVERT_COMMIT, GitRevertCommitPayload)
+register_payload(MessageType.GIT_REVERT_COMMIT_RESULT, GitRevertCommitResultPayload)

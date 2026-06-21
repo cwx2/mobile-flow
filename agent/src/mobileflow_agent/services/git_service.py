@@ -1839,3 +1839,93 @@ class GitService:
             return {"success": False, "error": err.split("\n")[0] if err else ""}
         logger.info("git merge --abort 成功")
         return {"success": True, "error": ""}
+
+    # ── Undo / Revert Commit ──
+
+    async def undo_commit(self, mode: str = "soft") -> dict:
+        """Undo the last commit (git reset HEAD~1).
+
+        Mirrors JetBrains' "Undo Commit" — removes the most recent commit
+        and puts changes back according to the mode. Also returns the
+        undone commit's message so the UI can pre-fill the input box.
+
+        Args:
+            mode: Reset mode — "soft", "mixed", or "hard".
+                - soft: keep changes in staged (index preserved)
+                - mixed: keep changes in working dir (unstaged)
+                - hard: discard all changes (destructive!)
+
+        Returns:
+            Dict with ``success``, ``message`` (undone commit msg),
+            and ``error`` keys.
+        """
+        if mode not in ("soft", "mixed", "hard"):
+            return {"success": False, "message": "", "error": f"Invalid mode: {mode}"}
+
+        # Get the commit message before resetting (for UI pre-fill)
+        msg_out, _, msg_code = await self._run(
+            "log", "-1", "--pretty=format:%s",
+        )
+        commit_message = msg_out.strip() if msg_code == 0 else ""
+
+        logger.info(f"撤销提交: mode={mode}, message={commit_message[:50]}")
+
+        args = ["reset", f"--{mode}", "HEAD~1"]
+        out, err, code = await self._run(*args)
+        if code != 0:
+            logger.error(f"撤销提交失败: mode={mode}, error={err}")
+            return {"success": False, "message": "", "error": err.split("\n")[0] if err else ""}
+
+        logger.info(f"撤销提交成功: mode={mode}")
+        return {"success": True, "message": commit_message, "error": ""}
+
+    async def revert_commit(self, commit_hash: str, no_commit: bool = False) -> dict:
+        """Revert a commit by creating a new reverse commit.
+
+        Mirrors JetBrains' "Revert Commit" — generates a new commit that
+        undoes the changes introduced by the specified commit. Safe for
+        commits that have already been pushed.
+
+        Args:
+            commit_hash: Hash of the commit to revert.
+            no_commit: If True, apply revert changes to staging area
+                without auto-committing (--no-commit flag). Lets user
+                modify or combine with other changes before committing.
+
+        Returns:
+            Dict with ``success``, ``has_conflicts`` (bool), and ``error`` keys.
+            If has_conflicts is True, user needs to resolve conflicts.
+        """
+        logger.info(
+            f"还原提交: hash={commit_hash[:12]}, no_commit={no_commit}"
+        )
+
+        args = ["revert"]
+        if no_commit:
+            args.append("--no-commit")
+        args.append(commit_hash)
+
+        out, err, code = await self._run(*args)
+
+        if code != 0:
+            # Check if failure is due to conflicts
+            conflict_indicators = ["CONFLICT", "conflict", "Merge conflict"]
+            has_conflicts = any(ind in (out + err) for ind in conflict_indicators)
+
+            if has_conflicts:
+                logger.warning(f"还原提交产生冲突: hash={commit_hash[:12]}")
+                return {
+                    "success": False,
+                    "has_conflicts": True,
+                    "error": "",
+                }
+
+            logger.error(f"还原提交失败: hash={commit_hash[:12]}, error={err}")
+            return {
+                "success": False,
+                "has_conflicts": False,
+                "error": err.split("\n")[0] if err else "",
+            }
+
+        logger.info(f"还原提交成功: hash={commit_hash[:12]}")
+        return {"success": True, "has_conflicts": False, "error": ""}
