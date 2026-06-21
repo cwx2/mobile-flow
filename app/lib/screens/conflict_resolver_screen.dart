@@ -1,15 +1,17 @@
-/// conflict_resolver_screen.dart — Merge conflict resolution UI.
+/// conflict_resolver_screen.dart — Merge conflict resolution UI (V2).
 ///
 /// Module: screens/
 /// Responsibility:
-///   Full-screen conflict resolver for a single file. Displays each
-///   conflict block as a card with Current/Incoming content and
-///   action buttons (Accept Current / Accept Incoming / Accept Both).
+///   Three-panel thumbnail preview with animated zoom for conflict resolution.
+///   Shows three versions (Current / Incoming / Both) as miniature previews,
+///   tapping one expands it with smooth animation to full-size readable code.
 ///
-///   Mirrors VS Code's merge-conflict extension behavior:
-///   - Immediate write on each resolution (no batching)
-///   - Auto-scroll to next conflict after resolving one
-///   - Accept All quick actions in overflow menu
+///   Design mirrors VS Code's 3-way merge editor adapted for mobile:
+///   - Three thumbnails at top for quick visual comparison
+///   - Full preview below with file context (lines before/after conflict)
+///   - Swipe or tap to switch between versions
+///   - Confirm button to apply the selected resolution
+///   - Edit button to open in FileViewerScreen for manual changes
 ///
 /// Navigation:
 ///   GitChangesTab → tap conflict file → ConflictResolverScreen
@@ -25,15 +27,10 @@ import '../services/git_state.dart';
 import '../services/websocket_service.dart';
 import '../components/app_toast.dart';
 import '../l10n/app_localizations.dart';
+import '../screens/file_viewer_screen.dart';
 import '../theme/theme_extensions.dart';
-import '../utils/logger.dart';
-
-final _log = getLogger('ConflictResolver');
 
 /// Screen for resolving merge conflicts in a single file.
-///
-/// Loads conflict blocks from the agent, displays them as cards,
-/// and resolves them one by one (immediate write mode).
 class ConflictResolverScreen extends StatefulWidget {
   final String repoPath;
   final String filePath;
@@ -75,56 +72,34 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
 
   void _onMessage(WsMessage msg) {
     if (!mounted) return;
-
     switch (msg.type) {
       case MessageType.gitConflictsResult:
-        final msgRepo = msg.payload['repo'] as String? ?? '';
-        final msgPath = msg.payload['path'] as String? ?? '';
-        if (!_matchesFile(msgRepo, msgPath)) break;
-
+        if (!_matchesFile(msg.payload)) break;
         final error = msg.payload['error'] as String? ?? '';
         if (error.isNotEmpty) {
-          setState(() {
-            _loading = false;
-            _error = error;
-          });
+          setState(() { _loading = false; _error = error; });
         } else {
           final conflicts = (msg.payload['conflicts'] as List?)
-                  ?.cast<Map<String, dynamic>>() ??
-              [];
-          setState(() {
-            _conflicts = conflicts;
-            _loading = false;
-            _error = null;
-          });
+              ?.cast<Map<String, dynamic>>() ?? [];
+          setState(() { _conflicts = conflicts; _loading = false; _error = null; });
         }
 
       case MessageType.gitConflictResolveResult:
-        final msgRepo = msg.payload['repo'] as String? ?? '';
-        final msgPath = msg.payload['path'] as String? ?? '';
-        if (!_matchesFile(msgRepo, msgPath)) break;
-
+        if (!_matchesFile(msg.payload)) break;
         final success = msg.payload['success'] as bool? ?? false;
         if (success) {
-          final remaining = (msg.payload['remaining'] as List?)
-                  ?.cast<Map<String, dynamic>>() ??
-              [];
-          setState(() => _conflicts = remaining);
-          _log.fine('冲突解决成功, remaining=${remaining.length}');
+          // Re-request to get fresh context for remaining conflicts
+          _requestConflicts();
         } else {
           final error = msg.payload['error'] as String? ?? 'Unknown error';
           AppToast.show(context, error, type: AppToastType.error);
         }
 
       case MessageType.gitConflictResolveAllResult:
-        final msgRepo = msg.payload['repo'] as String? ?? '';
-        final msgPath = msg.payload['path'] as String? ?? '';
-        if (!_matchesFile(msgRepo, msgPath)) break;
-
+        if (!_matchesFile(msg.payload)) break;
         final success = msg.payload['success'] as bool? ?? false;
         if (success) {
           setState(() => _conflicts = []);
-          _log.info('全部冲突解决成功');
         } else {
           final error = msg.payload['error'] as String? ?? 'Unknown error';
           AppToast.show(context, error, type: AppToastType.error);
@@ -132,9 +107,10 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
     }
   }
 
-  bool _matchesFile(String repo, String path) {
-    return repo.replaceAll('\\', '/') == widget.repoPath.replaceAll('\\', '/') &&
-        path == widget.filePath;
+  bool _matchesFile(Map<String, dynamic> payload) {
+    final repo = (payload['repo'] as String? ?? '').replaceAll('\\', '/');
+    final path = payload['path'] as String? ?? '';
+    return repo == widget.repoPath.replaceAll('\\', '/') && path == widget.filePath;
   }
 
   void _resolve(int conflictId, String resolution) {
@@ -159,15 +135,16 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
   void _stageFile() {
     final git = context.read<GitStateProvider>();
     git.stage([widget.filePath], repo: widget.repoPath);
-    AppToast.show(context, S.of(context).gitConflictsFileStaged, type: AppToastType.success);
+    AppToast.show(context, S.of(context).gitConflictsFileStaged,
+        type: AppToastType.success);
     Navigator.pop(context, true);
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final fileName = widget.filePath.split('/').last;
     final l = S.of(context);
+    final fileName = widget.filePath.split('/').last;
 
     return Scaffold(
       appBar: AppBar(
@@ -187,34 +164,19 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
           if (_conflicts.isNotEmpty)
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert),
-              onSelected: (value) {
-                switch (value) {
-                  case 'all_current':
-                    _resolveAll('current');
-                  case 'all_incoming':
-                    _resolveAll('incoming');
-                  case 'all_both':
-                    _resolveAll('both');
-                }
-              },
+              onSelected: (v) => _resolveAll(v),
               itemBuilder: (_) => [
                 PopupMenuItem(
-                  value: 'all_current',
-                  child: Text(l.gitConflictsAcceptAllCurrent),
-                ),
+                    value: 'current', child: Text(l.gitConflictsAcceptAllCurrent)),
                 PopupMenuItem(
-                  value: 'all_incoming',
-                  child: Text(l.gitConflictsAcceptAllIncoming),
-                ),
+                    value: 'incoming', child: Text(l.gitConflictsAcceptAllIncoming)),
                 PopupMenuItem(
-                  value: 'all_both',
-                  child: Text(l.gitConflictsAcceptAllBoth),
-                ),
+                    value: 'both', child: Text(l.gitConflictsAcceptAllBoth)),
               ],
             ),
         ],
       ),
-      body: _buildBody(colors),
+      body: _buildBody(context),
       bottomNavigationBar: _conflicts.isEmpty && !_loading && _error == null
           ? SafeArea(
               child: Padding(
@@ -230,10 +192,11 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
     );
   }
 
-  Widget _buildBody(dynamic colors) {
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator());
-    }
+  Widget _buildBody(BuildContext context) {
+    final colors = context.colors;
+    final l = S.of(context);
+
+    if (_loading) return const Center(child: CircularProgressIndicator());
 
     if (_error != null) {
       return Center(
@@ -252,7 +215,6 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
     }
 
     if (_conflicts.isEmpty) {
-      final l = S.of(context);
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -272,12 +234,11 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
     return ListView.separated(
       padding: const EdgeInsets.symmetric(vertical: 8),
       itemCount: _conflicts.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      separatorBuilder: (_, __) => const SizedBox(height: 16),
       itemBuilder: (context, index) {
         final conflict = _conflicts[index];
-        return _ConflictCard(
+        return _ConflictResolver(
           conflict: conflict,
-          repoPath: widget.repoPath,
           filePath: widget.filePath,
           onResolve: (resolution) =>
               _resolve(conflict['id'] as int? ?? index, resolution),
@@ -287,358 +248,329 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
   }
 }
 
-/// Single conflict block card with tab-based preview and confirm workflow.
-///
-/// Mirrors VS Code's preview behavior: user selects a resolution strategy,
-/// sees the final result preview, then confirms to apply. Also provides
-/// a "manual edit" entry for cases where none of the three options suffice.
-class _ConflictCard extends StatefulWidget {
+/// Per-conflict resolver with thumbnail 3-panel preview.
+class _ConflictResolver extends StatefulWidget {
   final Map<String, dynamic> conflict;
-  final void Function(String resolution) onResolve;
-  final String repoPath;
   final String filePath;
+  final void Function(String resolution) onResolve;
 
-  const _ConflictCard({
+  const _ConflictResolver({
     required this.conflict,
-    required this.onResolve,
-    required this.repoPath,
     required this.filePath,
+    required this.onResolve,
   });
 
   @override
-  State<_ConflictCard> createState() => _ConflictCardState();
+  State<_ConflictResolver> createState() => _ConflictResolverState();
 }
 
-class _ConflictCardState extends State<_ConflictCard> {
-  /// Currently selected tab: 0=current, 1=incoming, 2=both, null=none selected
-  int? _selectedTab;
+class _ConflictResolverState extends State<_ConflictResolver> {
+  /// Selected version: 0=current, 1=incoming, 2=both
+  int _selected = 0;
+
+  String get _currentContent =>
+      widget.conflict['current_content'] as String? ?? '';
+  String get _incomingContent =>
+      widget.conflict['incoming_content'] as String? ?? '';
+  String get _contextBefore =>
+      widget.conflict['context_before'] as String? ?? '';
+  String get _contextAfter =>
+      widget.conflict['context_after'] as String? ?? '';
+  int get _rangeStart => widget.conflict['range_start'] as int? ?? 0;
+
+  /// Build full preview for a given resolution index.
+  String _buildPreview(int index) {
+    final resolved = index == 0
+        ? _currentContent
+        : index == 1
+            ? _incomingContent
+            : _currentContent + _incomingContent;
+    return _contextBefore + resolved + _contextAfter;
+  }
+
+  String _resolutionFor(int index) =>
+      const ['current', 'incoming', 'both'][index];
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final l = S.of(context);
-    final currentLabel = widget.conflict['current_label'] as String? ?? 'HEAD';
-    final currentContent = widget.conflict['current_content'] as String? ?? '';
-    final incomingLabel = widget.conflict['incoming_label'] as String? ?? '';
-    final incomingContent = widget.conflict['incoming_content'] as String? ?? '';
-    final rangeStart = widget.conflict['range_start'] as int? ?? 0;
 
-    // Compute preview content based on selected tab
-    String previewContent = '';
-    String previewLabel = '';
-    Color previewColor = colors.onSurfaceVariant;
-    if (_selectedTab == 0) {
-      previewContent = currentContent;
-      previewLabel = l.gitConflictsAcceptCurrent;
-      previewColor = const Color(0xFF4CAF50);
-    } else if (_selectedTab == 1) {
-      previewContent = incomingContent;
-      previewLabel = l.gitConflictsAcceptIncoming;
-      previewColor = const Color(0xFF2196F3);
-    } else if (_selectedTab == 2) {
-      previewContent = currentContent + incomingContent;
-      previewLabel = l.gitConflictsAcceptBoth;
-      previewColor = const Color(0xFF9C27B0);
-    }
+    final labels = [
+      l.gitConflictsAcceptCurrent,
+      l.gitConflictsAcceptIncoming,
+      l.gitConflictsAcceptBoth,
+    ];
+    final tabColors = [
+      const Color(0xFF4CAF50),
+      const Color(0xFF2196F3),
+      const Color(0xFF9C27B0),
+    ];
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Conflict header
+          // Header row with conflict info + edit button
           Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Text(
-              'Conflict (line ${rangeStart + 1})',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: colors.onSurfaceMuted,
-              ),
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                Text(
+                  'Conflict (line ${_rangeStart + 1})',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: colors.onSurfaceMuted,
+                  ),
+                ),
+                const Spacer(),
+                GestureDetector(
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => FileViewerScreen(filePath: widget.filePath),
+                  )),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.edit_note, size: 16, color: colors.primary),
+                      const SizedBox(width: 2),
+                      Text('Edit',
+                          style: TextStyle(fontSize: 11, color: colors.primary)),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
 
-          // Two source blocks side by side (current + incoming)
-          // Current block (green)
-          _CodeBlock(
-            label: '$currentLabel (${l.gitConflictsCurrentChange})',
-            content: currentContent,
-            borderColor: const Color(0xFF4CAF50),
-            backgroundColor: const Color(0x0D4CAF50),
-          ),
-
-          const SizedBox(height: 6),
-
-          // Incoming block (blue)
-          _CodeBlock(
-            label: '$incomingLabel (${l.gitConflictsIncomingChange})',
-            content: incomingContent,
-            borderColor: const Color(0xFF2196F3),
-            backgroundColor: const Color(0x0D2196F3),
+          // Three thumbnail previews side by side
+          SizedBox(
+            height: 90,
+            child: Row(
+              children: List.generate(3, (i) {
+                final isSelected = _selected == i;
+                return Expanded(
+                  child: GestureDetector(
+                    onTap: () => setState(() => _selected = i),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeOutCubic,
+                      margin: EdgeInsets.only(
+                        left: i == 0 ? 0 : 3,
+                        right: i == 2 ? 0 : 3,
+                      ),
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? tabColors[i].withValues(alpha: 0.12)
+                            : colors.surfaceVariant.withValues(alpha: 0.3),
+                        border: Border.all(
+                          color: isSelected
+                              ? tabColors[i]
+                              : colors.border.withValues(alpha: 0.3),
+                          width: isSelected ? 2 : 1,
+                        ),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Label
+                          Text(
+                            labels[i],
+                            style: TextStyle(
+                              fontSize: 8,
+                              fontWeight: FontWeight.w600,
+                              color: isSelected
+                                  ? tabColors[i]
+                                  : colors.onSurfaceMuted,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          // Miniature code (tiny font for shape overview)
+                          Expanded(
+                            child: ClipRect(
+                              child: Text(
+                                _buildPreview(i),
+                                style: TextStyle(
+                                  fontSize: 5,
+                                  fontFamily: 'monospace',
+                                  height: 1.2,
+                                  color: colors.onSurface
+                                      .withValues(alpha: 0.6),
+                                ),
+                                overflow: TextOverflow.clip,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }),
+            ),
           ),
 
           const SizedBox(height: 10),
 
-          // Resolution tab selector
-          Row(
-            children: [
-              _TabChip(
-                label: l.gitConflictsAcceptCurrent,
-                selected: _selectedTab == 0,
-                color: const Color(0xFF4CAF50),
-                onTap: () => setState(() => _selectedTab = 0),
-              ),
-              const SizedBox(width: 6),
-              _TabChip(
-                label: l.gitConflictsAcceptIncoming,
-                selected: _selectedTab == 1,
-                color: const Color(0xFF2196F3),
-                onTap: () => setState(() => _selectedTab = 1),
-              ),
-              const SizedBox(width: 6),
-              _TabChip(
-                label: l.gitConflictsAcceptBoth,
-                selected: _selectedTab == 2,
-                color: const Color(0xFF9C27B0),
-                onTap: () => setState(() => _selectedTab = 2),
-              ),
-            ],
+          // Full preview with animated content switching
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeInCubic,
+            child: _FullPreview(
+              key: ValueKey(_selected),
+              content: _buildPreview(_selected),
+              conflictContent: _selected == 0
+                  ? _currentContent
+                  : _selected == 1
+                      ? _incomingContent
+                      : _currentContent + _incomingContent,
+              contextBefore: _contextBefore,
+              color: tabColors[_selected],
+              label: labels[_selected],
+            ),
           ),
 
-          // Preview area (shown when a tab is selected)
-          if (_selectedTab != null) ...[
-            const SizedBox(height: 8),
-            _CodeBlock(
-              label: '▶ $previewLabel',
-              content: previewContent,
-              borderColor: previewColor,
-              backgroundColor: previewColor.withValues(alpha: 0.08),
-            ),
-            const SizedBox(height: 8),
-            // Confirm + Edit buttons
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton(
-                    onPressed: () {
-                      final resolutions = ['current', 'incoming', 'both'];
-                      widget.onResolve(resolutions[_selectedTab!]);
-                    },
-                    style: FilledButton.styleFrom(
-                      backgroundColor: previewColor,
-                      minimumSize: const Size(0, 40),
-                    ),
-                    child: Text(l.commonConfirm,
-                        style: const TextStyle(fontSize: 13)),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                // Manual edit button
-                OutlinedButton.icon(
-                  onPressed: () => _openEditor(context),
-                  icon: const Icon(Icons.edit, size: 16),
-                  label: Text(l.commonCancel, style: const TextStyle(fontSize: 12)),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 40),
-                  ),
-                ),
-              ],
-            ),
-          ] else ...[
-            // No tab selected: show hint + edit button
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    '↑ Select a resolution to preview',
-                    style: TextStyle(fontSize: 11, color: colors.onSurfaceMuted),
-                  ),
-                ),
-                // Manual edit entry
-                TextButton.icon(
-                  onPressed: () => _openEditor(context),
-                  icon: Icon(Icons.edit_note, size: 16, color: colors.primary),
-                  label: Text('Edit',
-                      style: TextStyle(fontSize: 11, color: colors.primary)),
-                ),
-              ],
-            ),
-          ],
+          const SizedBox(height: 10),
 
-          const SizedBox(height: 4),
+          // Confirm button
+          SizedBox(
+            width: double.infinity,
+            height: 44,
+            child: FilledButton(
+              onPressed: () => widget.onResolve(_resolutionFor(_selected)),
+              style: FilledButton.styleFrom(
+                backgroundColor: tabColors[_selected],
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: Text(
+                '${l.commonConfirm} — ${labels[_selected]}',
+                style: const TextStyle(
+                    fontSize: 14, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 8),
           Divider(color: colors.border.withValues(alpha: 0.3)),
         ],
       ),
     );
   }
-
-  void _openEditor(BuildContext context) {
-    // Navigate to file editor with the conflicted file
-    final ws = context.read<WebSocketService>();
-    ws.send(WsMessage(
-      type: MessageType.fileRead,
-      payload: {'path': widget.filePath, 'repo': widget.repoPath},
-    ));
-    // Show toast guiding user
-    AppToast.show(
-      context,
-      'Open file in editor to manually resolve',
-      type: AppToastType.info,
-    );
-  }
 }
 
-/// Selectable tab chip for resolution preview.
-class _TabChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _TabChip({
-    required this.label,
-    required this.selected,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          decoration: BoxDecoration(
-            color: selected ? color.withValues(alpha: 0.15) : Colors.transparent,
-            border: Border.all(
-              color: selected ? color : color.withValues(alpha: 0.3),
-              width: selected ? 1.5 : 1,
-            ),
-            borderRadius: BorderRadius.circular(6),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-              color: selected ? color : color.withValues(alpha: 0.7),
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Code content block with colored left border.
-class _CodeBlock extends StatefulWidget {
-  final String label;
+/// Full-size code preview with line numbers and conflict highlighting.
+class _FullPreview extends StatelessWidget {
   final String content;
-  final Color borderColor;
-  final Color backgroundColor;
+  final String conflictContent;
+  final String contextBefore;
+  final Color color;
+  final String label;
 
-  const _CodeBlock({
-    required this.label,
+  const _FullPreview({
+    super.key,
     required this.content,
-    required this.borderColor,
-    required this.backgroundColor,
+    required this.conflictContent,
+    required this.contextBefore,
+    required this.color,
+    required this.label,
   });
-
-  @override
-  State<_CodeBlock> createState() => _CodeBlockState();
-}
-
-class _CodeBlockState extends State<_CodeBlock> {
-  bool _expanded = false;
-
-  /// Max lines to show before collapsing.
-  static const _collapseThreshold = 15;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final lines = widget.content.split('\n');
-    final needsCollapse = lines.length > _collapseThreshold;
-    final displayContent = needsCollapse && !_expanded
-        ? lines.take(_collapseThreshold).join('\n')
-        : widget.content;
+    final lines = content.split('\n');
+    final displayLines =
+        lines.isNotEmpty && lines.last.isEmpty ? lines.sublist(0, lines.length - 1) : lines;
+
+    // Calculate which lines are the resolved conflict (for highlighting)
+    final beforeCount = contextBefore.isEmpty
+        ? 0
+        : contextBefore.split('\n').length -
+            (contextBefore.endsWith('\n') ? 1 : 0);
+    final conflictCount = conflictContent.isEmpty
+        ? 0
+        : conflictContent.split('\n').length -
+            (conflictContent.endsWith('\n') ? 1 : 0);
 
     return Container(
+      constraints: const BoxConstraints(maxHeight: 200),
       decoration: BoxDecoration(
-        color: widget.backgroundColor,
-        border: Border(
-          left: BorderSide(color: widget.borderColor, width: 3),
-        ),
+        color: colors.surfaceVariant.withValues(alpha: 0.2),
+        border: Border(left: BorderSide(color: color, width: 3)),
         borderRadius: const BorderRadius.only(
-          topRight: Radius.circular(4),
-          bottomRight: Radius.circular(4),
+          topRight: Radius.circular(6),
+          bottomRight: Radius.circular(6),
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Label header
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 6, 8, 2),
-            child: Text(
-              widget.label,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
-                color: colors.onSurfaceMuted,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Label
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
+              child: Text(
+                '▶ $label',
+                style: TextStyle(
+                    fontSize: 10, fontWeight: FontWeight.w600, color: color),
               ),
             ),
-          ),
-          // Code content
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8, 0, 8, 6),
-            child: widget.content.isEmpty
-                ? Text(
-                    '(empty)',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontStyle: FontStyle.italic,
-                      fontFamily: 'monospace',
-                      color: colors.onSurfaceMuted,
-                    ),
-                  )
-                : Text(
-                    displayContent,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontFamily: 'monospace',
-                      height: 1.4,
-                      color: colors.onSurface,
-                    ),
-                  ),
-          ),
-          // Expand/collapse toggle
-          if (needsCollapse)
-            GestureDetector(
-              onTap: () => setState(() => _expanded = !_expanded),
-              child: Container(
+            // Code lines
+            ...List.generate(displayLines.length, (i) {
+              final isHighlighted =
+                  i >= beforeCount && i < beforeCount + conflictCount;
+              return Container(
                 width: double.infinity,
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                alignment: Alignment.center,
-                child: Text(
-                  _expanded
-                      ? '▲ Collapse'
-                      : '▼ + ${lines.length - _collapseThreshold} more lines',
-                  style: TextStyle(fontSize: 10, color: widget.borderColor),
+                color: isHighlighted ? color.withValues(alpha: 0.1) : null,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 24,
+                      child: Text(
+                        '${i + 1}',
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontFamily: 'monospace',
+                          color:
+                              colors.onSurfaceMuted.withValues(alpha: 0.5),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        displayLines[i],
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontFamily: 'monospace',
+                          height: 1.4,
+                          color: isHighlighted
+                              ? colors.onSurface
+                              : colors.onSurfaceMuted,
+                          fontWeight: isHighlighted
+                              ? FontWeight.w500
+                              : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-            ),
-        ],
+              );
+            }),
+          ],
+        ),
       ),
     );
   }
 }
-
-/// Compact action button for conflict resolution.
-/// (Kept for potential future use but currently unused — _TabChip replaced it.)
