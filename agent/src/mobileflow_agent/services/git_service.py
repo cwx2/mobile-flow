@@ -1925,14 +1925,14 @@ class GitService:
                 return {
                     "success": False,
                     "has_conflicts": True,
-                    "error": "",
+                    "error": (out + err).strip().split("\n")[0] if (out + err).strip() else "",
                 }
 
             logger.error(f"还原提交失败: hash={commit_hash[:12]}, error={err}")
             return {
                 "success": False,
                 "has_conflicts": False,
-                "error": err.split("\n")[0] if err else "",
+                "error": (err or out).strip().split("\n")[0] if (err or out) else "",
             }
 
         logger.info(f"还原提交成功: hash={commit_hash[:12]}")
@@ -1949,3 +1949,58 @@ class GitService:
             return False
         parent_count = sum(1 for line in out.splitlines() if line.startswith("parent "))
         return parent_count > 1
+
+    # ── Cherry-pick ──
+
+    async def cherry_pick(self, commit_hash: str, no_commit: bool = False) -> dict:
+        """Cherry-pick a commit onto the current branch.
+
+        Applies the changes from the specified commit to the current HEAD.
+        Automatically detects merge commits and applies --mainline 1.
+
+        Args:
+            commit_hash: Hash of the commit to cherry-pick.
+            no_commit: If True, apply changes to staging area without
+                auto-committing (--no-commit flag).
+
+        Returns:
+            Dict with ``success``, ``has_conflicts`` (bool), and ``error`` keys.
+        """
+        logger.info(
+            f"Cherry-pick: hash={commit_hash[:12]}, no_commit={no_commit}"
+        )
+
+        is_merge = await self._is_merge_commit(commit_hash)
+        if is_merge:
+            logger.info(f"检测到 merge commit，自动添加 --mainline 1: hash={commit_hash[:12]}")
+
+        args = ["cherry-pick"]
+        if no_commit:
+            args.append("--no-commit")
+        if is_merge:
+            args.extend(["-m", "1"])
+        args.append(commit_hash)
+
+        out, err, code = await self._run(*args)
+
+        if code != 0:
+            conflict_indicators = ["CONFLICT", "conflict", "Merge conflict"]
+            has_conflicts = any(ind in (out + err) for ind in conflict_indicators)
+
+            if has_conflicts:
+                logger.warning(f"Cherry-pick 产生冲突: hash={commit_hash[:12]}")
+                return {
+                    "success": False,
+                    "has_conflicts": True,
+                    "error": (out + err).strip().split("\n")[0] if (out + err).strip() else "",
+                }
+
+            logger.error(f"Cherry-pick 失败: hash={commit_hash[:12]}, error={err}")
+            return {
+                "success": False,
+                "has_conflicts": False,
+                "error": (err or out).strip().split("\n")[0] if (err or out) else "",
+            }
+
+        logger.info(f"Cherry-pick 成功: hash={commit_hash[:12]}")
+        return {"success": True, "has_conflicts": False, "error": ""}

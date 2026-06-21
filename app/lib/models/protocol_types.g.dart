@@ -122,6 +122,8 @@ class MessageType {
   static const gitUndoCommitResult = 'git.undo.commit.result'; // Agent -> App: undo result [request]
   static const gitRevertCommit = 'git.revert.commit'; // App -> Agent: revert a commit [request]
   static const gitRevertCommitResult = 'git.revert.commit.result'; // Agent -> App: revert result [request]
+  static const gitCherryPick = 'git.cherry.pick'; // App -> Agent: cherry-pick a commit [request]
+  static const gitCherryPickResult = 'git.cherry.pick.result'; // Agent -> App: cherry-pick result [request]
 
   // ── Terminal ──
   static const terminalStart = 'terminal.start'; // App -> Agent: start terminal session [request]

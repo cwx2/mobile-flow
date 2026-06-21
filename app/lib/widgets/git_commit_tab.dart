@@ -6,6 +6,7 @@
 ///   and push/pull action buttons.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../animation/page_transition_builder.dart';
@@ -476,6 +477,31 @@ class _CommitRow extends StatelessWidget {
           ),
           const Divider(height: 1),
 
+          // Copy commit hash
+          _ActionTile(
+            icon: Icons.copy,
+            title: l.gitCopyHash,
+            subtitle: null,
+            color: colors.onSurfaceVariant,
+            onTap: () {
+              Navigator.pop(ctx);
+              Clipboard.setData(ClipboardData(text: hash));
+              AppToast.show(context, l.commonCopied);
+            },
+          ),
+
+          // Cherry-pick (apply this commit to current branch)
+          _ActionTile(
+            icon: Icons.content_copy_rounded,
+            title: l.gitCherryPick,
+            subtitle: null,
+            color: colors.success,
+            onTap: () {
+              Navigator.pop(ctx);
+              _confirmCherryPick(context, hash, l);
+            },
+          ),
+
           // Undo commit (only for outgoing/first commit)
           if (isOutgoing && isFirst)
             _ActionTile(
@@ -523,6 +549,22 @@ class _CommitRow extends StatelessWidget {
           const SizedBox(height: 8),
         ],
       );
+    });
+  }
+
+  /// Confirm and execute cherry-pick operation.
+  void _confirmCherryPick(BuildContext context, String hash, S l) {
+    final gitOps = context.read<GitOperations>();
+    showAppConfirmDialog(
+      context,
+      title: l.gitCherryPick,
+      message: l.gitCherryPickDesc,
+      confirmLabel: l.gitCherryPickButton,
+    ).then((confirmed) {
+      if (confirmed == true) {
+        gitOps.gitCherryPick(repo: repo, hash: hash);
+        AppToast.show(context, l.gitCherryPickStarted, type: AppToastType.info);
+      }
     });
   }
 

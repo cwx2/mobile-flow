@@ -769,6 +769,36 @@ class GitRevertCommitResultPayload(PayloadBase):
     error: str = ""
 
 
+class GitCherryPickPayload(PayloadBase):
+    """Payload for ``git.cherry.pick`` — cherry-pick a commit.
+
+    Attributes:
+        repo: Target repository path.
+        hash: Commit hash to cherry-pick.
+        no_commit: If True, apply changes to staging area without auto-committing.
+    """
+
+    repo: str = ""
+    hash: str = ""
+    no_commit: bool = False
+
+
+class GitCherryPickResultPayload(PayloadBase):
+    """Payload for ``git.cherry.pick.result`` — cherry-pick result.
+
+    Attributes:
+        repo: Repository path.
+        success: Whether the cherry-pick succeeded.
+        has_conflicts: Whether cherry-pick produced merge conflicts.
+        error: Error message (empty on success).
+    """
+
+    repo: str = ""
+    success: bool = False
+    has_conflicts: bool = False
+    error: str = ""
+
+
 # ── Registry wiring ──
 # Register all git payload models so Message.typed_payload() and
 # get_payload_class() can resolve them by MessageType.
@@ -823,3 +853,5 @@ register_payload(MessageType.GIT_UNDO_COMMIT, GitUndoCommitPayload)
 register_payload(MessageType.GIT_UNDO_COMMIT_RESULT, GitUndoCommitResultPayload)
 register_payload(MessageType.GIT_REVERT_COMMIT, GitRevertCommitPayload)
 register_payload(MessageType.GIT_REVERT_COMMIT_RESULT, GitRevertCommitResultPayload)
+register_payload(MessageType.GIT_CHERRY_PICK, GitCherryPickPayload)
+register_payload(MessageType.GIT_CHERRY_PICK_RESULT, GitCherryPickResultPayload)

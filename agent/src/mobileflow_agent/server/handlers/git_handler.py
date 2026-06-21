@@ -27,6 +27,7 @@ from mobileflow_protocol.envelope import Message
 from mobileflow_protocol.errors import PayloadValidationError
 from mobileflow_protocol.payloads.git import (
     GitCheckoutPayload,
+    GitCherryPickPayload,
     GitCommitPayload,
     GitConflictResolveAllPayload,
     GitConflictResolvePayload,
@@ -888,4 +889,46 @@ class GitHandler(BaseHandler):
 
         await self.send(ws, Message(
             type=MessageType.GIT_REVERT_COMMIT_RESULT,
+            payload={**(result or {}), "repo": payload.repo}))
+
+    # -- Cherry-pick --
+
+    async def handle_git_cherry_pick(self, client_id, ws, msg):
+        """Cherry-pick a commit onto the current branch.
+
+        Applies the changes introduced by the specified commit to the
+        current HEAD. Automatically handles merge commits with -m 1.
+
+        Args:
+            client_id: Identifier of the requesting client.
+            ws: The client's WebSocket connection.
+            msg: Protocol message with ``repo``, ``hash``, and ``no_commit``.
+        """
+        try:
+            payload = msg.typed_payload(GitCherryPickPayload)
+        except PayloadValidationError as e:
+            logger.warning(f"git.cherry.pick payload 无效: client={client_id}, {e}")
+            await self.send_error(ws, f"Invalid payload: {e}")
+            return
+
+        manager, git = await self._require_repo(ws, payload.repo)
+        if not manager:
+            return
+
+        if not payload.hash:
+            await self.send_error(ws, "Missing commit hash")
+            return
+
+        logger.info(
+            f"git.cherry.pick: repo={Path(payload.repo).name}, "
+            f"hash={payload.hash[:12]}, no_commit={payload.no_commit}"
+        )
+
+        result = await manager.run(
+            Op.Commit,
+            run_operation=lambda: git.cherry_pick(payload.hash, payload.no_commit),
+        )
+
+        await self.send(ws, Message(
+            type=MessageType.GIT_CHERRY_PICK_RESULT,
             payload={**(result or {}), "repo": payload.repo}))

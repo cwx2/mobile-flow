@@ -16,6 +16,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../components/app_dialog.dart';
+import '../components/app_notification.dart';
 import '../components/app_toast.dart';
 import '../l10n/app_localizations.dart';
 import '../models/protocol.dart';
@@ -112,6 +113,53 @@ class _RepoDetailScreenState extends State<RepoDetailScreen>
           AppToast.show(context, S.of(context).gitCheckoutSuccess,
               type: AppToastType.success);
         }
+
+      case MessageType.gitCherryPickResult:
+        final cherryRepo = msg.payload['repo'] as String? ?? '';
+        if (cherryRepo.isNotEmpty &&
+            cherryRepo.replaceAll('\\', '/') != widget.repoPath.replaceAll('\\', '/')) break;
+        final success = msg.payload['success'] as bool? ?? false;
+        final hasConflicts = msg.payload['has_conflicts'] as bool? ?? false;
+        final error = msg.payload['error'] as String? ?? '';
+        if (success) {
+          AppToast.show(context, S.of(context).gitCherryPickSuccess, type: AppToastType.success);
+        } else if (hasConflicts) {
+          AppNotification.show(context,
+            title: S.of(context).gitCherryPickConflict,
+            detail: error.isNotEmpty ? error : null,
+            type: AppNotificationType.error,
+          );
+        } else if (error.isNotEmpty) {
+          AppNotification.show(context,
+            title: 'Cherry-pick failed',
+            detail: error,
+            type: AppNotificationType.error,
+          );
+        }
+
+      case MessageType.gitRevertCommitResult:
+        final revertRepo = msg.payload['repo'] as String? ?? '';
+        if (revertRepo.isNotEmpty &&
+            revertRepo.replaceAll('\\', '/') != widget.repoPath.replaceAll('\\', '/')) break;
+        final success = msg.payload['success'] as bool? ?? false;
+        final hasConflicts = msg.payload['has_conflicts'] as bool? ?? false;
+        final error = msg.payload['error'] as String? ?? '';
+        if (success) {
+          AppToast.show(context, S.of(context).gitRevertSuccess, type: AppToastType.success);
+        } else if (hasConflicts) {
+          AppNotification.show(context,
+            title: S.of(context).gitRevertConflict,
+            detail: error.isNotEmpty ? error : null,
+            type: AppNotificationType.error,
+          );
+        } else if (error.isNotEmpty) {
+          AppNotification.show(context,
+            title: 'Revert failed',
+            detail: error,
+            type: AppNotificationType.error,
+          );
+        }
+
       default:
         break;
     }

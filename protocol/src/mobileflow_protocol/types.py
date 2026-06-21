@@ -144,6 +144,8 @@ class MessageType(str, Enum):
     GIT_UNDO_COMMIT_RESULT = "git.undo.commit.result"  # Agent -> App: undo result + message
     GIT_REVERT_COMMIT = "git.revert.commit"            # App -> Agent: revert a commit
     GIT_REVERT_COMMIT_RESULT = "git.revert.commit.result"  # Agent -> App: revert result
+    GIT_CHERRY_PICK = "git.cherry.pick"                # App -> Agent: cherry-pick a commit
+    GIT_CHERRY_PICK_RESULT = "git.cherry.pick.result"  # Agent -> App: cherry-pick result
 
     # ── Terminal ──
     # Interactive PTY terminal sessions.

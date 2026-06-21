@@ -1837,6 +1837,54 @@ abstract class S {
   /// **'Revert staged (no commit)'**
   String get gitRevertNoCommitDone;
 
+  /// No description provided for @gitCherryPick.
+  ///
+  /// In en, this message translates to:
+  /// **'Cherry-pick'**
+  String get gitCherryPick;
+
+  /// No description provided for @gitCherryPickDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Apply this commit\'s changes to the current branch'**
+  String get gitCherryPickDesc;
+
+  /// No description provided for @gitCherryPickButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Cherry-pick'**
+  String get gitCherryPickButton;
+
+  /// No description provided for @gitCherryPickStarted.
+  ///
+  /// In en, this message translates to:
+  /// **'Cherry-picking commit...'**
+  String get gitCherryPickStarted;
+
+  /// No description provided for @gitCherryPickSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Cherry-pick successful'**
+  String get gitCherryPickSuccess;
+
+  /// No description provided for @gitCherryPickConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'Cherry-pick produced conflicts, please resolve them'**
+  String get gitCherryPickConflict;
+
+  /// No description provided for @gitRevertSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Revert successful'**
+  String get gitRevertSuccess;
+
+  /// No description provided for @gitRevertConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'Revert produced conflicts, please resolve them'**
+  String get gitRevertConflict;
+
   /// No description provided for @gitViewDetails.
   ///
   /// In en, this message translates to:

@@ -15,6 +15,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../components/app_notification.dart';
 import '../components/app_toast.dart';
 import '../components/workbench_state_card.dart';
 import '../l10n/app_localizations.dart';
@@ -96,6 +97,46 @@ class _GitScreenState extends State<GitScreen> with LoadingStateMixin {
         final p = GitExecResultPayload.fromJson(msg.payload);
         if (p.success) {
           AppToast.show(context, S.of(context).gitExecSuccess, type: AppToastType.success);
+        }
+
+      case MessageType.gitCherryPickResult:
+        final success = msg.payload['success'] as bool? ?? false;
+        final hasConflicts = msg.payload['has_conflicts'] as bool? ?? false;
+        final error = msg.payload['error'] as String? ?? '';
+        if (success) {
+          AppToast.show(context, S.of(context).gitCherryPickSuccess, type: AppToastType.success);
+        } else if (hasConflicts) {
+          AppNotification.show(context,
+            title: S.of(context).gitCherryPickConflict,
+            detail: error.isNotEmpty ? error : null,
+            type: AppNotificationType.error,
+          );
+        } else if (error.isNotEmpty) {
+          AppNotification.show(context,
+            title: 'Cherry-pick failed',
+            detail: error,
+            type: AppNotificationType.error,
+          );
+        }
+
+      case MessageType.gitRevertCommitResult:
+        final success = msg.payload['success'] as bool? ?? false;
+        final hasConflicts = msg.payload['has_conflicts'] as bool? ?? false;
+        final error = msg.payload['error'] as String? ?? '';
+        if (success) {
+          AppToast.show(context, S.of(context).gitRevertSuccess, type: AppToastType.success);
+        } else if (hasConflicts) {
+          AppNotification.show(context,
+            title: S.of(context).gitRevertConflict,
+            detail: error.isNotEmpty ? error : null,
+            type: AppNotificationType.error,
+          );
+        } else if (error.isNotEmpty) {
+          AppNotification.show(context,
+            title: 'Revert failed',
+            detail: error,
+            type: AppNotificationType.error,
+          );
         }
 
       default:

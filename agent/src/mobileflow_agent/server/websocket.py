@@ -1201,6 +1201,8 @@ class WebSocketServer:
                        requires_project=True)
             r.register(MessageType.GIT_REVERT_COMMIT, self._git.handle_git_revert_commit,
                        requires_project=True)
+            r.register(MessageType.GIT_CHERRY_PICK, self._git.handle_git_cherry_pick,
+                       requires_project=True)
 
         # CLI management (no CLI auth needed — these manage CLI lifecycle)
         r.register(MessageType.CLI_LIST, self._handle_cli_list)

@@ -236,4 +236,20 @@ class GitOperations {
             'hash': hash,
             'no_commit': noCommit,
           }));
+
+  /// Cherry-pick a commit onto the current branch.
+  ///
+  /// [noCommit]: if true, stage changes without auto-committing.
+  void gitCherryPick({
+    required String repo,
+    required String hash,
+    bool noCommit = false,
+  }) =>
+      _sender.send(WsMessage(
+          type: MessageType.gitCherryPick,
+          payload: <String, dynamic>{
+            'repo': repo,
+            'hash': hash,
+            'no_commit': noCommit,
+          }));
 }

@@ -939,6 +939,33 @@ class SEn extends S {
   String get gitRevertNoCommitDone => 'Revert staged (no commit)';
 
   @override
+  String get gitCherryPick => 'Cherry-pick';
+
+  @override
+  String get gitCherryPickDesc =>
+      'Apply this commit\'s changes to the current branch';
+
+  @override
+  String get gitCherryPickButton => 'Cherry-pick';
+
+  @override
+  String get gitCherryPickStarted => 'Cherry-picking commit...';
+
+  @override
+  String get gitCherryPickSuccess => 'Cherry-pick successful';
+
+  @override
+  String get gitCherryPickConflict =>
+      'Cherry-pick produced conflicts, please resolve them';
+
+  @override
+  String get gitRevertSuccess => 'Revert successful';
+
+  @override
+  String get gitRevertConflict =>
+      'Revert produced conflicts, please resolve them';
+
+  @override
   String get gitViewDetails => 'View Details';
 
   @override

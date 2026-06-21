@@ -910,6 +910,30 @@ class SZh extends S {
   String get gitRevertNoCommitDone => '已还原到暂存区';
 
   @override
+  String get gitCherryPick => '优选';
+
+  @override
+  String get gitCherryPickDesc => '将此提交的更改应用到当前分支';
+
+  @override
+  String get gitCherryPickButton => '确认优选';
+
+  @override
+  String get gitCherryPickStarted => '正在优选提交...';
+
+  @override
+  String get gitCherryPickSuccess => '优选成功';
+
+  @override
+  String get gitCherryPickConflict => '优选产生冲突，请解决冲突';
+
+  @override
+  String get gitRevertSuccess => '还原成功';
+
+  @override
+  String get gitRevertConflict => '还原产生冲突，请解决冲突';
+
+  @override
   String get gitViewDetails => '查看详情';
 
   @override
