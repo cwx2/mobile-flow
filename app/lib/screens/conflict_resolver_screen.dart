@@ -1,17 +1,15 @@
-/// conflict_resolver_screen.dart — Merge conflict resolution UI (V2).
+/// conflict_resolver_screen.dart — Merge conflict resolution UI (V3).
 ///
 /// Module: screens/
 /// Responsibility:
-///   Three-panel thumbnail preview with animated zoom for conflict resolution.
-///   Shows three versions (Current / Incoming / Both) as miniature previews,
-///   tapping one expands it with smooth animation to full-size readable code.
+///   VS Code-style 3-way merge editor adapted for mobile. Displays three
+///   full-file thumbnails (current / incoming / both) at the top — each
+///   showing the entire file with conflict lines highlighted. Tapping a
+///   thumbnail expands it into a full-screen scrollable code view below.
 ///
-///   Design mirrors VS Code's 3-way merge editor adapted for mobile:
-///   - Three thumbnails at top for quick visual comparison
-///   - Full preview below with file context (lines before/after conflict)
-///   - Swipe or tap to switch between versions
-///   - Confirm button to apply the selected resolution
-///   - Edit button to open in FileViewerScreen for manual changes
+///   Like VS Code's merge editor: each panel shows the COMPLETE file
+///   content (not just the conflict snippet), with conflict regions
+///   highlighted in color.
 ///
 /// Navigation:
 ///   GitChangesTab → tap conflict file → ConflictResolverScreen
@@ -30,7 +28,7 @@ import '../l10n/app_localizations.dart';
 import '../screens/file_viewer_screen.dart';
 import '../theme/theme_extensions.dart';
 
-/// Screen for resolving merge conflicts in a single file.
+/// Full-file merge conflict resolver screen.
 class ConflictResolverScreen extends StatefulWidget {
   final String repoPath;
   final String filePath;
@@ -46,9 +44,18 @@ class ConflictResolverScreen extends StatefulWidget {
 }
 
 class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
+  // Conflict data
   List<Map<String, dynamic>> _conflicts = [];
+  String _fileCurrent = '';
+  String _fileIncoming = '';
+  String _fileBoth = '';
+  List<List<int>> _rangesCurrent = [];
+  List<List<int>> _rangesIncoming = [];
+  List<List<int>> _rangesBoth = [];
+
   bool _loading = true;
   String? _error;
+  int _selected = 0; // 0=current, 1=incoming, 2=both
   StreamSubscription? _sub;
 
   @override
@@ -79,20 +86,18 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
         if (error.isNotEmpty) {
           setState(() { _loading = false; _error = error; });
         } else {
-          final conflicts = (msg.payload['conflicts'] as List?)
-              ?.cast<Map<String, dynamic>>() ?? [];
-          setState(() { _conflicts = conflicts; _loading = false; _error = null; });
-        }
-
-      case MessageType.gitConflictResolveResult:
-        if (!_matchesFile(msg.payload)) break;
-        final success = msg.payload['success'] as bool? ?? false;
-        if (success) {
-          // Re-request to get fresh context for remaining conflicts
-          _requestConflicts();
-        } else {
-          final error = msg.payload['error'] as String? ?? 'Unknown error';
-          AppToast.show(context, error, type: AppToastType.error);
+          setState(() {
+            _conflicts = (msg.payload['conflicts'] as List?)
+                ?.cast<Map<String, dynamic>>() ?? [];
+            _fileCurrent = msg.payload['file_current'] as String? ?? '';
+            _fileIncoming = msg.payload['file_incoming'] as String? ?? '';
+            _fileBoth = msg.payload['file_both'] as String? ?? '';
+            _rangesCurrent = _parseRanges(msg.payload['conflict_ranges_current']);
+            _rangesIncoming = _parseRanges(msg.payload['conflict_ranges_incoming']);
+            _rangesBoth = _parseRanges(msg.payload['conflict_ranges_both']);
+            _loading = false;
+            _error = null;
+          });
         }
 
       case MessageType.gitConflictResolveAllResult:
@@ -101,26 +106,25 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
         if (success) {
           setState(() => _conflicts = []);
         } else {
-          final error = msg.payload['error'] as String? ?? 'Unknown error';
-          AppToast.show(context, error, type: AppToastType.error);
+          AppToast.show(context, msg.payload['error'] as String? ?? 'Error',
+              type: AppToastType.error);
         }
     }
+  }
+
+  List<List<int>> _parseRanges(dynamic data) {
+    if (data is! List) return [];
+    return data.map((r) {
+      if (r is List) return r.cast<int>();
+      return <int>[];
+    }).toList();
   }
 
   bool _matchesFile(Map<String, dynamic> payload) {
     final repo = (payload['repo'] as String? ?? '').replaceAll('\\', '/');
     final path = payload['path'] as String? ?? '';
-    return repo == widget.repoPath.replaceAll('\\', '/') && path == widget.filePath;
-  }
-
-  void _resolve(int conflictId, String resolution) {
-    final ws = context.read<WebSocketService>();
-    ws.gitOps.gitConflictResolve(
-      repo: widget.repoPath,
-      path: widget.filePath,
-      conflictId: conflictId,
-      resolution: resolution,
-    );
+    return repo == widget.repoPath.replaceAll('\\', '/') &&
+        path == widget.filePath;
   }
 
   void _resolveAll(String resolution) {
@@ -139,6 +143,12 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
         type: AppToastType.success);
     Navigator.pop(context, true);
   }
+
+  String _fileForIndex(int i) =>
+      i == 0 ? _fileCurrent : i == 1 ? _fileIncoming : _fileBoth;
+
+  List<List<int>> _rangesForIndex(int i) =>
+      i == 0 ? _rangesCurrent : i == 1 ? _rangesIncoming : _rangesBoth;
 
   @override
   Widget build(BuildContext context) {
@@ -161,34 +171,17 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
           ],
         ),
         actions: [
-          if (_conflicts.isNotEmpty)
-            PopupMenuButton<String>(
-              icon: const Icon(Icons.more_vert),
-              onSelected: (v) => _resolveAll(v),
-              itemBuilder: (_) => [
-                PopupMenuItem(
-                    value: 'current', child: Text(l.gitConflictsAcceptAllCurrent)),
-                PopupMenuItem(
-                    value: 'incoming', child: Text(l.gitConflictsAcceptAllIncoming)),
-                PopupMenuItem(
-                    value: 'both', child: Text(l.gitConflictsAcceptAllBoth)),
-              ],
-            ),
+          // Edit in editor
+          IconButton(
+            icon: const Icon(Icons.edit_note, size: 20),
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => FileViewerScreen(filePath: widget.filePath),
+            )),
+            tooltip: 'Edit',
+          ),
         ],
       ),
       body: _buildBody(context),
-      bottomNavigationBar: _conflicts.isEmpty && !_loading && _error == null
-          ? SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: FilledButton.icon(
-                  onPressed: _stageFile,
-                  icon: const Icon(Icons.check),
-                  label: Text(l.gitConflictsStageFile),
-                ),
-              ),
-            )
-          : null,
     );
   }
 
@@ -199,19 +192,7 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
     if (_loading) return const Center(child: CircularProgressIndicator());
 
     if (_error != null) {
-      return Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.error_outline, size: 40, color: colors.error),
-              const SizedBox(height: 12),
-              Text(_error!, textAlign: TextAlign.center),
-            ],
-          ),
-        ),
-      );
+      return Center(child: Text(_error!, textAlign: TextAlign.center));
     }
 
     if (_conflicts.isEmpty) {
@@ -223,78 +204,16 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
             const SizedBox(height: 12),
             Text(l.gitConflictsAllResolved,
                 style: TextStyle(fontSize: 16, color: colors.onSurface)),
-            const SizedBox(height: 4),
-            Text(l.gitConflictsAllResolvedDesc,
-                style: TextStyle(fontSize: 12, color: colors.onSurfaceMuted)),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: _stageFile,
+              icon: const Icon(Icons.check),
+              label: Text(l.gitConflictsStageFile),
+            ),
           ],
         ),
       );
     }
-
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: _conflicts.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 16),
-      itemBuilder: (context, index) {
-        final conflict = _conflicts[index];
-        return _ConflictResolver(
-          conflict: conflict,
-          filePath: widget.filePath,
-          onResolve: (resolution) =>
-              _resolve(conflict['id'] as int? ?? index, resolution),
-        );
-      },
-    );
-  }
-}
-
-/// Per-conflict resolver with thumbnail 3-panel preview.
-class _ConflictResolver extends StatefulWidget {
-  final Map<String, dynamic> conflict;
-  final String filePath;
-  final void Function(String resolution) onResolve;
-
-  const _ConflictResolver({
-    required this.conflict,
-    required this.filePath,
-    required this.onResolve,
-  });
-
-  @override
-  State<_ConflictResolver> createState() => _ConflictResolverState();
-}
-
-class _ConflictResolverState extends State<_ConflictResolver> {
-  /// Selected version: 0=current, 1=incoming, 2=both
-  int _selected = 0;
-
-  String get _currentContent =>
-      widget.conflict['current_content'] as String? ?? '';
-  String get _incomingContent =>
-      widget.conflict['incoming_content'] as String? ?? '';
-  String get _contextBefore =>
-      widget.conflict['context_before'] as String? ?? '';
-  String get _contextAfter =>
-      widget.conflict['context_after'] as String? ?? '';
-  int get _rangeStart => widget.conflict['range_start'] as int? ?? 0;
-
-  /// Build full preview for a given resolution index.
-  String _buildPreview(int index) {
-    final resolved = index == 0
-        ? _currentContent
-        : index == 1
-            ? _incomingContent
-            : _currentContent + _incomingContent;
-    return _contextBefore + resolved + _contextAfter;
-  }
-
-  String _resolutionFor(int index) =>
-      const ['current', 'incoming', 'both'][index];
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final l = S.of(context);
 
     final labels = [
       l.gitConflictsAcceptCurrent,
@@ -307,46 +226,13 @@ class _ConflictResolverState extends State<_ConflictResolver> {
       const Color(0xFF9C27B0),
     ];
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header row with conflict info + edit button
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(
-              children: [
-                Text(
-                  'Conflict (line ${_rangeStart + 1})',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: colors.onSurfaceMuted,
-                  ),
-                ),
-                const Spacer(),
-                GestureDetector(
-                  onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => FileViewerScreen(filePath: widget.filePath),
-                  )),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.edit_note, size: 16, color: colors.primary),
-                      const SizedBox(width: 2),
-                      Text('Edit',
-                          style: TextStyle(fontSize: 11, color: colors.primary)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Three thumbnail previews side by side
-          SizedBox(
-            height: 90,
+    return Column(
+      children: [
+        // Three full-file thumbnails at the top
+        SizedBox(
+          height: 120,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             child: Row(
               children: List.generate(3, (i) {
                 final isSelected = _selected == i;
@@ -360,10 +246,9 @@ class _ConflictResolverState extends State<_ConflictResolver> {
                         left: i == 0 ? 0 : 3,
                         right: i == 2 ? 0 : 3,
                       ),
-                      padding: const EdgeInsets.all(4),
                       decoration: BoxDecoration(
                         color: isSelected
-                            ? tabColors[i].withValues(alpha: 0.12)
+                            ? tabColors[i].withValues(alpha: 0.08)
                             : colors.surfaceVariant.withValues(alpha: 0.3),
                         border: Border.all(
                           color: isSelected
@@ -376,33 +261,44 @@ class _ConflictResolverState extends State<_ConflictResolver> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Label
-                          Text(
-                            labels[i],
-                            style: TextStyle(
-                              fontSize: 8,
-                              fontWeight: FontWeight.w600,
+                          // Label bar
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 4, vertical: 3),
+                            decoration: BoxDecoration(
                               color: isSelected
-                                  ? tabColors[i]
-                                  : colors.onSurfaceMuted,
+                                  ? tabColors[i].withValues(alpha: 0.15)
+                                  : Colors.transparent,
+                              borderRadius: const BorderRadius.only(
+                                topLeft: Radius.circular(5),
+                                topRight: Radius.circular(5),
+                              ),
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                            child: Text(
+                              labels[i],
+                              style: TextStyle(
+                                fontSize: 8,
+                                fontWeight: FontWeight.w700,
+                                color: isSelected
+                                    ? tabColors[i]
+                                    : colors.onSurfaceMuted,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
-                          const SizedBox(height: 2),
-                          // Miniature code (tiny font for shape overview)
+                          // Full file miniature
                           Expanded(
-                            child: ClipRect(
-                              child: Text(
-                                _buildPreview(i),
-                                style: TextStyle(
-                                  fontSize: 5,
-                                  fontFamily: 'monospace',
-                                  height: 1.2,
-                                  color: colors.onSurface
-                                      .withValues(alpha: 0.6),
-                                ),
-                                overflow: TextOverflow.clip,
+                            child: ClipRRect(
+                              borderRadius: const BorderRadius.only(
+                                bottomLeft: Radius.circular(5),
+                                bottomRight: Radius.circular(5),
+                              ),
+                              child: _FileThumbnail(
+                                content: _fileForIndex(i),
+                                ranges: _rangesForIndex(i),
+                                highlightColor: tabColors[i],
                               ),
                             ),
                           ),
@@ -414,163 +310,195 @@ class _ConflictResolverState extends State<_ConflictResolver> {
               }),
             ),
           ),
+        ),
 
-          const SizedBox(height: 10),
-
-          // Full preview with animated content switching
-          AnimatedSwitcher(
+        // Full-size file preview (expanded, scrollable)
+        Expanded(
+          child: AnimatedSwitcher(
             duration: const Duration(milliseconds: 200),
-            switchInCurve: Curves.easeOutCubic,
-            switchOutCurve: Curves.easeInCubic,
-            child: _FullPreview(
+            child: _FullFilePreview(
               key: ValueKey(_selected),
-              content: _buildPreview(_selected),
-              conflictContent: _selected == 0
-                  ? _currentContent
-                  : _selected == 1
-                      ? _incomingContent
-                      : _currentContent + _incomingContent,
-              contextBefore: _contextBefore,
-              color: tabColors[_selected],
-              label: labels[_selected],
+              content: _fileForIndex(_selected),
+              ranges: _rangesForIndex(_selected),
+              highlightColor: tabColors[_selected],
             ),
           ),
+        ),
 
-          const SizedBox(height: 10),
-
-          // Confirm button
-          SizedBox(
-            width: double.infinity,
-            height: 44,
-            child: FilledButton(
-              onPressed: () => widget.onResolve(_resolutionFor(_selected)),
-              style: FilledButton.styleFrom(
-                backgroundColor: tabColors[_selected],
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+        // Bottom action bar
+        SafeArea(
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+            decoration: BoxDecoration(
+              border: Border(
+                  top: BorderSide(color: colors.border.withValues(alpha: 0.3))),
+            ),
+            child: SizedBox(
+              width: double.infinity,
+              height: 46,
+              child: FilledButton(
+                onPressed: () {
+                  final resolutions = ['current', 'incoming', 'both'];
+                  _resolveAll(resolutions[_selected]);
+                },
+                style: FilledButton.styleFrom(
+                  backgroundColor: tabColors[_selected],
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                child: Text(
+                  '${l.commonConfirm} — ${labels[_selected]}',
+                  style: const TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.w600),
                 ),
               ),
-              child: Text(
-                '${l.commonConfirm} — ${labels[_selected]}',
-                style: const TextStyle(
-                    fontSize: 14, fontWeight: FontWeight.w600),
-              ),
             ),
           ),
-
-          const SizedBox(height: 8),
-          Divider(color: colors.border.withValues(alpha: 0.3)),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
-/// Full-size code preview with line numbers and conflict highlighting.
-class _FullPreview extends StatelessWidget {
+/// Miniature file thumbnail showing full file content as tiny text.
+/// Conflict regions are highlighted with colored background strips.
+class _FileThumbnail extends StatelessWidget {
   final String content;
-  final String conflictContent;
-  final String contextBefore;
-  final Color color;
-  final String label;
+  final List<List<int>> ranges;
+  final Color highlightColor;
 
-  const _FullPreview({
-    super.key,
+  const _FileThumbnail({
     required this.content,
-    required this.conflictContent,
-    required this.contextBefore,
-    required this.color,
-    required this.label,
+    required this.ranges,
+    required this.highlightColor,
   });
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final lines = content.split('\n');
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: lines.length,
+      itemExtent: 3.5, // Each line is 3.5px tall in thumbnail
+      itemBuilder: (_, i) {
+        final isHighlighted = _isInRange(i);
+        return Container(
+          color: isHighlighted
+              ? highlightColor.withValues(alpha: 0.35)
+              : null,
+          child: Text(
+            lines[i],
+            style: TextStyle(
+              fontSize: 3,
+              fontFamily: 'monospace',
+              height: 1.0,
+              color: isHighlighted
+                  ? colors.onSurface
+                  : colors.onSurface.withValues(alpha: 0.4),
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.clip,
+          ),
+        );
+      },
+    );
+  }
+
+  bool _isInRange(int line) {
+    for (final range in ranges) {
+      if (range.length >= 2 && line >= range[0] && line <= range[1]) {
+        return true;
+      }
+    }
+    return false;
+  }
+}
+
+/// Full-size file preview with line numbers and conflict highlighting.
+/// Takes up the remaining vertical space, fully scrollable.
+class _FullFilePreview extends StatelessWidget {
+  final String content;
+  final List<List<int>> ranges;
+  final Color highlightColor;
+
+  const _FullFilePreview({
+    super.key,
+    required this.content,
+    required this.ranges,
+    required this.highlightColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final lines = content.split('\n');
+    // Remove trailing empty line
     final displayLines =
         lines.isNotEmpty && lines.last.isEmpty ? lines.sublist(0, lines.length - 1) : lines;
+    final lineNumWidth = '${displayLines.length}'.length * 8.0 + 8;
 
-    // Calculate which lines are the resolved conflict (for highlighting)
-    final beforeCount = contextBefore.isEmpty
-        ? 0
-        : contextBefore.split('\n').length -
-            (contextBefore.endsWith('\n') ? 1 : 0);
-    final conflictCount = conflictContent.isEmpty
-        ? 0
-        : conflictContent.split('\n').length -
-            (conflictContent.endsWith('\n') ? 1 : 0);
-
-    return Container(
-      constraints: const BoxConstraints(maxHeight: 200),
-      decoration: BoxDecoration(
-        color: colors.surfaceVariant.withValues(alpha: 0.2),
-        border: Border(left: BorderSide(color: color, width: 3)),
-        borderRadius: const BorderRadius.only(
-          topRight: Radius.circular(6),
-          bottomRight: Radius.circular(6),
-        ),
-      ),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Label
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 0, 8, 4),
-              child: Text(
-                '▶ $label',
-                style: TextStyle(
-                    fontSize: 10, fontWeight: FontWeight.w600, color: color),
-              ),
-            ),
-            // Code lines
-            ...List.generate(displayLines.length, (i) {
-              final isHighlighted =
-                  i >= beforeCount && i < beforeCount + conflictCount;
-              return Container(
-                width: double.infinity,
-                color: isHighlighted ? color.withValues(alpha: 0.1) : null,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: 24,
-                      child: Text(
-                        '${i + 1}',
-                        style: TextStyle(
-                          fontSize: 9,
-                          fontFamily: 'monospace',
-                          color:
-                              colors.onSurfaceMuted.withValues(alpha: 0.5),
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: Text(
-                        displayLines[i],
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontFamily: 'monospace',
-                          height: 1.4,
-                          color: isHighlighted
-                              ? colors.onSurface
-                              : colors.onSurfaceMuted,
-                          fontWeight: isHighlighted
-                              ? FontWeight.w500
-                              : FontWeight.normal,
-                        ),
-                      ),
-                    ),
-                  ],
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      itemCount: displayLines.length,
+      itemExtent: 18, // Fixed line height for performance
+      itemBuilder: (_, i) {
+        final isHighlighted = _isInRange(i);
+        return Container(
+          color: isHighlighted
+              ? highlightColor.withValues(alpha: 0.12)
+              : null,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Line number
+              SizedBox(
+                width: lineNumWidth,
+                child: Text(
+                  '${i + 1}',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontFamily: 'monospace',
+                    color: isHighlighted
+                        ? highlightColor.withValues(alpha: 0.7)
+                        : colors.onSurfaceMuted.withValues(alpha: 0.4),
+                  ),
                 ),
-              );
-            }),
-          ],
-        ),
-      ),
+              ),
+              // Code content
+              Expanded(
+                child: Text(
+                  displayLines[i],
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontFamily: 'monospace',
+                    height: 1.3,
+                    color: isHighlighted
+                        ? colors.onSurface
+                        : colors.onSurfaceMuted.withValues(alpha: 0.8),
+                    fontWeight:
+                        isHighlighted ? FontWeight.w500 : FontWeight.normal,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
+  }
+
+  bool _isInRange(int line) {
+    for (final range in ranges) {
+      if (range.length >= 2 && line >= range[0] && line <= range[1]) {
+        return true;
+      }
+    }
+    return false;
   }
 }
