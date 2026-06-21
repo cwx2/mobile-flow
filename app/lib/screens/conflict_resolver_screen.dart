@@ -24,6 +24,7 @@ import '../models/protocol.dart';
 import '../services/git_state.dart';
 import '../services/websocket_service.dart';
 import '../components/app_toast.dart';
+import '../l10n/app_localizations.dart';
 import '../theme/theme_extensions.dart';
 import '../utils/logger.dart';
 
@@ -158,7 +159,7 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
   void _stageFile() {
     final git = context.read<GitStateProvider>();
     git.stage([widget.filePath], repo: widget.repoPath);
-    AppToast.show(context, 'File staged', type: AppToastType.success);
+    AppToast.show(context, S.of(context).gitConflictsFileStaged, type: AppToastType.success);
     Navigator.pop(context, true);
   }
 
@@ -166,6 +167,7 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final fileName = widget.filePath.split('/').last;
+    final l = S.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -175,8 +177,8 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
             Text(fileName, style: const TextStyle(fontSize: 15)),
             Text(
               _conflicts.isEmpty && !_loading
-                  ? '✓ All conflicts resolved'
-                  : '${_conflicts.length} conflicts remaining',
+                  ? l.gitConflictsAllResolved
+                  : l.gitConflictsRemaining(_conflicts.length),
               style: TextStyle(fontSize: 11, color: colors.onSurfaceMuted),
             ),
           ],
@@ -196,17 +198,17 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
                 }
               },
               itemBuilder: (_) => [
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'all_current',
-                  child: Text('Accept All Current'),
+                  child: Text(l.gitConflictsAcceptAllCurrent),
                 ),
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'all_incoming',
-                  child: Text('Accept All Incoming'),
+                  child: Text(l.gitConflictsAcceptAllIncoming),
                 ),
-                const PopupMenuItem(
+                PopupMenuItem(
                   value: 'all_both',
-                  child: Text('Accept All Both'),
+                  child: Text(l.gitConflictsAcceptAllBoth),
                 ),
               ],
             ),
@@ -220,7 +222,7 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
                 child: FilledButton.icon(
                   onPressed: _stageFile,
                   icon: const Icon(Icons.check),
-                  label: const Text('Stage File'),
+                  label: Text(l.gitConflictsStageFile),
                 ),
               ),
             )
@@ -250,16 +252,17 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
     }
 
     if (_conflicts.isEmpty) {
+      final l = S.of(context);
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.check_circle_outline, size: 48, color: colors.secondary),
             const SizedBox(height: 12),
-            Text('All conflicts resolved',
+            Text(l.gitConflictsAllResolved,
                 style: TextStyle(fontSize: 16, color: colors.onSurface)),
             const SizedBox(height: 4),
-            Text('Stage the file to mark it as resolved',
+            Text(l.gitConflictsAllResolvedDesc,
                 style: TextStyle(fontSize: 12, color: colors.onSurfaceMuted)),
           ],
         ),
@@ -295,6 +298,7 @@ class _ConflictCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final l = S.of(context);
     final currentLabel = conflict['current_label'] as String? ?? 'HEAD';
     final currentContent = conflict['current_content'] as String? ?? '';
     final incomingLabel = conflict['incoming_label'] as String? ?? '';
@@ -321,7 +325,7 @@ class _ConflictCard extends StatelessWidget {
 
           // Current block (green)
           _CodeBlock(
-            label: '$currentLabel (Current Change)',
+            label: '$currentLabel (${l.gitConflictsCurrentChange})',
             content: currentContent,
             borderColor: const Color(0xFF4CAF50),
             backgroundColor: const Color(0x0D4CAF50),
@@ -331,7 +335,7 @@ class _ConflictCard extends StatelessWidget {
 
           // Incoming block (blue)
           _CodeBlock(
-            label: '$incomingLabel (Incoming Change)',
+            label: '$incomingLabel (${l.gitConflictsIncomingChange})',
             content: incomingContent,
             borderColor: const Color(0xFF2196F3),
             backgroundColor: const Color(0x0D2196F3),
@@ -344,7 +348,7 @@ class _ConflictCard extends StatelessWidget {
             children: [
               Expanded(
                 child: _ActionButton(
-                  label: 'Current',
+                  label: l.gitConflictsAcceptCurrent,
                   onPressed: () => onResolve('current'),
                   color: const Color(0xFF4CAF50),
                 ),
@@ -352,7 +356,7 @@ class _ConflictCard extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: _ActionButton(
-                  label: 'Incoming',
+                  label: l.gitConflictsAcceptIncoming,
                   onPressed: () => onResolve('incoming'),
                   color: const Color(0xFF2196F3),
                 ),
@@ -360,7 +364,7 @@ class _ConflictCard extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: _ActionButton(
-                  label: 'Both',
+                  label: l.gitConflictsAcceptBoth,
                   onPressed: () => onResolve('both'),
                   color: colors.onSurfaceVariant,
                 ),

@@ -807,6 +807,55 @@ class SZh extends S {
   String get gitChangesAddAll => '全部添加';
 
   @override
+  String gitConflictsCount(int count) {
+    return '冲突 ($count)';
+  }
+
+  @override
+  String get gitConflictsAbortMerge => '放弃合并';
+
+  @override
+  String gitConflictsRemaining(int count) {
+    return '剩余 $count 个冲突';
+  }
+
+  @override
+  String get gitConflictsAllResolved => '所有冲突已解决';
+
+  @override
+  String get gitConflictsAllResolvedDesc => '暂存文件以标记为已解决';
+
+  @override
+  String get gitConflictsStageFile => '暂存文件';
+
+  @override
+  String get gitConflictsAcceptCurrent => '保留我的';
+
+  @override
+  String get gitConflictsAcceptIncoming => '接受对方';
+
+  @override
+  String get gitConflictsAcceptBoth => '两个都要';
+
+  @override
+  String get gitConflictsAcceptAllCurrent => '全部保留我的';
+
+  @override
+  String get gitConflictsAcceptAllIncoming => '全部接受对方';
+
+  @override
+  String get gitConflictsAcceptAllBoth => '全部保留两个';
+
+  @override
+  String get gitConflictsCurrentChange => '当前更改';
+
+  @override
+  String get gitConflictsIncomingChange => '传入更改';
+
+  @override
+  String get gitConflictsFileStaged => '文件已暂存';
+
+  @override
   String gitCommitStagedReady(int count) {
     return '$count 个文件已暂存，准备提交';
   }

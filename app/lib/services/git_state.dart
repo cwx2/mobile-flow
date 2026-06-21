@@ -407,6 +407,7 @@ class GitStateProvider extends ChangeNotifier {
       staged: _parseFileList(payload['staged']),
       unstaged: _parseFileList(payload['unstaged']),
       untracked: _parseFileList(payload['untracked']),
+      conflicted: _parseFileList(payload['conflicted']),
       error: payload['error'] as String? ?? '',
     );
     _initialized = true;

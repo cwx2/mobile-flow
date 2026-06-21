@@ -222,9 +222,9 @@ class _RepoSectionState extends State<_RepoSection> {
             // Conflicts section (highest priority, shown first)
             if (repo.conflicted.isNotEmpty) ...[
               _SectionHeader(
-                title: 'Conflicts (${repo.conflicted.length})',
+                title: S.of(context).gitConflictsCount(repo.conflicted.length),
                 color: colors.error,
-                actionLabel: 'Abort Merge',
+                actionLabel: S.of(context).gitConflictsAbortMerge,
                 onAction: () {
                   final git = context.read<GitStateProvider>();
                   git.mergeAbort(repo: repo.path);

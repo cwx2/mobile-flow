@@ -833,6 +833,56 @@ class SEn extends S {
   String get gitChangesAddAll => 'Add all';
 
   @override
+  String gitConflictsCount(int count) {
+    return 'Conflicts ($count)';
+  }
+
+  @override
+  String get gitConflictsAbortMerge => 'Abort Merge';
+
+  @override
+  String gitConflictsRemaining(int count) {
+    return '$count conflicts remaining';
+  }
+
+  @override
+  String get gitConflictsAllResolved => 'All conflicts resolved';
+
+  @override
+  String get gitConflictsAllResolvedDesc =>
+      'Stage the file to mark it as resolved';
+
+  @override
+  String get gitConflictsStageFile => 'Stage File';
+
+  @override
+  String get gitConflictsAcceptCurrent => 'Current';
+
+  @override
+  String get gitConflictsAcceptIncoming => 'Incoming';
+
+  @override
+  String get gitConflictsAcceptBoth => 'Both';
+
+  @override
+  String get gitConflictsAcceptAllCurrent => 'Accept All Current';
+
+  @override
+  String get gitConflictsAcceptAllIncoming => 'Accept All Incoming';
+
+  @override
+  String get gitConflictsAcceptAllBoth => 'Accept All Both';
+
+  @override
+  String get gitConflictsCurrentChange => 'Current Change';
+
+  @override
+  String get gitConflictsIncomingChange => 'Incoming Change';
+
+  @override
+  String get gitConflictsFileStaged => 'File staged';
+
+  @override
   String gitCommitStagedReady(int count) {
     return '$count files staged, ready to commit';
   }

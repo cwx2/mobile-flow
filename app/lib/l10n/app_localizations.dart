@@ -1639,6 +1639,96 @@ abstract class S {
   /// **'Add all'**
   String get gitChangesAddAll;
 
+  /// No description provided for @gitConflictsCount.
+  ///
+  /// In en, this message translates to:
+  /// **'Conflicts ({count})'**
+  String gitConflictsCount(int count);
+
+  /// No description provided for @gitConflictsAbortMerge.
+  ///
+  /// In en, this message translates to:
+  /// **'Abort Merge'**
+  String get gitConflictsAbortMerge;
+
+  /// No description provided for @gitConflictsRemaining.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} conflicts remaining'**
+  String gitConflictsRemaining(int count);
+
+  /// No description provided for @gitConflictsAllResolved.
+  ///
+  /// In en, this message translates to:
+  /// **'All conflicts resolved'**
+  String get gitConflictsAllResolved;
+
+  /// No description provided for @gitConflictsAllResolvedDesc.
+  ///
+  /// In en, this message translates to:
+  /// **'Stage the file to mark it as resolved'**
+  String get gitConflictsAllResolvedDesc;
+
+  /// No description provided for @gitConflictsStageFile.
+  ///
+  /// In en, this message translates to:
+  /// **'Stage File'**
+  String get gitConflictsStageFile;
+
+  /// No description provided for @gitConflictsAcceptCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Current'**
+  String get gitConflictsAcceptCurrent;
+
+  /// No description provided for @gitConflictsAcceptIncoming.
+  ///
+  /// In en, this message translates to:
+  /// **'Incoming'**
+  String get gitConflictsAcceptIncoming;
+
+  /// No description provided for @gitConflictsAcceptBoth.
+  ///
+  /// In en, this message translates to:
+  /// **'Both'**
+  String get gitConflictsAcceptBoth;
+
+  /// No description provided for @gitConflictsAcceptAllCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Accept All Current'**
+  String get gitConflictsAcceptAllCurrent;
+
+  /// No description provided for @gitConflictsAcceptAllIncoming.
+  ///
+  /// In en, this message translates to:
+  /// **'Accept All Incoming'**
+  String get gitConflictsAcceptAllIncoming;
+
+  /// No description provided for @gitConflictsAcceptAllBoth.
+  ///
+  /// In en, this message translates to:
+  /// **'Accept All Both'**
+  String get gitConflictsAcceptAllBoth;
+
+  /// No description provided for @gitConflictsCurrentChange.
+  ///
+  /// In en, this message translates to:
+  /// **'Current Change'**
+  String get gitConflictsCurrentChange;
+
+  /// No description provided for @gitConflictsIncomingChange.
+  ///
+  /// In en, this message translates to:
+  /// **'Incoming Change'**
+  String get gitConflictsIncomingChange;
+
+  /// No description provided for @gitConflictsFileStaged.
+  ///
+  /// In en, this message translates to:
+  /// **'File staged'**
+  String get gitConflictsFileStaged;
+
   /// No description provided for @gitCommitStagedReady.
   ///
   /// In en, this message translates to:
