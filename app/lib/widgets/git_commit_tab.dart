@@ -528,116 +528,61 @@ class _CommitRow extends StatelessWidget {
 
   /// Second-level dialog: choose undo mode (soft/mixed/hard) then confirm.
   void _showUndoOptions(BuildContext context, S l) {
-    final colors = context.colors;
     final gitOps = context.read<GitOperations>();
-    String selectedMode = 'soft';
 
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: Text(l.gitUndoCommitSoft.replaceAll(' (--soft)', '')),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              RadioListTile<String>(
-                dense: true,
-                title: Text('--soft', style: const TextStyle(fontSize: 13, fontFamily: 'monospace')),
-                subtitle: Text(l.gitUndoCommitSoftDesc, style: const TextStyle(fontSize: 11)),
-                value: 'soft',
-                groupValue: selectedMode,
-                onChanged: (v) => setDialogState(() => selectedMode = v!),
-              ),
-              RadioListTile<String>(
-                dense: true,
-                title: Text('--mixed', style: const TextStyle(fontSize: 13, fontFamily: 'monospace')),
-                subtitle: Text(l.gitUndoCommitMixedDesc, style: const TextStyle(fontSize: 11)),
-                value: 'mixed',
-                groupValue: selectedMode,
-                onChanged: (v) => setDialogState(() => selectedMode = v!),
-              ),
-              RadioListTile<String>(
-                dense: true,
-                title: Text('--hard', style: TextStyle(fontSize: 13, fontFamily: 'monospace', color: colors.error)),
-                subtitle: Text(l.gitUndoCommitHardDesc, style: TextStyle(fontSize: 11, color: colors.error)),
-                value: 'hard',
-                groupValue: selectedMode,
-                onChanged: (v) => setDialogState(() => selectedMode = v!),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(l.commonCancel),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                if (selectedMode == 'hard') {
-                  _confirmHardReset(context, gitOps, l);
-                } else {
-                  gitOps.gitUndoCommit(repo: repo, mode: selectedMode);
-                  final msg = selectedMode == 'soft'
-                      ? l.gitUndoCommitDoneSoft
-                      : l.gitUndoCommitDoneMixed;
-                  AppToast.show(context, msg, type: AppToastType.success);
-                }
-              },
-              child: Text(l.commonConfirm),
-            ),
-          ],
+    showAppOptionsDialog<String>(
+      context,
+      title: l.gitUndoCommitSoft.replaceAll(' (--soft)', ''),
+      options: [
+        AppDialogOption(
+          value: 'soft',
+          title: '--soft',
+          subtitle: l.gitUndoCommitSoftDesc,
         ),
-      ),
-    );
+        AppDialogOption(
+          value: 'mixed',
+          title: '--mixed',
+          subtitle: l.gitUndoCommitMixedDesc,
+        ),
+        AppDialogOption(
+          value: 'hard',
+          title: '--hard',
+          subtitle: l.gitUndoCommitHardDesc,
+          isDanger: true,
+        ),
+      ],
+      initialValue: 'soft',
+    ).then((selectedMode) {
+      if (selectedMode == null) return;
+      if (selectedMode == 'hard') {
+        _confirmHardReset(context, gitOps, l);
+      } else {
+        gitOps.gitUndoCommit(repo: repo, mode: selectedMode);
+        final msg = selectedMode == 'soft'
+            ? l.gitUndoCommitDoneSoft
+            : l.gitUndoCommitDoneMixed;
+        AppToast.show(context, msg, type: AppToastType.success);
+      }
+    });
   }
 
   /// Second-level dialog: choose revert options then confirm.
   void _showRevertOptions(BuildContext context, String hash, S l) {
     final gitOps = context.read<GitOperations>();
-    bool autoCommit = true;
 
-    showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: Text(l.gitRevertCommit),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(l.gitRevertCommitDesc,
-                  style: const TextStyle(fontSize: 13)),
-              const SizedBox(height: 12),
-              CheckboxListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                title: Text(l.gitRevertNoCommitDesc, style: const TextStyle(fontSize: 13)),
-                value: !autoCommit,
-                onChanged: (v) => setDialogState(() => autoCommit = !v!),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(l.commonCancel),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.pop(ctx);
-                gitOps.gitRevertCommit(
-                    repo: repo, hash: hash, noCommit: !autoCommit);
-                final msg = autoCommit
-                    ? l.gitRevertInProgress
-                    : l.gitRevertNoCommitDone;
-                AppToast.show(context, msg, type: AppToastType.info);
-              },
-              child: Text(l.commonConfirm),
-            ),
-          ],
-        ),
-      ),
-    );
+    showAppCheckConfirmDialog(
+      context,
+      title: l.gitRevertCommit,
+      message: l.gitRevertCommitDesc,
+      checkboxLabel: l.gitRevertNoCommitDesc,
+      initialChecked: false,
+    ).then((result) {
+      if (result == null) return;
+      final noCommit = result.checked;
+      gitOps.gitRevertCommit(repo: repo, hash: hash, noCommit: noCommit);
+      final msg = noCommit ? l.gitRevertNoCommitDone : l.gitRevertInProgress;
+      AppToast.show(context, msg, type: AppToastType.info);
+    });
   }
 
   void _confirmHardReset(BuildContext context, GitOperations gitOps, S l) {

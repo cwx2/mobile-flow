@@ -1882,9 +1882,10 @@ class GitService:
     async def revert_commit(self, commit_hash: str, no_commit: bool = False) -> dict:
         """Revert a commit by creating a new reverse commit.
 
-        Mirrors JetBrains' "Revert Commit" — generates a new commit that
-        undoes the changes introduced by the specified commit. Safe for
-        commits that have already been pushed.
+        Automatically detects merge commits and applies --mainline 1
+        (treating the first parent as mainline). This mirrors JetBrains'
+        behavior: the IDE handles the -m flag transparently so the user
+        never sees the raw "is a merge but no -m option" error.
 
         Args:
             commit_hash: Hash of the commit to revert.
@@ -1900,9 +1901,16 @@ class GitService:
             f"还原提交: hash={commit_hash[:12]}, no_commit={no_commit}"
         )
 
-        args = ["revert"]
+        # Detect merge commit by counting parents
+        is_merge = await self._is_merge_commit(commit_hash)
+        if is_merge:
+            logger.info(f"检测到 merge commit，自动添加 --mainline 1: hash={commit_hash[:12]}")
+
+        args = ["revert", "--no-edit"]
         if no_commit:
             args.append("--no-commit")
+        if is_merge:
+            args.extend(["-m", "1"])
         args.append(commit_hash)
 
         out, err, code = await self._run(*args)
@@ -1929,3 +1937,15 @@ class GitService:
 
         logger.info(f"还原提交成功: hash={commit_hash[:12]}")
         return {"success": True, "has_conflicts": False, "error": ""}
+
+    async def _is_merge_commit(self, commit_hash: str) -> bool:
+        """Check if a commit is a merge commit (has more than one parent).
+
+        Uses `git cat-file -p <hash>` and counts 'parent' lines.
+        Falls back to False on any error to avoid blocking the revert.
+        """
+        out, _, code = await self._run("cat-file", "-p", commit_hash)
+        if code != 0:
+            return False
+        parent_count = sum(1 for line in out.splitlines() if line.startswith("parent "))
+        return parent_count > 1
