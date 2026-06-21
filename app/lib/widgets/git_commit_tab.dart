@@ -450,7 +450,6 @@ class _CommitRow extends StatelessWidget {
 
   void _showCommitActions(BuildContext context, String hash, String message) {
     final colors = context.colors;
-    final gitOps = context.read<GitOperations>();
     final l = S.of(context);
 
     AppBottomSheet.show(context, builder: (ctx) {
@@ -477,67 +476,30 @@ class _CommitRow extends StatelessWidget {
           const Divider(height: 1),
 
           // Undo commit (only for outgoing/first commit)
-          if (isOutgoing && isFirst) ...[
+          if (isOutgoing && isFirst)
             _ActionTile(
               icon: Icons.undo,
-              title: l.gitUndoCommitSoft,
-              subtitle: l.gitUndoCommitSoftDesc,
+              title: l.gitUndoCommitSoft.replaceAll(' (--soft)', ''),
+              subtitle: null,
               color: colors.warning,
               onTap: () {
                 Navigator.pop(ctx);
-                gitOps.gitUndoCommit(repo: repo, mode: 'soft');
-                AppToast.show(context, l.gitUndoCommitDoneSoft, type: AppToastType.success);
+                _showUndoOptions(context, l);
               },
             ),
-            _ActionTile(
-              icon: Icons.undo,
-              title: l.gitUndoCommitMixed,
-              subtitle: l.gitUndoCommitMixedDesc,
-              color: colors.warning,
-              onTap: () {
-                Navigator.pop(ctx);
-                gitOps.gitUndoCommit(repo: repo, mode: 'mixed');
-                AppToast.show(context, l.gitUndoCommitDoneMixed, type: AppToastType.success);
-              },
-            ),
-            _ActionTile(
-              icon: Icons.delete_forever,
-              title: l.gitUndoCommitHard,
-              subtitle: l.gitUndoCommitHardDesc,
-              color: colors.error,
-              onTap: () {
-                Navigator.pop(ctx);
-                _confirmHardReset(context, gitOps, l);
-              },
-            ),
-            const Divider(height: 1),
-          ],
 
           // Revert commit (available for any commit)
           _ActionTile(
             icon: Icons.replay,
             title: l.gitRevertCommit,
-            subtitle: l.gitRevertCommitDesc,
+            subtitle: null,
             color: colors.primary,
             onTap: () {
               Navigator.pop(ctx);
-              gitOps.gitRevertCommit(repo: repo, hash: hash);
-              AppToast.show(context, l.gitRevertInProgress, type: AppToastType.info);
-            },
-          ),
-          _ActionTile(
-            icon: Icons.replay,
-            title: l.gitRevertNoCommit,
-            subtitle: l.gitRevertNoCommitDesc,
-            color: colors.primary,
-            onTap: () {
-              Navigator.pop(ctx);
-              gitOps.gitRevertCommit(repo: repo, hash: hash, noCommit: true);
-              AppToast.show(context, l.gitRevertNoCommitDone, type: AppToastType.info);
+              _showRevertOptions(context, hash, l);
             },
           ),
 
-          const Divider(height: 1),
           // View details
           _ActionTile(
             icon: Icons.info_outline,
@@ -561,6 +523,120 @@ class _CommitRow extends StatelessWidget {
         ],
       );
     });
+  }
+
+  /// Second-level dialog: choose undo mode (soft/mixed/hard) then confirm.
+  void _showUndoOptions(BuildContext context, S l) {
+    final colors = context.colors;
+    final gitOps = context.read<GitOperations>();
+    String selectedMode = 'soft';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: Text(l.gitUndoCommitSoft.replaceAll(' (--soft)', '')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              RadioListTile<String>(
+                dense: true,
+                title: Text('--soft', style: const TextStyle(fontSize: 13, fontFamily: 'monospace')),
+                subtitle: Text(l.gitUndoCommitSoftDesc, style: const TextStyle(fontSize: 11)),
+                value: 'soft',
+                groupValue: selectedMode,
+                onChanged: (v) => setDialogState(() => selectedMode = v!),
+              ),
+              RadioListTile<String>(
+                dense: true,
+                title: Text('--mixed', style: const TextStyle(fontSize: 13, fontFamily: 'monospace')),
+                subtitle: Text(l.gitUndoCommitMixedDesc, style: const TextStyle(fontSize: 11)),
+                value: 'mixed',
+                groupValue: selectedMode,
+                onChanged: (v) => setDialogState(() => selectedMode = v!),
+              ),
+              RadioListTile<String>(
+                dense: true,
+                title: Text('--hard', style: TextStyle(fontSize: 13, fontFamily: 'monospace', color: colors.error)),
+                subtitle: Text(l.gitUndoCommitHardDesc, style: TextStyle(fontSize: 11, color: colors.error)),
+                value: 'hard',
+                groupValue: selectedMode,
+                onChanged: (v) => setDialogState(() => selectedMode = v!),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(l.commonCancel),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                if (selectedMode == 'hard') {
+                  _confirmHardReset(context, gitOps, l);
+                } else {
+                  gitOps.gitUndoCommit(repo: repo, mode: selectedMode);
+                  final msg = selectedMode == 'soft'
+                      ? l.gitUndoCommitDoneSoft
+                      : l.gitUndoCommitDoneMixed;
+                  AppToast.show(context, msg, type: AppToastType.success);
+                }
+              },
+              child: Text(l.commonConfirm),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Second-level dialog: choose revert options then confirm.
+  void _showRevertOptions(BuildContext context, String hash, S l) {
+    final gitOps = context.read<GitOperations>();
+    bool autoCommit = true;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: Text(l.gitRevertCommit),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(l.gitRevertCommitDesc,
+                  style: const TextStyle(fontSize: 13)),
+              const SizedBox(height: 12),
+              CheckboxListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                title: Text(l.gitRevertNoCommitDesc, style: const TextStyle(fontSize: 13)),
+                value: !autoCommit,
+                onChanged: (v) => setDialogState(() => autoCommit = !v!),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(l.commonCancel),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                gitOps.gitRevertCommit(
+                    repo: repo, hash: hash, noCommit: !autoCommit);
+                final msg = autoCommit
+                    ? l.gitRevertInProgress
+                    : l.gitRevertNoCommitDone;
+                AppToast.show(context, msg, type: AppToastType.info);
+              },
+              child: Text(l.commonConfirm),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _confirmHardReset(BuildContext context, GitOperations gitOps, S l) {
