@@ -171,23 +171,33 @@ class _RepoDetailScreenState extends State<RepoDetailScreen>
         actions: [
           // Pull
           IconButton(
-            icon: Icon(Icons.download, size: 20,
-                color: git.isPulling(widget.repoPath) ? colors.secondary : null),
+            icon: Badge(
+              isLabelVisible: repo.behind > 0,
+              label: Text('${repo.behind}', style: const TextStyle(fontSize: 9)),
+              offset: const Offset(6, -6),
+              child: Icon(Icons.download, size: 20,
+                  color: git.isPulling(widget.repoPath)
+                      ? colors.secondary
+                      : repo.behind > 0 ? null : colors.onSurfaceMuted.withValues(alpha: 0.3)),
+            ),
             onPressed: git.isPulling(widget.repoPath)
                 ? null
                 : () => git.pull(repo: widget.repoPath),
-            tooltip: repo.behind > 0 ? 'Pull (${repo.behind})' : 'Pull',
           ),
           // Push
           IconButton(
-            icon: Icon(Icons.upload, size: 20,
-                color: git.isPushing(widget.repoPath)
-                    ? colors.secondary
-                    : repo.ahead > 0 ? null : colors.onSurfaceMuted.withValues(alpha: 0.3)),
+            icon: Badge(
+              isLabelVisible: repo.ahead > 0,
+              label: Text('${repo.ahead}', style: const TextStyle(fontSize: 9)),
+              offset: const Offset(6, -6),
+              child: Icon(Icons.upload, size: 20,
+                  color: git.isPushing(widget.repoPath)
+                      ? colors.secondary
+                      : repo.ahead > 0 ? null : colors.onSurfaceMuted.withValues(alpha: 0.3)),
+            ),
             onPressed: git.isPushing(widget.repoPath) || repo.ahead == 0
                 ? null
                 : () => git.push(repo: widget.repoPath),
-            tooltip: repo.ahead > 0 ? 'Push (${repo.ahead})' : 'Push',
           ),
         ],
         bottom: PreferredSize(
