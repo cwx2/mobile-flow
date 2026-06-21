@@ -841,7 +841,7 @@ class GitService:
         args.extend(["--", path])
         out, err, code = await self._run(*args)
         if code != 0:
-            return {"diff": "", "error": err.split("\n")[0] if err else ""}
+            return {"diff": "", "error": err.strip()[:500] if err else ""}
         return {"diff": out, "error": ""}
 
     async def file_content_for_diff(self, path: str, staged: bool = False) -> dict:
@@ -930,7 +930,7 @@ class GitService:
             args.append("--cached")
         out, err, code = await self._run(*args)
         if code != 0:
-            return {"diff": "", "error": err.split("\n")[0] if err else ""}
+            return {"diff": "", "error": err.strip()[:500] if err else ""}
         return {"diff": out, "error": ""}
 
     # ── Stage / Unstage ──
@@ -948,7 +948,7 @@ class GitService:
             return {"error": t("backend.gitNoFiles")}
         out, err, code = await self._run("add", "--", *paths)
         if code != 0:
-            return {"success": False, "error": err.split("\n")[0] if err else ""}
+            return {"success": False, "error": err.strip()[:500] if err else ""}
         return {"success": True, "error": ""}
 
     async def stage_all(self) -> dict:
@@ -959,7 +959,7 @@ class GitService:
         """
         out, err, code = await self._run("add", "-A")
         if code != 0:
-            return {"success": False, "error": err.split("\n")[0] if err else ""}
+            return {"success": False, "error": err.strip()[:500] if err else ""}
         return {"success": True, "error": ""}
 
     async def unstage(self, paths: list[str]) -> dict:
@@ -975,7 +975,7 @@ class GitService:
             return {"error": t("backend.gitNoFiles")}
         out, err, code = await self._run("reset", "HEAD", "--", *paths)
         if code != 0:
-            return {"success": False, "error": err.split("\n")[0] if err else ""}
+            return {"success": False, "error": err.strip()[:500] if err else ""}
         return {"success": True, "error": ""}
 
     async def unstage_all(self) -> dict:
@@ -986,7 +986,7 @@ class GitService:
         """
         out, err, code = await self._run("reset", "HEAD")
         if code != 0:
-            return {"success": False, "error": err.split("\n")[0] if err else ""}
+            return {"success": False, "error": err.strip()[:500] if err else ""}
         return {"success": True, "error": ""}
 
     # ── Commit ──
@@ -1040,7 +1040,7 @@ class GitService:
         out, err, code = await self._run("push", timeout=self._command_timeout)
         if code != 0:
             logger.error(f"git push 失败: {err.split(chr(10))[0] if err else ''}")
-            return {"success": False, "up_to_date": False, "error": err.split("\n")[0] if err else ""}
+            return {"success": False, "up_to_date": False, "error": err.strip()[:500] if err else ""}
         combined = (out + err).strip()
         up_to_date = "Everything up-to-date" in combined
         logger.info(f"git push 成功: up_to_date={up_to_date}")
@@ -1055,7 +1055,7 @@ class GitService:
         out, err, code = await self._run("pull", timeout=self._command_timeout)
         if code != 0:
             logger.error(f"git pull 失败: {err.split(chr(10))[0] if err else ''}")
-            return {"success": False, "up_to_date": False, "error": err.split("\n")[0] if err else ""}
+            return {"success": False, "up_to_date": False, "error": err.strip()[:500] if err else ""}
         combined = (out + err).strip()
         up_to_date = "Already up to date" in combined
         logger.info(f"git pull 成功: up_to_date={up_to_date}")
@@ -1069,7 +1069,7 @@ class GitService:
         """
         out, err, code = await self._run("fetch", timeout=self._command_timeout)
         if code != 0:
-            return {"success": False, "error": err.split("\n")[0] if err else ""}
+            return {"success": False, "error": err.strip()[:500] if err else ""}
         logger.debug("git fetch 成功")
         return {"success": True, "output": (out + err).strip(), "error": ""}
 
@@ -1179,7 +1179,7 @@ class GitService:
         """
         out, err, code = await self._run("branch", "-a", "--no-color")
         if code != 0:
-            return {"branches": [], "error": err.split("\n")[0] if err else ""}
+            return {"branches": [], "error": err.strip()[:500] if err else ""}
         branches = []
         for line in out.strip().split("\n"):
             if not line.strip():
@@ -1204,7 +1204,7 @@ class GitService:
         out, err, code = await self._run("checkout", branch)
         if code != 0:
             logger.error(f"git checkout 失败: branch={branch}, error={err.split(chr(10))[0] if err else ''}")
-            return {"success": False, "error": err.split("\n")[0] if err else ""}
+            return {"success": False, "error": err.strip()[:500] if err else ""}
         logger.info(f"git checkout 成功: branch={branch}")
         return {"success": True, "error": ""}
 
@@ -1245,7 +1245,7 @@ class GitService:
         # Request one extra to detect if more pages exist
         out, err, code = await self._run(*args)
         if code != 0:
-            return {"entries": [], "has_more": False, "error": err.split("\n")[0] if err else ""}
+            return {"entries": [], "has_more": False, "error": err.strip()[:500] if err else ""}
         entries = []
         for line in out.strip().split("\n"):
             if not line:
@@ -1344,7 +1344,7 @@ class GitService:
             commit_hash,
         )
         if code != 0:
-            return {"error": err.split("\n")[0] if err else "unknown error"}
+            return {"error": err.strip()[:500] if err else "unknown error"}
 
         lines = out_meta.strip().split("\n")
         meta_parts = lines[0].split("|", 5) if lines else []
@@ -1450,7 +1450,7 @@ class GitService:
         """
         out, err, code = await self._run("checkout", "--", path)
         if code != 0:
-            return {"success": False, "error": err.split("\n")[0] if err else ""}
+            return {"success": False, "error": err.strip()[:500] if err else ""}
         return {"success": True, "error": ""}
 
     # ── Git Shell (restricted command executor) ──
@@ -1836,7 +1836,7 @@ class GitService:
         out, err, code = await self._run("merge", "--abort")
         if code != 0:
             logger.error(f"git merge --abort 失败: {err}")
-            return {"success": False, "error": err.split("\n")[0] if err else ""}
+            return {"success": False, "error": err.strip()[:500] if err else ""}
         logger.info("git merge --abort 成功")
         return {"success": True, "error": ""}
 
@@ -1874,7 +1874,7 @@ class GitService:
         out, err, code = await self._run(*args)
         if code != 0:
             logger.error(f"撤销提交失败: mode={mode}, error={err}")
-            return {"success": False, "message": "", "error": err.split("\n")[0] if err else ""}
+            return {"success": False, "message": "", "error": err.strip()[:500] if err else ""}
 
         logger.info(f"撤销提交成功: mode={mode}")
         return {"success": True, "message": commit_message, "error": ""}
@@ -1925,14 +1925,14 @@ class GitService:
                 return {
                     "success": False,
                     "has_conflicts": True,
-                    "error": (out + err).strip().split("\n")[0] if (out + err).strip() else "",
+                    "error": (out + err).strip()[:500] if (out + err).strip() else "",
                 }
 
             logger.error(f"还原提交失败: hash={commit_hash[:12]}, error={err}")
             return {
                 "success": False,
                 "has_conflicts": False,
-                "error": (err or out).strip().split("\n")[0] if (err or out) else "",
+                "error": (err or out).strip()[:500] if (err or out) else "",
             }
 
         logger.info(f"还原提交成功: hash={commit_hash[:12]}")
@@ -1992,14 +1992,14 @@ class GitService:
                 return {
                     "success": False,
                     "has_conflicts": True,
-                    "error": (out + err).strip().split("\n")[0] if (out + err).strip() else "",
+                    "error": (out + err).strip()[:500] if (out + err).strip() else "",
                 }
 
             logger.error(f"Cherry-pick 失败: hash={commit_hash[:12]}, error={err}")
             return {
                 "success": False,
                 "has_conflicts": False,
-                "error": (err or out).strip().split("\n")[0] if (err or out) else "",
+                "error": (err or out).strip()[:500] if (err or out) else "",
             }
 
         logger.info(f"Cherry-pick 成功: hash={commit_hash[:12]}")

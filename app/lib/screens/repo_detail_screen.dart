@@ -75,7 +75,7 @@ class _RepoDetailScreenState extends State<RepoDetailScreen>
           if (hookFailed) {
             _showForceCommitDialog(p.error!);
           } else {
-            AppToast.show(context, p.error!, type: AppToastType.error);
+            _showError(p.error!, title: 'Commit failed');
           }
         } else {
           _commitController.clear();
@@ -86,7 +86,7 @@ class _RepoDetailScreenState extends State<RepoDetailScreen>
         if (pushRepo.isNotEmpty && pushRepo != widget.repoPath) break;
         final p = GitPushResultPayload.fromJson(msg.payload);
         if ((p.error ?? '').isNotEmpty) {
-          AppToast.show(context, p.error!, type: AppToastType.error);
+          _showError(p.error!, title: 'Push failed');
         } else if (p.upToDate) {
           AppToast.show(context, S.of(context).gitPushUpToDate);
         } else {
@@ -97,7 +97,7 @@ class _RepoDetailScreenState extends State<RepoDetailScreen>
         if (pullRepo.isNotEmpty && pullRepo != widget.repoPath) break;
         final p = GitPullResultPayload.fromJson(msg.payload);
         if ((p.error ?? '').isNotEmpty) {
-          AppToast.show(context, p.error!, type: AppToastType.error);
+          _showError(p.error!, title: 'Pull failed');
         } else if (p.upToDate) {
           AppToast.show(context, S.of(context).gitPullUpToDate);
         } else {
@@ -108,7 +108,7 @@ class _RepoDetailScreenState extends State<RepoDetailScreen>
         if (checkoutRepo.isNotEmpty && checkoutRepo != widget.repoPath) break;
         final p = GitCheckoutResultPayload.fromJson(msg.payload);
         if ((p.error ?? '').isNotEmpty) {
-          AppToast.show(context, p.error!, type: AppToastType.error);
+          _showError(p.error!, title: 'Checkout failed');
         } else {
           AppToast.show(context, S.of(context).gitCheckoutSuccess,
               type: AppToastType.success);
@@ -162,6 +162,19 @@ class _RepoDetailScreenState extends State<RepoDetailScreen>
 
       default:
         break;
+    }
+  }
+
+  /// Show error: short messages use toast, long/multi-line use persistent notification.
+  void _showError(String error, {String? title}) {
+    if (error.length > 80 || error.contains('\n')) {
+      AppNotification.show(context,
+        title: title ?? error.split('\n').first,
+        detail: error,
+        type: AppNotificationType.error,
+      );
+    } else {
+      AppToast.show(context, error, type: AppToastType.error);
     }
   }
 

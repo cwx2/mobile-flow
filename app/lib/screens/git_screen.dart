@@ -68,14 +68,14 @@ class _GitScreenState extends State<GitScreen> with LoadingStateMixin {
         final err = p.error ?? '';
         final hookFailed = msg.payload['hook_failed'] as bool? ?? false;
         if (err.isNotEmpty && !hookFailed) {
-          AppToast.show(context, err, type: AppToastType.error);
+          _showError(err, title: 'Commit failed');
         }
 
       case MessageType.gitPushResult:
         final p = GitPushResultPayload.fromJson(msg.payload);
         final err = p.error ?? '';
         if (err.isNotEmpty) {
-          AppToast.show(context, err, type: AppToastType.error);
+          _showError(err, title: 'Push failed');
         } else if (p.upToDate) {
           AppToast.show(context, S.of(context).gitPushUpToDate);
         } else if (err.isEmpty) {
@@ -86,7 +86,7 @@ class _GitScreenState extends State<GitScreen> with LoadingStateMixin {
         final p = GitPullResultPayload.fromJson(msg.payload);
         final err = p.error ?? '';
         if (err.isNotEmpty) {
-          AppToast.show(context, err, type: AppToastType.error);
+          _showError(err, title: 'Pull failed');
         } else if (p.upToDate) {
           AppToast.show(context, S.of(context).gitPullUpToDate);
         } else if (err.isEmpty) {
@@ -141,6 +141,19 @@ class _GitScreenState extends State<GitScreen> with LoadingStateMixin {
 
       default:
         break;
+    }
+  }
+
+  /// Show error: short messages use toast, long/multi-line use persistent notification.
+  void _showError(String error, {String? title}) {
+    if (error.length > 80 || error.contains('\n')) {
+      AppNotification.show(context,
+        title: title ?? error.split('\n').first,
+        detail: error,
+        type: AppNotificationType.error,
+      );
+    } else {
+      AppToast.show(context, error, type: AppToastType.error);
     }
   }
 
