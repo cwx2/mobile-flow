@@ -277,6 +277,8 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
         final conflict = _conflicts[index];
         return _ConflictCard(
           conflict: conflict,
+          repoPath: widget.repoPath,
+          filePath: widget.filePath,
           onResolve: (resolution) =>
               _resolve(conflict['id'] as int? ?? index, resolution),
         );
@@ -285,25 +287,59 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
   }
 }
 
-/// Single conflict block card with Current/Incoming display and action buttons.
-class _ConflictCard extends StatelessWidget {
+/// Single conflict block card with tab-based preview and confirm workflow.
+///
+/// Mirrors VS Code's preview behavior: user selects a resolution strategy,
+/// sees the final result preview, then confirms to apply. Also provides
+/// a "manual edit" entry for cases where none of the three options suffice.
+class _ConflictCard extends StatefulWidget {
   final Map<String, dynamic> conflict;
   final void Function(String resolution) onResolve;
+  final String repoPath;
+  final String filePath;
 
   const _ConflictCard({
     required this.conflict,
     required this.onResolve,
+    required this.repoPath,
+    required this.filePath,
   });
+
+  @override
+  State<_ConflictCard> createState() => _ConflictCardState();
+}
+
+class _ConflictCardState extends State<_ConflictCard> {
+  /// Currently selected tab: 0=current, 1=incoming, 2=both, null=none selected
+  int? _selectedTab;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final l = S.of(context);
-    final currentLabel = conflict['current_label'] as String? ?? 'HEAD';
-    final currentContent = conflict['current_content'] as String? ?? '';
-    final incomingLabel = conflict['incoming_label'] as String? ?? '';
-    final incomingContent = conflict['incoming_content'] as String? ?? '';
-    final rangeStart = conflict['range_start'] as int? ?? 0;
+    final currentLabel = widget.conflict['current_label'] as String? ?? 'HEAD';
+    final currentContent = widget.conflict['current_content'] as String? ?? '';
+    final incomingLabel = widget.conflict['incoming_label'] as String? ?? '';
+    final incomingContent = widget.conflict['incoming_content'] as String? ?? '';
+    final rangeStart = widget.conflict['range_start'] as int? ?? 0;
+
+    // Compute preview content based on selected tab
+    String previewContent = '';
+    String previewLabel = '';
+    Color previewColor = colors.onSurfaceVariant;
+    if (_selectedTab == 0) {
+      previewContent = currentContent;
+      previewLabel = l.gitConflictsAcceptCurrent;
+      previewColor = const Color(0xFF4CAF50);
+    } else if (_selectedTab == 1) {
+      previewContent = incomingContent;
+      previewLabel = l.gitConflictsAcceptIncoming;
+      previewColor = const Color(0xFF2196F3);
+    } else if (_selectedTab == 2) {
+      previewContent = currentContent + incomingContent;
+      previewLabel = l.gitConflictsAcceptBoth;
+      previewColor = const Color(0xFF9C27B0);
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -323,6 +359,7 @@ class _ConflictCard extends StatelessWidget {
             ),
           ),
 
+          // Two source blocks side by side (current + incoming)
           // Current block (green)
           _CodeBlock(
             label: '$currentLabel (${l.gitConflictsCurrentChange})',
@@ -341,40 +378,159 @@ class _ConflictCard extends StatelessWidget {
             backgroundColor: const Color(0x0D2196F3),
           ),
 
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
 
-          // Action buttons
+          // Resolution tab selector
           Row(
             children: [
-              Expanded(
-                child: _ActionButton(
-                  label: l.gitConflictsAcceptCurrent,
-                  onPressed: () => onResolve('current'),
-                  color: const Color(0xFF4CAF50),
-                ),
+              _TabChip(
+                label: l.gitConflictsAcceptCurrent,
+                selected: _selectedTab == 0,
+                color: const Color(0xFF4CAF50),
+                onTap: () => setState(() => _selectedTab = 0),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _ActionButton(
-                  label: l.gitConflictsAcceptIncoming,
-                  onPressed: () => onResolve('incoming'),
-                  color: const Color(0xFF2196F3),
-                ),
+              const SizedBox(width: 6),
+              _TabChip(
+                label: l.gitConflictsAcceptIncoming,
+                selected: _selectedTab == 1,
+                color: const Color(0xFF2196F3),
+                onTap: () => setState(() => _selectedTab = 1),
               ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _ActionButton(
-                  label: l.gitConflictsAcceptBoth,
-                  onPressed: () => onResolve('both'),
-                  color: colors.onSurfaceVariant,
-                ),
+              const SizedBox(width: 6),
+              _TabChip(
+                label: l.gitConflictsAcceptBoth,
+                selected: _selectedTab == 2,
+                color: const Color(0xFF9C27B0),
+                onTap: () => setState(() => _selectedTab = 2),
               ),
             ],
           ),
 
+          // Preview area (shown when a tab is selected)
+          if (_selectedTab != null) ...[
+            const SizedBox(height: 8),
+            _CodeBlock(
+              label: '▶ $previewLabel',
+              content: previewContent,
+              borderColor: previewColor,
+              backgroundColor: previewColor.withValues(alpha: 0.08),
+            ),
+            const SizedBox(height: 8),
+            // Confirm + Edit buttons
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton(
+                    onPressed: () {
+                      final resolutions = ['current', 'incoming', 'both'];
+                      widget.onResolve(resolutions[_selectedTab!]);
+                    },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: previewColor,
+                      minimumSize: const Size(0, 40),
+                    ),
+                    child: Text(l.commonConfirm,
+                        style: const TextStyle(fontSize: 13)),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Manual edit button
+                OutlinedButton.icon(
+                  onPressed: () => _openEditor(context),
+                  icon: const Icon(Icons.edit, size: 16),
+                  label: Text(l.commonCancel, style: const TextStyle(fontSize: 12)),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size(0, 40),
+                  ),
+                ),
+              ],
+            ),
+          ] else ...[
+            // No tab selected: show hint + edit button
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '↑ Select a resolution to preview',
+                    style: TextStyle(fontSize: 11, color: colors.onSurfaceMuted),
+                  ),
+                ),
+                // Manual edit entry
+                TextButton.icon(
+                  onPressed: () => _openEditor(context),
+                  icon: Icon(Icons.edit_note, size: 16, color: colors.primary),
+                  label: Text('Edit',
+                      style: TextStyle(fontSize: 11, color: colors.primary)),
+                ),
+              ],
+            ),
+          ],
+
           const SizedBox(height: 4),
           Divider(color: colors.border.withValues(alpha: 0.3)),
         ],
+      ),
+    );
+  }
+
+  void _openEditor(BuildContext context) {
+    // Navigate to file editor with the conflicted file
+    final ws = context.read<WebSocketService>();
+    ws.send(WsMessage(
+      type: MessageType.fileRead,
+      payload: {'path': widget.filePath, 'repo': widget.repoPath},
+    ));
+    // Show toast guiding user
+    AppToast.show(
+      context,
+      'Open file in editor to manually resolve',
+      type: AppToastType.info,
+    );
+  }
+}
+
+/// Selectable tab chip for resolution preview.
+class _TabChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _TabChip({
+    required this.label,
+    required this.selected,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: selected ? color.withValues(alpha: 0.15) : Colors.transparent,
+            border: Border.all(
+              color: selected ? color : color.withValues(alpha: 0.3),
+              width: selected ? 1.5 : 1,
+            ),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+              color: selected ? color : color.withValues(alpha: 0.7),
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ),
       ),
     );
   }
@@ -485,35 +641,4 @@ class _CodeBlockState extends State<_CodeBlock> {
 }
 
 /// Compact action button for conflict resolution.
-class _ActionButton extends StatelessWidget {
-  final String label;
-  final VoidCallback onPressed;
-  final Color color;
-
-  const _ActionButton({
-    required this.label,
-    required this.onPressed,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 36,
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          side: BorderSide(color: color.withValues(alpha: 0.5)),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(6),
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(fontSize: 11, color: color),
-        ),
-      ),
-    );
-  }
-}
+/// (Kept for potential future use but currently unused — _TabChip replaced it.)
