@@ -11,16 +11,20 @@ from pathlib import Path
 spec_dir = os.path.dirname(os.path.abspath(SPEC))
 agent_root = os.path.dirname(spec_dir)
 
+# Collect data files, skipping directories that don't exist
+_data_dirs = [
+    (os.path.join(agent_root, 'locales'), 'locales'),
+    (os.path.join(agent_root, 'config'), 'config'),
+    (os.path.join(agent_root, 'assets'), 'assets'),
+    (os.path.join(agent_root, 'src', 'mobileflow_agent', 'dashboard', 'static'), 'mobileflow_agent/dashboard/static'),
+]
+datas = [(src, dst) for src, dst in _data_dirs if os.path.exists(src)]
+
 a = Analysis(
     [os.path.join(agent_root, 'entry_point.py')],
     pathex=[os.path.join(agent_root, 'src')],
     binaries=[],
-    datas=[
-        (os.path.join(agent_root, 'locales'), 'locales'),
-        (os.path.join(agent_root, 'config'), 'config'),
-        (os.path.join(agent_root, 'assets'), 'assets'),
-        (os.path.join(agent_root, 'src', 'mobileflow_agent', 'dashboard', 'static'), 'mobileflow_agent/dashboard/static'),
-    ],
+    datas=datas,
     hiddenimports=['mobileflow_agent'],
     hookspath=[],
     hooksconfig={},
