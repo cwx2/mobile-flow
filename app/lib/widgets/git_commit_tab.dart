@@ -88,122 +88,130 @@ class _GitCommitTabState extends State<GitCommitTab> {
     final colors = context.colors;
     final hasStagedFiles = widget.stagedCount > 0;
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
+    return Column(
       children: [
-        // Staged files summary
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: hasStagedFiles
-                ? colors.secondary.withValues(alpha: 0.08)
-                : colors.border.withValues(alpha: 0.3),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Text(
-            hasStagedFiles
-                ? S.of(context).gitCommitStagedReady(widget.stagedCount)
-                : S.of(context).gitCommitNoStaged,
-            style: TextStyle(
-              fontSize: 13,
-              color:
-                  hasStagedFiles ? colors.secondary : colors.onSurfaceMuted,
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        // Commit message input
-        TextField(
-          controller: widget.commitController,
-          maxLines: 4,
-          minLines: 2,
-          decoration: InputDecoration(
-            hintText: S.of(context).gitCommitMessageHint,
-            hintStyle: TextStyle(color: colors.onSurfaceMuted),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(color: colors.border),
-            ),
-            contentPadding: const EdgeInsets.all(12),
-          ),
-        ),
-        const SizedBox(height: 16),
-
-        // Commit button
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: hasStagedFiles && _hasText && !widget.committing
-                ? widget.onCommit
-                : null,
-            icon: widget.committing
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2))
-                : const Icon(Icons.check, size: 18),
-            label: Text(S.of(context).gitCommitButton),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: colors.secondary,
-              foregroundColor: colors.background,
-              disabledBackgroundColor: colors.border,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        // Push + Pull button row
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: widget.pulling ? null : widget.onPull,
-                icon: widget.pulling
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.download, size: 16),
-                label: Text(widget.pulling ? S.of(context).gitCommitPulling : 'Pull'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: colors.primary,
-                  side: BorderSide(color: colors.border),
+        // Fixed top section: staged summary + input + buttons
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              // Staged files summary
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: hasStagedFiles
+                      ? colors.secondary.withValues(alpha: 0.08)
+                      : colors.border.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  hasStagedFiles
+                      ? S.of(context).gitCommitStagedReady(widget.stagedCount)
+                      : S.of(context).gitCommitNoStaged,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: hasStagedFiles ? colors.secondary : colors.onSurfaceMuted,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: widget.pushing || widget.ahead == 0 ? null : widget.onPush,
-                icon: widget.pushing
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.upload, size: 16),
-                label: Text(widget.pushing ? S.of(context).gitCommitPushing : 'Push'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: colors.primary,
-                  side: BorderSide(color: colors.border),
+              const SizedBox(height: 16),
+
+              // Commit message input
+              TextField(
+                controller: widget.commitController,
+                maxLines: 4,
+                minLines: 2,
+                decoration: InputDecoration(
+                  hintText: S.of(context).gitCommitMessageHint,
+                  hintStyle: TextStyle(color: colors.onSurfaceMuted),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: colors.border),
+                  ),
+                  contentPadding: const EdgeInsets.all(12),
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+
+              // Commit button
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: hasStagedFiles && _hasText && !widget.committing
+                      ? widget.onCommit
+                      : null,
+                  icon: widget.committing
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.check, size: 18),
+                  label: Text(S.of(context).gitCommitButton),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: colors.secondary,
+                    foregroundColor: colors.background,
+                    disabledBackgroundColor: colors.border,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Push + Pull button row
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: widget.pulling ? null : widget.onPull,
+                      icon: widget.pulling
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.download, size: 16),
+                      label: Text(widget.pulling ? S.of(context).gitCommitPulling : 'Pull'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: colors.primary,
+                        side: BorderSide(color: colors.border),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: widget.pushing || widget.ahead == 0 ? null : widget.onPush,
+                      icon: widget.pushing
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.upload, size: 16),
+                      label: Text(widget.pushing ? S.of(context).gitCommitPushing : 'Push'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: colors.primary,
+                        side: BorderSide(color: colors.border),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
 
-        // Recent commits section
-        if (widget.recentCommits.isNotEmpty) ...[
-          const SizedBox(height: 24),
-          _RecentCommitsSection(
-            commits: widget.recentCommits,
-            ahead: widget.ahead,
-            repo: widget.repo,
-            branch: widget.branch,
-          ),
-        ],
+        // Scrollable recent commits section (fills remaining space)
+        if (widget.recentCommits.isNotEmpty)
+          Expanded(
+            child: _RecentCommitsSection(
+              commits: widget.recentCommits,
+              ahead: widget.ahead,
+              repo: widget.repo,
+              branch: widget.branch,
+            ),
+          )
+        else
+          const Spacer(),
       ],
     );
   }
@@ -229,15 +237,15 @@ class _RecentCommitsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    // Show at most 8 recent commits
-    final display = commits.take(8).toList();
+    // Show recent commits (enough to fill the screen)
+    final display = commits.take(20).toList();
     final outgoing = display.take(ahead).toList();
     final synced = display.skip(ahead).toList();
     final localBranch = branch.isNotEmpty ? branch : 'HEAD';
     final remoteBranch = 'origin/$localBranch';
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       children: [
         // Outgoing section (local, not yet pushed)
         if (outgoing.isNotEmpty) ...[
