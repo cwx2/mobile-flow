@@ -2,14 +2,10 @@
 ///
 /// Module: screens/
 /// Responsibility:
-///   VS Code-style 3-way merge editor adapted for mobile. Displays three
-///   full-file thumbnails (current / incoming / both) at the top — each
-///   showing the entire file with conflict lines highlighted. Tapping a
-///   thumbnail expands it into a full-screen scrollable code view below.
-///
-///   Like VS Code's merge editor: each panel shows the COMPLETE file
-///   content (not just the conflict snippet), with conflict regions
-///   highlighted in color.
+///   VS Code-style 3-way merge editor adapted for mobile. Three full-file
+///   thumbnails at top, full-size code preview below using CodeEditorView
+///   (same component as FileViewerScreen — syntax highlighting, line numbers,
+///   horizontal scroll, word wrap).
 ///
 /// Navigation:
 ///   GitChangesTab → tap conflict file → ConflictResolverScreen
@@ -20,6 +16,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../editor/editor.dart';
 import '../models/protocol.dart';
 import '../services/git_state.dart';
 import '../services/websocket_service.dart';
@@ -27,6 +24,7 @@ import '../components/app_toast.dart';
 import '../l10n/app_localizations.dart';
 import '../screens/file_viewer_screen.dart';
 import '../theme/theme_extensions.dart';
+import '../widgets/code_editor_view.dart';
 
 /// Full-file merge conflict resolver screen.
 class ConflictResolverScreen extends StatefulWidget {
@@ -44,7 +42,7 @@ class ConflictResolverScreen extends StatefulWidget {
 }
 
 class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
-  // Conflict data
+  // Conflict data from Agent
   List<Map<String, dynamic>> _conflicts = [];
   String _fileCurrent = '';
   String _fileIncoming = '';
@@ -58,6 +56,10 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
   int _selected = 0; // 0=current, 1=incoming, 2=both
   StreamSubscription? _sub;
 
+  // Code editor controller for the large preview
+  CodeLineEditingController? _codeController;
+  CodeScrollController? _scrollController;
+
   @override
   void initState() {
     super.initState();
@@ -69,6 +71,8 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
   @override
   void dispose() {
     _sub?.cancel();
+    _codeController?.dispose();
+    _scrollController?.dispose();
     super.dispose();
   }
 
@@ -86,18 +90,16 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
         if (error.isNotEmpty) {
           setState(() { _loading = false; _error = error; });
         } else {
-          setState(() {
-            _conflicts = (msg.payload['conflicts'] as List?)
-                ?.cast<Map<String, dynamic>>() ?? [];
-            _fileCurrent = msg.payload['file_current'] as String? ?? '';
-            _fileIncoming = msg.payload['file_incoming'] as String? ?? '';
-            _fileBoth = msg.payload['file_both'] as String? ?? '';
-            _rangesCurrent = _parseRanges(msg.payload['conflict_ranges_current']);
-            _rangesIncoming = _parseRanges(msg.payload['conflict_ranges_incoming']);
-            _rangesBoth = _parseRanges(msg.payload['conflict_ranges_both']);
-            _loading = false;
-            _error = null;
-          });
+          _fileCurrent = msg.payload['file_current'] as String? ?? '';
+          _fileIncoming = msg.payload['file_incoming'] as String? ?? '';
+          _fileBoth = msg.payload['file_both'] as String? ?? '';
+          _rangesCurrent = _parseRanges(msg.payload['conflict_ranges_current']);
+          _rangesIncoming = _parseRanges(msg.payload['conflict_ranges_incoming']);
+          _rangesBoth = _parseRanges(msg.payload['conflict_ranges_both']);
+          _conflicts = (msg.payload['conflicts'] as List?)
+              ?.cast<Map<String, dynamic>>() ?? [];
+          _updateEditorContent();
+          setState(() { _loading = false; _error = null; });
         }
 
       case MessageType.gitConflictResolveAllResult:
@@ -110,6 +112,14 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
               type: AppToastType.error);
         }
     }
+  }
+
+  void _updateEditorContent() {
+    final content = _fileForIndex(_selected);
+    _codeController?.dispose();
+    _scrollController?.dispose();
+    _codeController = CodeLineEditingController.fromText(content);
+    _scrollController = CodeScrollController();
   }
 
   List<List<int>> _parseRanges(dynamic data) {
@@ -150,6 +160,17 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
   List<List<int>> _rangesForIndex(int i) =>
       i == 0 ? _rangesCurrent : i == 1 ? _rangesIncoming : _rangesBoth;
 
+  void _selectTab(int i) {
+    if (i == _selected) return;
+    setState(() => _selected = i);
+    // Update editor content to show the selected version
+    final content = _fileForIndex(i);
+    _codeController?.dispose();
+    _scrollController?.dispose();
+    _codeController = CodeLineEditingController.fromText(content);
+    _scrollController = CodeScrollController();
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -171,7 +192,6 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
           ],
         ),
         actions: [
-          // Edit in editor
           IconButton(
             icon: const Icon(Icons.edit_note, size: 20),
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(
@@ -228,9 +248,9 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
 
     return Column(
       children: [
-        // Three full-file thumbnails at the top
+        // Three full-file thumbnails
         SizedBox(
-          height: 120,
+          height: 110,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             child: Row(
@@ -238,7 +258,7 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
                 final isSelected = _selected == i;
                 return Expanded(
                   child: GestureDetector(
-                    onTap: () => setState(() => _selected = i),
+                    onTap: () => _selectTab(i),
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 200),
                       curve: Curves.easeOutCubic,
@@ -261,7 +281,7 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Label bar
+                          // Label
                           Container(
                             width: double.infinity,
                             padding: const EdgeInsets.symmetric(
@@ -288,7 +308,7 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          // Full file miniature
+                          // Miniature file content
                           Expanded(
                             child: ClipRRect(
                               borderRadius: const BorderRadius.only(
@@ -312,20 +332,19 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
           ),
         ),
 
-        // Full-size file preview (expanded, scrollable)
+        // Full-size code preview using CodeEditorView (read-only)
         Expanded(
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 200),
-            child: _FullFilePreview(
-              key: ValueKey(_selected),
-              content: _fileForIndex(_selected),
-              ranges: _rangesForIndex(_selected),
-              highlightColor: tabColors[_selected],
-            ),
-          ),
+          child: _codeController != null
+              ? CodeEditorView(
+                  controller: _codeController!,
+                  scrollController: _scrollController,
+                  filePath: widget.filePath,
+                  readOnly: true,
+                )
+              : const SizedBox.shrink(),
         ),
 
-        // Bottom action bar
+        // Bottom confirm bar
         SafeArea(
           child: Container(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
@@ -360,8 +379,7 @@ class _ConflictResolverScreenState extends State<ConflictResolverScreen> {
   }
 }
 
-/// Miniature file thumbnail showing full file content as tiny text.
-/// Conflict regions are highlighted with colored background strips.
+/// Miniature file thumbnail (tiny text with colored conflict line markers).
 class _FileThumbnail extends StatelessWidget {
   final String content;
   final List<List<int>> ranges;
@@ -382,12 +400,12 @@ class _FileThumbnail extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 1),
       physics: const NeverScrollableScrollPhysics(),
       itemCount: lines.length,
-      itemExtent: 3.5, // Each line is 3.5px tall in thumbnail
+      itemExtent: 3.5,
       itemBuilder: (_, i) {
         final isHighlighted = _isInRange(i);
         return Container(
           color: isHighlighted
-              ? highlightColor.withValues(alpha: 0.35)
+              ? highlightColor.withValues(alpha: 0.4)
               : null,
           child: Text(
             lines[i],
@@ -401,92 +419,6 @@ class _FileThumbnail extends StatelessWidget {
             ),
             maxLines: 1,
             overflow: TextOverflow.clip,
-          ),
-        );
-      },
-    );
-  }
-
-  bool _isInRange(int line) {
-    for (final range in ranges) {
-      if (range.length >= 2 && line >= range[0] && line <= range[1]) {
-        return true;
-      }
-    }
-    return false;
-  }
-}
-
-/// Full-size file preview with line numbers and conflict highlighting.
-/// Takes up the remaining vertical space, fully scrollable.
-class _FullFilePreview extends StatelessWidget {
-  final String content;
-  final List<List<int>> ranges;
-  final Color highlightColor;
-
-  const _FullFilePreview({
-    super.key,
-    required this.content,
-    required this.ranges,
-    required this.highlightColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final lines = content.split('\n');
-    // Remove trailing empty line
-    final displayLines =
-        lines.isNotEmpty && lines.last.isEmpty ? lines.sublist(0, lines.length - 1) : lines;
-    final lineNumWidth = '${displayLines.length}'.length * 8.0 + 8;
-
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      itemCount: displayLines.length,
-      itemExtent: 18, // Fixed line height for performance
-      itemBuilder: (_, i) {
-        final isHighlighted = _isInRange(i);
-        return Container(
-          color: isHighlighted
-              ? highlightColor.withValues(alpha: 0.12)
-              : null,
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // Line number
-              SizedBox(
-                width: lineNumWidth,
-                child: Text(
-                  '${i + 1}',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontFamily: 'monospace',
-                    color: isHighlighted
-                        ? highlightColor.withValues(alpha: 0.7)
-                        : colors.onSurfaceMuted.withValues(alpha: 0.4),
-                  ),
-                ),
-              ),
-              // Code content
-              Expanded(
-                child: Text(
-                  displayLines[i],
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontFamily: 'monospace',
-                    height: 1.3,
-                    color: isHighlighted
-                        ? colors.onSurface
-                        : colors.onSurfaceMuted.withValues(alpha: 0.8),
-                    fontWeight:
-                        isHighlighted ? FontWeight.w500 : FontWeight.normal,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
           ),
         );
       },
