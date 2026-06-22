@@ -67,6 +67,7 @@ class CliCapabilities {
   // ACP sessionCapabilities
   final bool supportsSessionList;
   final bool supportsSessionClose;
+  final bool supportsSessionDelete;
   final bool supportsSessionFork;
   final bool supportsSessionResume;
 
@@ -84,6 +85,7 @@ class CliCapabilities {
     this.supportsEmbeddedContext = false,
     this.supportsSessionList = false,
     this.supportsSessionClose = false,
+    this.supportsSessionDelete = false,
     this.supportsSessionFork = false,
     this.supportsSessionResume = false,
     this.supportsMcpHttp = false,
@@ -100,6 +102,7 @@ class CliCapabilities {
       supportsEmbeddedContext: json['supports_embedded_context'] as bool? ?? false,
       supportsSessionList: json['supports_session_list'] as bool? ?? false,
       supportsSessionClose: json['supports_session_close'] as bool? ?? false,
+      supportsSessionDelete: json['supports_session_delete'] as bool? ?? false,
       supportsSessionFork: json['supports_session_fork'] as bool? ?? false,
       supportsSessionResume: json['supports_session_resume'] as bool? ?? false,
       supportsMcpHttp: json['supports_mcp_http'] as bool? ?? false,

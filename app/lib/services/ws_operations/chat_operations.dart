@@ -160,4 +160,15 @@ class ChatOperations {
         cli: cli ?? _ws.defaultCli,
         sessionId: id,
       ).toJson()));
+
+  /// Permanently delete a session from the Agent's storage by [id].
+  ///
+  /// Unlike [closeSession] which cancels ongoing work, this removes
+  /// the session from persistent history (ACP session/delete).
+  void deleteSession(String id, {String? cli}) => _ws.send(WsMessage(
+      type: MessageType.sessionDelete,
+      payload: SessionDeletePayload(
+        cli: cli ?? _ws.defaultCli,
+        sessionId: id,
+      ).toJson()));
 }

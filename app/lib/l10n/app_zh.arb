@@ -148,6 +148,16 @@
   "chatSessionHistory": "历史会话",
   "chatNoSessions": "没有历史会话",
   "chatEmptySession": "(空会话)",
+  "sessionDeleteTooltip": "永久删除会话",
+  "sessionDeleteConfirmTitle": "删除会话？",
+  "sessionDeleteConfirmBody": "将永久删除「{session}」，此操作无法撤销。",
+  "@sessionDeleteConfirmBody": {
+    "placeholders": {
+      "session": {
+        "type": "String"
+      }
+    }
+  },
   "chatManageProjectHint": "请在设置页面管理项目",
   "chatTapToInput": "点击输入",
   "chatInputInstallAgent": "请先在设置中安装一个 AI Agent",
@@ -616,6 +626,7 @@
   "settingsCapSessionLoad": "会话加载",
   "settingsCapSessionList": "会话列表",
   "settingsCapSessionClose": "会话关闭",
+  "settingsCapSessionDelete": "会话删除",
   "settingsCapSessionFork": "会话分叉",
   "settingsCapSessionResume": "会话恢复",
   "settingsCapImage": "图片输入",

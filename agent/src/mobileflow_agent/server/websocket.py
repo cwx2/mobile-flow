@@ -1050,6 +1050,8 @@ class WebSocketServer:
                    requires_cli=True, requires_project=True)
         r.register(MessageType.SESSION_CLOSE, self._chat.handle_session_close,
                    requires_cli=True, requires_project=True)
+        r.register(MessageType.SESSION_DELETE, self._chat.handle_session_delete,
+                   requires_cli=True, requires_project=True)
 
         # File operations (local, no CLI — requires project)
         # Skipped in wsl-child mode (parent Agent handles file operations)

@@ -136,6 +136,7 @@ class ProviderCapabilities:
     # sessionCapabilities
     supports_session_list: bool = False
     supports_session_close: bool = False
+    supports_session_delete: bool = False
     supports_session_fork: bool = False
     supports_session_resume: bool = False
 
@@ -167,6 +168,7 @@ class ProviderCapabilities:
             "supports_embedded_context": self.supports_embedded_context,
             "supports_session_list": self.supports_session_list,
             "supports_session_close": self.supports_session_close,
+            "supports_session_delete": self.supports_session_delete,
             "supports_session_fork": self.supports_session_fork,
             "supports_session_resume": self.supports_session_resume,
             "supports_mcp_http": self.supports_mcp_http,
@@ -279,6 +281,20 @@ class AgentProvider(ABC):
 
         Args:
             session_id: Session to close.
+        """
+        pass
+
+    async def delete_session(self, session_id: str):
+        """Permanently delete a session from the Agent's storage.
+
+        Unlike close_session (which cancels ongoing work and frees active
+        resources), delete_session removes the session from persistent storage
+        so it no longer appears in session/list.
+
+        Per ACP spec, requires sessionCapabilities.delete.
+
+        Args:
+            session_id: Session to delete.
         """
         pass
 

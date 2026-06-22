@@ -40,6 +40,7 @@ class MessageType {
   static const sessionNew = 'session.new'; // App -> Agent: create new session [request]
   static const sessionSwitch = 'session.switch'; // App -> Agent: switch to existing session [request]
   static const sessionClose = 'session.close'; // App -> Agent: close a session [request]
+  static const sessionDelete = 'session.delete'; // App -> Agent: permanently delete a session [request]
 
   // ── ACP Configuration ──
   static const modeSet = 'mode.set'; // App -> Agent: switch session mode [command]

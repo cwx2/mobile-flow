@@ -83,6 +83,25 @@ class SessionClosePayload(PayloadBase):
     session_id: str
 
 
+class SessionDeletePayload(PayloadBase):
+    """Payload for ``session.delete`` — permanently delete a session.
+
+    Sent by the App to permanently remove a session from the Agent's
+    session list.  Unlike ``session.close`` (which cancels ongoing work
+    and frees active resources), ``session.delete`` removes a session
+    from persistent storage so it no longer appears in ``session/list``.
+
+    Per ACP spec, this requires ``sessionCapabilities.delete``.
+
+    Attributes:
+        cli: Target CLI adapter name.
+        session_id: Identifier of the session to delete.
+    """
+
+    cli: str
+    session_id: str
+
+
 # ── Response payloads (Agent -> App) ──
 
 
@@ -112,3 +131,4 @@ register_payload(MessageType.SESSION_LIST_RESULT, SessionListResultPayload)
 register_payload(MessageType.SESSION_NEW, SessionNewPayload)
 register_payload(MessageType.SESSION_SWITCH, SessionSwitchPayload)
 register_payload(MessageType.SESSION_CLOSE, SessionClosePayload)
+register_payload(MessageType.SESSION_DELETE, SessionDeletePayload)

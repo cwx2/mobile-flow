@@ -51,6 +51,7 @@ class MessageType(str, Enum):
     SESSION_NEW = "session.new"           # App -> Agent: create new session
     SESSION_SWITCH = "session.switch"     # App -> Agent: switch to existing session
     SESSION_CLOSE = "session.close"       # App -> Agent: close a session
+    SESSION_DELETE = "session.delete"     # App -> Agent: permanently delete a session
 
     # ── ACP Configuration ──
     # Mode switching and config option updates (model, thinking, etc.).

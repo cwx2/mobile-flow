@@ -429,6 +429,15 @@ class SEn extends S {
   String get chatEmptySession => '(Empty session)';
 
   @override
+  String get sessionDeleteTooltip => 'Delete session permanently';
+
+  @override
+  String get sessionDeleteConfirmTitle => 'Delete session?';
+
+  @override
+  String sessionDeleteConfirmBody(String session) => 'This will permanently delete "$session". This action cannot be undone.';
+
+  @override
   String get chatManageProjectHint => 'Manage projects in Settings';
 
   @override
@@ -1859,6 +1868,9 @@ class SEn extends S {
 
   @override
   String get settingsCapSessionClose => 'Session Close';
+
+  @override
+  String get settingsCapSessionDelete => 'Session Delete';
 
   @override
   String get settingsCapSessionFork => 'Session Fork';

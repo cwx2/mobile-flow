@@ -1772,6 +1772,40 @@ class CLIManager:
         if self._session_ids.get(session_key) == session_id:
             self._session_ids.pop(session_key, None)
 
+    async def delete_session(self, cli_name: str, client_id: str, session_id: str) -> None:
+        """Permanently delete a session from the Agent's storage.
+
+        Calls ACP session/delete to remove the session from the Agent's
+        persistent storage, then cleans up local SessionStore data.
+        Unlike close_session, this does NOT cancel ongoing work — it
+        removes an inactive session from the list.
+
+        Args:
+            cli_name: CLI adapter name.
+            client_id: WebSocket client identifier.
+            session_id: The session to delete.
+        """
+        session_key = (client_id, cli_name)
+        provider = self._sessions.get(session_key)
+
+        # Call ACP delete_session if supported
+        if provider:
+            try:
+                if hasattr(provider, 'delete_session'):
+                    await provider.delete_session(session_id)
+                    logger.info(f"ACP delete_session 成功: {session_id[:16]}...")
+            except Exception as e:
+                logger.debug(f"ACP delete_session 出错（可忽略）: {e}")
+
+        # Remove from local SessionStore (metadata + persisted history)
+        self.session_store.remove(session_id)
+        self.session_store.remove_history(session_id)
+        logger.info(f"会话已永久删除: {session_id[:16]}...")
+
+        # If the deleted session was the active one, clear it
+        if self._session_ids.get(session_key) == session_id:
+            self._session_ids.pop(session_key, None)
+
     def _build_message(self, message: str, context: Optional[dict] = None) -> str:
         if not context:
             return message

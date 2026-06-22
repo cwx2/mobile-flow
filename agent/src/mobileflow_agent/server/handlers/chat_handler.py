@@ -34,6 +34,7 @@ from mobileflow_protocol.payloads.chat import (
 )
 from mobileflow_protocol.payloads.session import (
     SessionClosePayload,
+    SessionDeletePayload,
     SessionListPayload,
     SessionListResultPayload,
     SessionNewPayload,
@@ -461,6 +462,41 @@ class ChatHandler(BaseHandler):
         session_id = payload.session_id
         logger.info(f"[session.close] 删除会话: {session_id[:16]}...")
         await self.cli_manager.close_session(cli_name, client_id, session_id)
+        # Refresh session list for the App
+        sessions = await self.cli_manager.list_sessions(cli_name, client_id)
+        await self.send(ws, Message.from_typed(
+            type=MessageType.SESSION_LIST_RESULT,
+            payload=SessionListResultPayload(sessions=sessions, cli=cli_name),
+        ))
+
+    async def handle_session_delete(self, client_id, ws, msg):
+        """Permanently delete a session from the Agent's storage.
+
+        Unlike session.close (which cancels ongoing work and frees active
+        resources), session.delete removes an inactive session from
+        persistent storage so it no longer appears in session/list.
+
+        Per ACP spec, requires sessionCapabilities.delete.
+
+        Args:
+            client_id: Identifier of the requesting client.
+            ws: The client's WebSocket connection.
+            msg: Protocol message with ``session_id`` and optional ``cli``.
+        """
+        try:
+            payload = msg.typed_payload(SessionDeletePayload)
+        except PayloadValidationError as e:
+            logger.warning(f"⚠️ session.delete payload 校验失败: client={client_id}, {e}")
+            await self.send(ws, Message.from_typed(
+                type=MessageType.CHAT_ERROR,
+                payload=ChatErrorPayload(error=str(e)),
+            ))
+            return
+
+        cli_name = payload.cli or self.config.default_cli
+        session_id = payload.session_id
+        logger.info(f"[session.delete] 永久删除会话: {session_id[:16]}...")
+        await self.cli_manager.delete_session(cli_name, client_id, session_id)
         # Refresh session list for the App
         sessions = await self.cli_manager.list_sessions(cli_name, client_id)
         await self.send(ws, Message.from_typed(

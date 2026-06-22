@@ -152,6 +152,16 @@
   "chatSessionHistory": "Session history",
   "chatNoSessions": "No session history",
   "chatEmptySession": "(Empty session)",
+  "sessionDeleteTooltip": "Delete session permanently",
+  "sessionDeleteConfirmTitle": "Delete session?",
+  "sessionDeleteConfirmBody": "This will permanently delete \"{session}\". This action cannot be undone.",
+  "@sessionDeleteConfirmBody": {
+    "placeholders": {
+      "session": {
+        "type": "String"
+      }
+    }
+  },
   "chatManageProjectHint": "Manage projects in Settings",
   "chatTapToInput": "Tap to input",
   "chatInputInstallAgent": "Please install an AI Agent in Settings first",
@@ -658,6 +668,7 @@
   "settingsCapSessionLoad": "Session Load",
   "settingsCapSessionList": "Session List",
   "settingsCapSessionClose": "Session Close",
+  "settingsCapSessionDelete": "Session Delete",
   "settingsCapSessionFork": "Session Fork",
   "settingsCapSessionResume": "Session Resume",
   "settingsCapImage": "Image Input",

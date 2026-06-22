@@ -559,6 +559,24 @@ class ACPProvider(AgentProvider):
         except Exception as e:
             logger.warning(f"ACP session/close 失败: {e}")
 
+    async def delete_session(self, session_id: str):
+        """Permanently delete a session via ACP session/delete.
+
+        Removes the session from the Agent's persistent storage so it no
+        longer appears in session/list results. Per ACP spec, this requires
+        the sessionCapabilities.delete capability.
+
+        Args:
+            session_id: The session to permanently delete.
+        """
+        if not self._ensure_capability("supports_session_delete", "delete_session"):
+            return
+        try:
+            await self._conn.delete_session(session_id=session_id)
+            logger.info(f"ACP session/delete 成功: {session_id[:16]}...")
+        except Exception as e:
+            logger.warning(f"ACP session/delete 失败: {e}")
+
     async def load_session(self, session_id: str) -> list[dict]:
         """Load an existing session and collect replayed history events.
 
@@ -1085,6 +1103,7 @@ class ACPProvider(AgentProvider):
             supports_session_load=_get(ac, "load_session"),
             supports_session_list=_get(ac, "session_capabilities", "list"),
             supports_session_close=_get(ac, "session_capabilities", "close"),
+            supports_session_delete=_get(ac, "session_capabilities", "delete"),
             supports_session_fork=_get(ac, "session_capabilities", "fork"),
             supports_session_resume=_get(ac, "session_capabilities", "resume"),
             supports_image=_get(ac, "prompt_capabilities", "image"),

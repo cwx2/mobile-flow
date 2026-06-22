@@ -112,3 +112,26 @@ class SessionClosePayload {
         'session_id': sessionId,
       };
 }
+
+/// Payload for ``session.delete`` — permanently delete a session.
+class SessionDeletePayload {
+  final String cli;
+  final String sessionId;
+
+  const SessionDeletePayload({
+    required this.cli,
+    required this.sessionId,
+  });
+
+  factory SessionDeletePayload.fromJson(Map<String, dynamic> json) {
+    return SessionDeletePayload(
+      cli: json['cli'] as String? ?? '',
+      sessionId: json['session_id'] as String? ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'cli': cli,
+        'session_id': sessionId,
+      };
+}

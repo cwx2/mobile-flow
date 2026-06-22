@@ -1,8 +1,9 @@
 /// session_picker.dart — Session history picker bottom sheet.
 ///
 /// Shows a list of existing chat sessions from the Agent, allowing
-/// the user to switch between conversations. Supports swipe-to-delete
-/// and displays session preview, project path, and last activity time.
+/// the user to switch between conversations. Supports swipe-to-close
+/// and optional delete with confirmation dialog based on CLI capabilities.
+library;
 
 import 'dart:async';
 
@@ -10,6 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../components/app_bottom_sheet.dart';
+import '../components/app_dialog.dart';
 import '../l10n/app_localizations.dart';
 import '../models/payloads/session_payloads.g.dart';
 import '../models/protocol.dart';
@@ -22,7 +24,9 @@ final _log = getLogger('SessionPicker');
 /// Show the session picker bottom sheet.
 ///
 /// Sends a session.list request to the Agent and waits for the response.
-/// Displays sessions in a bottom sheet with swipe-to-delete support.
+/// Displays sessions in a bottom sheet with swipe-to-close support
+/// and optional delete action (shown only when the Agent advertises
+/// sessionCapabilities.delete).
 ///
 /// [guardSessionSwitch] is called before switching to confirm with the
 /// user if AI is actively responding (prevents accidental interruption).
@@ -52,9 +56,13 @@ void showSessionPicker({
         return;
       }
 
+      final caps = ws.cliCapabilities;
+      final canClose = caps.supportsSessionClose;
+      final canDelete = caps.supportsSessionDelete;
+
       AppBottomSheet.show(
         context,
-        builder: (_) => ListView(
+        builder: (sheetContext) => ListView(
           shrinkWrap: true,
           children: [
             Padding(
@@ -91,12 +99,14 @@ void showSessionPicker({
 
               return Dismissible(
                 key: ValueKey(id),
-                direction: DismissDirection.endToStart,
+                direction: canClose
+                    ? DismissDirection.endToStart
+                    : DismissDirection.none,
                 background: Container(
                   alignment: Alignment.centerRight,
                   padding: EdgeInsets.only(right: context.spacing.lg),
                   color: colors.error.withValues(alpha: 0.15),
-                  child: Icon(Icons.delete_outline, color: colors.error),
+                  child: Icon(Icons.close, color: colors.error),
                 ),
                 onDismissed: (_) {
                   ws.chatOps.closeSession(id);
@@ -120,6 +130,16 @@ void showSessionPicker({
                       color: colors.onSurfaceMuted,
                     ),
                   ),
+                  trailing: canDelete
+                      ? IconButton(
+                          icon: Icon(Icons.delete_outline,
+                              color: colors.error, size: 20),
+                          tooltip: S.of(sheetContext).sessionDeleteTooltip,
+                          onPressed: () => _confirmDelete(
+                            sheetContext, ws, id, preview,
+                          ),
+                        )
+                      : null,
                   onTap: () {
                     Navigator.pop(context);
                     guardSessionSwitch(() => ws.chatOps.switchSession(id));
@@ -132,4 +152,28 @@ void showSessionPicker({
       ).whenComplete(() => openGuard.value = false);
     }
   });
+}
+
+/// Show a confirmation dialog before permanently deleting a session.
+Future<void> _confirmDelete(
+  BuildContext context,
+  WebSocketService ws,
+  String sessionId,
+  String preview,
+) async {
+  final l10n = S.of(context);
+  final displayName = preview.isNotEmpty ? preview : l10n.chatEmptySession;
+
+  final confirmed = await showAppConfirmDialog(
+    context,
+    title: l10n.sessionDeleteConfirmTitle,
+    message: l10n.sessionDeleteConfirmBody(displayName),
+    confirmLabel: l10n.commonDelete,
+    isDanger: true,
+  );
+
+  if (confirmed == true) {
+    ws.chatOps.deleteSession(sessionId);
+    _log.info('[SessionPicker] 永久删除会话: ${sessionId.substring(0, 16)}...');
+  }
 }

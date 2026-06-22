@@ -409,6 +409,15 @@ class SZh extends S {
   String get chatEmptySession => '(空会话)';
 
   @override
+  String get sessionDeleteTooltip => '永久删除会话';
+
+  @override
+  String get sessionDeleteConfirmTitle => '删除会话？';
+
+  @override
+  String sessionDeleteConfirmBody(String session) => '将永久删除「$session」，此操作无法撤销。';
+
+  @override
   String get chatManageProjectHint => '请在设置页面管理项目';
 
   @override
@@ -1817,6 +1826,9 @@ class SZh extends S {
 
   @override
   String get settingsCapSessionClose => '会话关闭';
+
+  @override
+  String get settingsCapSessionDelete => '会话删除';
 
   @override
   String get settingsCapSessionFork => '会话分叉';

@@ -883,6 +883,24 @@ abstract class S {
   /// **'(Empty session)'**
   String get chatEmptySession;
 
+  /// No description provided for @sessionDeleteTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete session permanently'**
+  String get sessionDeleteTooltip;
+
+  /// No description provided for @sessionDeleteConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete session?'**
+  String get sessionDeleteConfirmTitle;
+
+  /// No description provided for @sessionDeleteConfirmBody.
+  ///
+  /// In en, this message translates to:
+  /// **'This will permanently delete "{session}". This action cannot be undone.'**
+  String sessionDeleteConfirmBody(String session);
+
   /// No description provided for @chatManageProjectHint.
   ///
   /// In en, this message translates to:
@@ -3540,6 +3558,12 @@ abstract class S {
   /// In en, this message translates to:
   /// **'Session Close'**
   String get settingsCapSessionClose;
+
+  /// No description provided for @settingsCapSessionDelete.
+  ///
+  /// In en, this message translates to:
+  /// **'Session Delete'**
+  String get settingsCapSessionDelete;
 
   /// No description provided for @settingsCapSessionFork.
   ///

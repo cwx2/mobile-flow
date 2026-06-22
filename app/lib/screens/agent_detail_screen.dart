@@ -209,6 +209,8 @@ class AgentDetailScreen extends StatelessWidget {
           adapter['supports_session_list'] == true, Icons.list_alt),
       _CapEntry(S.of(context).settingsCapSessionClose,
           adapter['supports_session_close'] == true, Icons.close),
+      _CapEntry(S.of(context).settingsCapSessionDelete,
+          adapter['supports_session_delete'] == true, Icons.delete_outline),
       _CapEntry(S.of(context).settingsCapSessionFork,
           adapter['supports_session_fork'] == true, Icons.call_split),
       _CapEntry(S.of(context).settingsCapSessionResume,
